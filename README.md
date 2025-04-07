@@ -1,6 +1,8 @@
 # Aider MCP Server - Experimental
 > Model context protocol server for offloading AI coding work to Aider, enhancing development efficiency and flexibility.
 
+[![smithery badge](https://smithery.ai/badge/@disler/aider-mcp-server)](https://smithery.ai/server/@disler/aider-mcp-server)
+
 ## Overview
 
 This server allows Claude Code to offload AI coding tasks to Aider, the best open source AI coding assistant. By delegating certain coding tasks to Aider, we can reduce costs, gain control over our coding model and operate Claude Code in a more orchestrative way to review and revise code.
