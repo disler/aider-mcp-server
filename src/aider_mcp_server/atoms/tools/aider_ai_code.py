@@ -11,6 +11,22 @@ from aider_mcp_server.atoms.logging import get_logger
 # Configure logging for this module
 logger = get_logger(__name__)
 
+def check_api_keys():
+    """Check if necessary API keys are set in the environment and log their status."""
+    keys_to_check = {
+        "OPENAI_API_KEY": "OpenAI",
+        "GOOGLE_API_KEY": "Google/Gemini",
+        "ANTHROPIC_API_KEY": "Anthropic/Claude",
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI"
+    }
+    
+    logger.info("Checking API keys in environment...")
+    for key, provider in keys_to_check.items():
+        if os.environ.get(key):
+            logger.info(f"✓ {provider} API key found ({key})")
+        else:
+            logger.warning(f"✗ {provider} API key missing ({key})")
+
 # Type alias for response dictionary
 ResponseDict = Dict[str, Union[bool, str]]
 
@@ -236,6 +252,9 @@ def code_with_aider(
     """
     logger.info("Starting code_with_aider process.")
     logger.info(f"Prompt: '{ai_coding_prompt}'")
+    
+    # Check API keys at the beginning
+    check_api_keys()
 
     # Working directory must be provided
     if not working_dir:
@@ -251,8 +270,28 @@ def code_with_aider(
     try:
         # Configure the model
         logger.info("Configuring AI model...")  # Point 1: Before init
-        ai_model = Model(model)
-        logger.info(f"Configured model: {model}")
+        logger.info(f"Attempting to initialize model: {model}")
+        try:
+            # Check environment variables
+            api_key_env = None
+            if "openai" in model.lower():
+                api_key_env = os.environ.get("OPENAI_API_KEY")
+                logger.info(f"OpenAI API key present: {bool(api_key_env)}")
+            elif "gemini" in model.lower() or "google" in model.lower():
+                api_key_env = os.environ.get("GOOGLE_API_KEY")
+                logger.info(f"Google API key present: {bool(api_key_env)}")
+            elif "anthropic" in model.lower():
+                api_key_env = os.environ.get("ANTHROPIC_API_KEY")
+                logger.info(f"Anthropic API key present: {bool(api_key_env)}")
+            
+            if not api_key_env:
+                logger.warning(f"No API key found for model type: {model}")
+            
+            ai_model = Model(model)
+            logger.info(f"Successfully configured model: {model}")
+        except Exception as model_error:
+            logger.exception(f"Error initializing model {model}: {str(model_error)}")
+            raise
         logger.info("AI model configured.")  # Point 2: After init
 
         # Create the coder instance
@@ -295,8 +334,20 @@ def code_with_aider(
 
         # Run the coding session
         logger.info("Starting Aider coding session...")  # Point 3: Before run
-        result = coder.run(ai_coding_prompt)
-        logger.info(f"Aider coding session result: {result}")
+        try:
+            result = coder.run(ai_coding_prompt)
+            logger.info(f"Aider coding session result: {result}")
+        except Exception as run_error:
+            logger.exception(f"Error during Aider coding session: {str(run_error)}")
+            # Check if it's an authentication error
+            error_str = str(run_error).lower()
+            if any(term in error_str for term in ["auth", "api key", "credential", "unauthorized", "permission"]):
+                logger.critical("Authentication error detected. Please check your API keys.")
+                return json.dumps({
+                    "success": False,
+                    "diff": f"Authentication error: {str(run_error)}. Please check your API keys and permissions."
+                })
+            raise
         logger.info("Aider coding session finished.")  # Point 4: After run
 
         # Process the results after the coder has run
