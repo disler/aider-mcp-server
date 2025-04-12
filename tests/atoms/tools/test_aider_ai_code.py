@@ -178,6 +178,9 @@ def test_division(temp_dir):
 def test_failure_case(temp_dir):
     """Test that code_with_aider returns error information for a failure scenario."""
     
+    # Save the original directory before changing it
+    original_dir = os.getcwd()
+
     try:
         # Ensure this test runs in a non-git directory
         os.chdir(temp_dir)
@@ -210,8 +213,12 @@ def test_failure_case(temp_dir):
         assert "File contents after editing (git not used):" in diff_content or "No meaningful changes detected" in diff_content, \
                f"Expected error information like 'File contents after editing' or 'No meaningful changes' in diff, but got: {diff_content}"
     finally:
-        # Make sure we go back to the main directory
-        os.chdir("/Users/indydevdan/Documents/projects/aider-mcp-exp")
+        # Make sure we go back to the original directory
+        try:
+            os.chdir(original_dir)
+        except FileNotFoundError:
+            # If original directory is somehow no longer valid, use a safe fallback
+            os.chdir(os.path.expanduser("~"))
 
 def test_complex_tasks(temp_dir):
     """Test that code_with_aider correctly implements more complex tasks."""

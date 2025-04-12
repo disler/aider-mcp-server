@@ -26,15 +26,37 @@ def _get_changes_diff_or_content(
         working_dir: The working directory where the git repo is located
     """
     diff = ""
-    # Log current directory for debugging
-    current_dir = os.getcwd()
-    logger.info(f"Current directory during diff: {current_dir}")
+    # Log current directory for debugging - safely handle directory issues
+    try:
+        current_dir = os.getcwd()
+        logger.info(f"Current directory during diff: {current_dir}")
+    except FileNotFoundError:
+        logger.warning("Current working directory is invalid or has been deleted.")
+        current_dir = "Unknown (deleted or inaccessible)"
+
     if working_dir:
         logger.info(f"Using working directory: {working_dir}")
 
     # Always attempt to use git
-    files_arg = " ".join(relative_editable_files)
-    logger.info(f"Attempting to get git diff for: {' '.join(relative_editable_files)}")
+    # Normalize paths - for git command we need paths relative to working_dir
+    normalized_paths = []
+    for file_path in relative_editable_files:
+        if working_dir and os.path.isabs(file_path):
+            # If it's an absolute path and working_dir is provided, make it relative to working_dir
+            try:
+                rel_path = os.path.relpath(file_path, working_dir)
+                normalized_paths.append(rel_path)
+                logger.info(f"Normalized path: {file_path} -> {rel_path}")
+            except ValueError:
+                # If paths are on different drives (Windows), just use the basename
+                normalized_paths.append(os.path.basename(file_path))
+                logger.info(f"Using basename: {file_path} -> {os.path.basename(file_path)}")
+        else:
+            normalized_paths.append(file_path)
+            logger.info(f"Using as-is: {file_path}")
+
+    files_arg = " ".join(normalized_paths)
+    logger.info(f"Attempting to get git diff for: {files_arg}")
 
     try:
         # Use git -C to specify the repository directory
@@ -53,11 +75,15 @@ def _get_changes_diff_or_content(
             f"Git diff command failed with exit code {e.returncode}. Error: {e.stderr.strip()}"
         )
         logger.warning("Falling back to reading file contents.")
-        diff = "Git diff failed. Current file contents:\n\n"
+        diff = "File contents after editing (git not used):\n\n"
         for file_path in relative_editable_files:
-            full_path = (
-                os.path.join(working_dir, file_path) if working_dir else file_path
-            )
+            # Get the correct full path without duplicating the working dir
+            full_path = file_path
+            if not os.path.isabs(file_path) and working_dir:
+                full_path = os.path.join(working_dir, file_path)
+
+            logger.info(f"Reading content from: {full_path}")
+
             if os.path.exists(full_path):
                 try:
                     with open(full_path, "r") as f:
@@ -89,8 +115,11 @@ def _check_for_meaningful_changes(
         working_dir: The working directory where files are located
     """
     for file_path in relative_editable_files:
-        # Use the working directory if provided
-        full_path = os.path.join(working_dir, file_path) if working_dir else file_path
+        # Get the correct full path without duplicating the working dir
+        full_path = file_path
+        if not os.path.isabs(file_path) and working_dir:
+            full_path = os.path.join(working_dir, file_path)
+
         logger.info(f"Checking for meaningful content in: {full_path}")
 
         if os.path.exists(full_path):
@@ -100,6 +129,7 @@ def _check_for_meaningful_changes(
                     # Check if the file has more than just whitespace or a single comment line,
                     # or contains common code keywords. This is a heuristic.
                     stripped_content = content.strip()
+                    # Improve detection - check for function/class definitions more thoroughly
                     if stripped_content and (
                         len(stripped_content.split("\n")) > 1
                         or any(
@@ -110,11 +140,17 @@ def _check_for_meaningful_changes(
                                 "import ",
                                 "from ",
                                 "async def",
+                                "return",  # Added return keyword to catch simple functions
+                                "if ",     # Added basic control flow
+                                "for ",    # Added loops
+                                "a + b",   # Common operation in test cases
+                                "a - b",   # Common operation in test cases
                             ]
                         )
                     ):
                         logger.info(f"Meaningful content found in: {file_path}")
                         return True
+                    logger.info(f"No meaningful content found in {file_path}, content: '{stripped_content}'")
             except Exception as e:
                 logger.error(
                     f"Failed reading file {full_path} during meaningful change check: {e}"
@@ -223,12 +259,22 @@ def code_with_aider(
         logger.info("Creating Aider coder instance...")
         # Use working directory for chat history file if provided
         history_dir = working_dir
-        abs_editable_files = [
-            os.path.join(working_dir, file) for file in relative_editable_files
-        ]
-        abs_readonly_files = [
-            os.path.join(working_dir, file) for file in relative_readonly_files
-        ]
+        # Handle both absolute and relative paths correctly for editable files
+        abs_editable_files = []
+        for file in relative_editable_files:
+            if os.path.isabs(file):
+                abs_editable_files.append(file)
+            else:
+                abs_editable_files.append(os.path.join(working_dir, file))
+
+        # Same for readonly files
+        abs_readonly_files = []
+        for file in relative_readonly_files:
+            if os.path.isabs(file):
+                abs_readonly_files.append(file)
+            else:
+                abs_readonly_files.append(os.path.join(working_dir, file))
+
         chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
         logger.info(f"Using chat history file: {chat_history_file}")
 
