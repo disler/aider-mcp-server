@@ -7,6 +7,22 @@ Run this script to check if your API keys are working correctly.
 import os
 import sys
 import logging
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+env_path = Path(os.path.dirname(__file__)) / '.env'
+if env_path.exists():
+    print(f"Loading environment variables from {env_path}")
+    load_dotenv(dotenv_path=env_path)
+else:
+    print(f"Warning: .env file not found at {env_path}")
+    # Try loading from the current directory
+    if Path('.env').exists():
+        print("Loading environment variables from ./.env")
+        load_dotenv()
+    else:
+        print("Warning: No .env file found in current directory either")
 
 # Ensure the src directory is in the path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
