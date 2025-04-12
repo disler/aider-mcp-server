@@ -8,11 +8,16 @@ import os
 import sys
 import logging
 
-# Add the parent directory to sys.path to allow relative imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Ensure the src directory is in the path
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from aider.models import Model
-from src.aider_mcp_server.atoms.logging import get_logger
+try:
+    from aider.models import Model
+    from src.aider_mcp_server.atoms.logging import get_logger
+except ImportError:
+    print("Error: Required modules not found. Make sure you have installed the package.")
+    print("Try running: pip install -e .")
+    sys.exit(1)
 
 # Configure logging
 logger = get_logger("debug_auth")
@@ -75,6 +80,8 @@ def main():
     print("3. Ensure you have billing set up for the respective services")
     print("4. Check for any IP restrictions or VPN issues")
     print("5. Verify your system time is correct (important for API signatures)")
+    print("6. Check if your API keys have the correct scope/permissions")
+    print("7. Verify network connectivity to the API endpoints")
 
 if __name__ == "__main__":
     main()
