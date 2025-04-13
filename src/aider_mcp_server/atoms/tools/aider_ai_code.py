@@ -155,12 +155,8 @@ def _check_for_meaningful_changes(
                                 "class ",
                                 "import ",
                                 "from ",
-                                "async def",
-                                "return",  # Added return keyword to catch simple functions
-                                "if ",     # Added basic control flow
-                                "for ",    # Added loops
-                                "a + b",   # Common operation in test cases
-                                "a - b",   # Common operation in test cases
+                                "async def ",
+                                "return ",
                             ]
                         )
                     ):
