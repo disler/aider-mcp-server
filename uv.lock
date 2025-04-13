@@ -118,6 +118,7 @@ dependencies = [
     { name = "boto3" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "rich" },
 ]
 
@@ -137,6 +138,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pytest-mock", marker = "extra == 'dev'" },
+    { name = "python-dotenv" },
     { name = "rich", specifier = ">=14.0.0" },
 ]
 provides-extras = ["dev"]

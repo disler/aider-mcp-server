@@ -8,11 +8,51 @@ from aider.coders import Coder
 from aider.io import InputOutput
 from aider_mcp_server.atoms.logging import get_logger
 
+# Try to import dotenv for environment variable loading
+try:
+    from dotenv import load_dotenv
+    HAS_DOTENV = True
+except ImportError:
+    HAS_DOTENV = False
+
 # Configure logging for this module
 logger = get_logger(__name__)
 
-def check_api_keys():
+def load_env_files(working_dir=None):
+    """Load environment variables from .env files in relevant directories."""
+    if not HAS_DOTENV:
+        logger.warning("python-dotenv not installed. Cannot load .env files.")
+        return
+
+    # List of potential locations for .env files in order of precedence
+    env_locations = []
+
+    # Add working_dir if provided
+    if working_dir:
+        env_locations.append(working_dir)
+
+    # Add current directory
+    env_locations.append(os.getcwd())
+
+    # Add parent directory of current directory
+    env_locations.append(os.path.dirname(os.getcwd()))
+
+    # Add user's home directory
+    env_locations.append(os.path.expanduser("~"))
+
+    # Load .env from each location if it exists
+    for location in env_locations:
+        env_path = os.path.join(location, ".env")
+        if os.path.isfile(env_path):
+            logger.info(f"Loading environment variables from {env_path}")
+            load_dotenv(env_path)
+            # Don't break - load all .env files to allow for overrides
+
+def check_api_keys(working_dir=None):
     """Check if necessary API keys are set in the environment and log their status."""
+    # First load any .env files
+    load_env_files(working_dir)
+
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
         "GOOGLE_API_KEY": "Google/Gemini",
@@ -256,8 +296,8 @@ def code_with_aider(
     logger.info("Starting code_with_aider process.")
     logger.info(f"Prompt: '{ai_coding_prompt}'")
     
-    # Check API keys at the beginning
-    check_api_keys()
+    # Check API keys at the beginning - now passing working_dir
+    check_api_keys(working_dir)
 
     # Working directory must be provided
     if not working_dir:
