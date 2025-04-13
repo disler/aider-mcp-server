@@ -20,8 +20,10 @@ def main():
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
         "GOOGLE_API_KEY": "Google/Gemini",
+        "GEMINI_API_KEY": "Google/Gemini (alternative)",
         "ANTHROPIC_API_KEY": "Anthropic/Claude",
-        "AZURE_OPENAI_API_KEY": "Azure OpenAI"
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI",
+        "VERTEX_AI_API_KEY": "Vertex AI"
     }
     
     print("\nAPI Keys in environment:")

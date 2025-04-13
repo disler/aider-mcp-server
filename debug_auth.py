@@ -43,8 +43,10 @@ def check_environment_variables():
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
         "GOOGLE_API_KEY": "Google/Gemini",
+        "GEMINI_API_KEY": "Google/Gemini (alternative)",
         "ANTHROPIC_API_KEY": "Anthropic/Claude",
-        "AZURE_OPENAI_API_KEY": "Azure OpenAI"
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI",
+        "VERTEX_AI_API_KEY": "Vertex AI"
     }
     
     print("Checking API keys in environment:")
@@ -78,6 +80,14 @@ def main():
     
     # Check environment variables
     missing_keys = check_environment_variables()
+    
+    # Special handling for Gemini/Google API keys
+    if "GOOGLE_API_KEY" in missing_keys and os.environ.get("GEMINI_API_KEY"):
+        print("\nFound GEMINI_API_KEY but not GOOGLE_API_KEY. Setting GOOGLE_API_KEY for compatibility.")
+        os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
+        # Remove from missing keys if it was there
+        if "GOOGLE_API_KEY" in missing_keys:
+            missing_keys.remove("GOOGLE_API_KEY")
     
     # Test models based on available keys
     if "OPENAI_API_KEY" not in missing_keys:

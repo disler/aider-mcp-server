@@ -16,8 +16,10 @@ def check_api_keys():
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
         "GOOGLE_API_KEY": "Google/Gemini",
+        "GEMINI_API_KEY": "Google/Gemini (alternative)",
         "ANTHROPIC_API_KEY": "Anthropic/Claude",
-        "AZURE_OPENAI_API_KEY": "Azure OpenAI"
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI",
+        "VERTEX_AI_API_KEY": "Vertex AI"
     }
     
     logger.info("Checking API keys in environment...")
@@ -26,6 +28,11 @@ def check_api_keys():
             logger.info(f"✓ {provider} API key found ({key})")
         else:
             logger.warning(f"✗ {provider} API key missing ({key})")
+    
+    # Special handling for Gemini/Google - check if we need to copy between variables
+    if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+        os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
 
 # Type alias for response dictionary
 ResponseDict = Dict[str, Union[bool, str]]
@@ -274,8 +281,13 @@ def code_with_aider(
                 api_key_env = os.environ.get("OPENAI_API_KEY")
                 logger.info(f"OpenAI API key present: {bool(api_key_env)}")
             elif "gemini" in model.lower() or "google" in model.lower():
-                api_key_env = os.environ.get("GOOGLE_API_KEY")
-                logger.info(f"Google API key present: {bool(api_key_env)}")
+                # Check both possible environment variable names for Gemini
+                api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+                logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
+                # If using GEMINI_API_KEY, set GOOGLE_API_KEY for compatibility with aider
+                if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
+                    os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
+                    logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
             elif "anthropic" in model.lower():
                 api_key_env = os.environ.get("ANTHROPIC_API_KEY")
                 logger.info(f"Anthropic API key present: {bool(api_key_env)}")
