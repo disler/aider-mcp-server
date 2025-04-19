@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 import argparse
 from aider_mcp_server.__main__ import main
-from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL
+from aider_mcp_server.atoms.atom_utils import DEFAULT_EDITOR_MODEL
 
 @pytest.fixture
 def mock_serve():

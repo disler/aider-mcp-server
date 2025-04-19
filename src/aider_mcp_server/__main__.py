@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 from aider_mcp_server.server import serve
-from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL
+from aider_mcp_server.atoms.atom_utils import DEFAULT_EDITOR_MODEL
 
 def main():
     # Create the argument parser

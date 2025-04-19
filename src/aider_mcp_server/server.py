@@ -12,7 +12,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL
+from aider_mcp_server.atoms.atom_utils import DEFAULT_EDITOR_MODEL
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
 

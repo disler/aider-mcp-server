@@ -3,10 +3,17 @@ from typing import List, Optional, Dict, Any, Union
 import os
 import os.path
 import subprocess
+import time
 from aider.models import Model
 from aider.coders import Coder
 from aider.io import InputOutput
 from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.utils.fallback_config import (
+    detect_rate_limit_error,
+    handle_rate_limit,
+    apply_rate_limit_delay,
+    get_fallback_model
+)
 
 # Try to import dotenv for environment variable loading
 try:
@@ -17,6 +24,58 @@ except ImportError:
 
 # Configure logging for this module
 logger = get_logger(__name__)
+
+# Load fallback configuration
+import os
+import pathlib
+
+# First, try getting the package directory path to find .rate-limit-fallback.json
+try:
+    # Get the directory where this module is located
+    current_dir = pathlib.Path(__file__).parent.absolute()
+    # Navigate up from tools/aider_ai_code.py to the repository root (4 levels up)
+    repo_root = current_dir.parents[3]  # atoms/tools -> atoms -> aider_mcp_server -> src -> repo_root
+    mcp_json_path = os.path.join(repo_root, '.rate-limit-fallback.json')
+    
+    # Try alternative locations if the default location doesn't work
+    if not os.path.exists(mcp_json_path):
+        # Try the parent directory of the repo root
+        mcp_json_path = os.path.join(repo_root.parent, '.rate-limit-fallback.json')
+    
+    if not os.path.exists(mcp_json_path):
+        # Try the current working directory
+        mcp_json_path = os.path.join(os.getcwd(), '.rate-limit-fallback.json')
+    
+    logger.info(f"Loading fallback config from: {mcp_json_path}")
+    with open(mcp_json_path, 'r') as f:
+        fallback_config = json.load(f)['fallback_config']
+    logger.info("Successfully loaded fallback configuration")
+except Exception as e:
+    logger.warning(f"Error loading fallback config: {e}")
+    # Use default fallback configuration
+    fallback_config = {
+        "openai": {
+            "rate_limit_errors": ["rate_limit_exceeded", "insufficient_quota"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["gpt-3.5-turbo", "gpt-3.5-turbo-16k"]
+        },
+        "anthropic": {
+            "rate_limit_errors": ["rate_limit_exceeded"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["claude-2", "claude-instant-1"]
+        },
+        "gemini": {
+            "rate_limit_errors": ["quota_exceeded", "rate_limit_exceeded"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["gemini-pro", "gemini-1.0-pro"]
+        }
+    }
 
 def load_env_files(working_dir=None):
     """Load environment variables from .env files in relevant directories."""
@@ -291,7 +350,7 @@ def code_with_aider(
         working_dir (str, required): The working directory where git repository is located and files are stored.
 
     Returns:
-        Dict[str, Any]: {'success': True/False, 'diff': str with git diff output}
+        str: JSON string containing 'success', 'diff', and additional rate limit information.
     """
     logger.info("Starting code_with_aider process.")
     logger.info(f"Prompt: '{ai_coding_prompt}'")
@@ -308,124 +367,116 @@ def code_with_aider(
     logger.info(f"Working directory: {working_dir}")
     logger.info(f"Editable files: {relative_editable_files}")
     logger.info(f"Readonly files: {relative_readonly_files}")
-    logger.info(f"Model: {model}")
+    logger.info(f"Initial model: {model}")
+
+    response = {
+        "success": False,
+        "diff": "",
+        "rate_limit_info": {
+            "encountered": False,
+            "retries": 0,
+            "fallback_model": None
+        }
+    }
 
     try:
-        # Configure the model
-        logger.info("Configuring AI model...")  # Point 1: Before init
-        logger.info(f"Attempting to initialize model: {model}")
-        try:
-            # Check environment variables
-            api_key_env = None
-            if "openai" in model.lower():
-                api_key_env = os.environ.get("OPENAI_API_KEY")
-                logger.info(f"OpenAI API key present: {bool(api_key_env)}")
-            elif "gemini" in model.lower() or "google" in model.lower():
-                # Check both possible environment variable names for Gemini
-                api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-                logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
-                # If using GEMINI_API_KEY, set GOOGLE_API_KEY for compatibility with aider
-                if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-                    os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
-                    logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-            elif "anthropic" in model.lower():
-                api_key_env = os.environ.get("ANTHROPIC_API_KEY")
-                logger.info(f"Anthropic API key present: {bool(api_key_env)}")
-            
-            if not api_key_env:
-                logger.warning(f"No API key found for model type: {model}")
-            
-            ai_model = Model(model)
-            logger.info(f"Successfully configured model: {model}")
-        except Exception as model_error:
-            logger.exception(f"Error initializing model {model}: {str(model_error)}")
-            raise
-        logger.info("AI model configured.")  # Point 2: After init
+        # Determine the provider based on the model name
+        provider = "openai" if "openai" in model.lower() else "anthropic" if "anthropic" in model.lower() else "gemini"
+        
+        max_retries = fallback_config[provider]['max_retries']
+        initial_delay = fallback_config[provider]['initial_delay']
+        backoff_factor = fallback_config[provider]['backoff_factor']
 
-        # Create the coder instance
-        logger.info("Creating Aider coder instance...")
-        # Use working directory for chat history file if provided
-        history_dir = working_dir
-        # Handle both absolute and relative paths correctly for editable files
-        abs_editable_files = []
-        for file in relative_editable_files:
-            if os.path.isabs(file):
-                abs_editable_files.append(file)
-            else:
-                abs_editable_files.append(os.path.join(working_dir, file))
+        for attempt in range(max_retries + 1):
+            try:
+                # Configure the model
+                logger.info(f"Configuring AI model (Attempt {attempt + 1})...")
+                logger.info(f"Attempting to initialize model: {model}")
+                
+                # Check environment variables
+                api_key_env = None
+                if "openai" in model.lower():
+                    api_key_env = os.environ.get("OPENAI_API_KEY")
+                    logger.info(f"OpenAI API key present: {bool(api_key_env)}")
+                elif "gemini" in model.lower() or "google" in model.lower():
+                    api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+                    logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
+                    if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
+                        os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
+                        logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+                elif "anthropic" in model.lower():
+                    api_key_env = os.environ.get("ANTHROPIC_API_KEY")
+                    logger.info(f"Anthropic API key present: {bool(api_key_env)}")
+                
+                if not api_key_env:
+                    logger.warning(f"No API key found for model type: {model}")
+                
+                ai_model = Model(model)
+                logger.info(f"Successfully configured model: {model}")
 
-        # Same for readonly files
-        abs_readonly_files = []
-        for file in relative_readonly_files:
-            if os.path.isabs(file):
-                abs_readonly_files.append(file)
-            else:
-                abs_readonly_files.append(os.path.join(working_dir, file))
+                # Create the coder instance
+                logger.info("Creating Aider coder instance...")
+                history_dir = working_dir
+                abs_editable_files = [os.path.join(working_dir, f) if not os.path.isabs(f) else f for f in relative_editable_files]
+                abs_readonly_files = [os.path.join(working_dir, f) if not os.path.isabs(f) else f for f in relative_readonly_files]
+                chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
+                logger.info(f"Using chat history file: {chat_history_file}")
 
-        chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
-        logger.info(f"Using chat history file: {chat_history_file}")
+                coder = Coder.create(
+                    main_model=ai_model,
+                    io=InputOutput(yes=True, chat_history_file=chat_history_file),
+                    fnames=abs_editable_files,
+                    read_only_fnames=abs_readonly_files,
+                    auto_commits=False,
+                    suggest_shell_commands=False,
+                    detect_urls=False,
+                    use_git=True,
+                )
+                logger.info("Aider coder instance created successfully.")
 
-        coder = Coder.create(
-            main_model=ai_model,
-            io=InputOutput(
-                yes=True,
-                chat_history_file=chat_history_file,
-            ),
-            fnames=abs_editable_files,
-            read_only_fnames=abs_readonly_files,
-            auto_commits=False,  # We'll handle commits separately
-            suggest_shell_commands=False,
-            detect_urls=False,
-            use_git=True,  # Always use git
-        )
-        logger.info("Aider coder instance created successfully.")
+                # Run the coding session
+                logger.info("Starting Aider coding session...")
+                result = coder.run(ai_coding_prompt)
+                logger.info(f"Aider coding session result: {result}")
 
-        # Run the coding session
-        logger.info("Starting Aider coding session...")  # Point 3: Before run
-        try:
-            result = coder.run(ai_coding_prompt)
-            logger.info(f"Aider coding session result: {result}")
-        except Exception as run_error:
-            logger.exception(f"Error during Aider coding session: {str(run_error)}")
-            # Check if it's an authentication error
-            error_str = str(run_error).lower()
-            if any(term in error_str for term in ["auth", "api key", "credential", "unauthorized", "permission"]):
-                logger.critical("Authentication error detected. Please check your API keys.")
-                return json.dumps({
-                    "success": False,
-                    "diff": f"Authentication error: {str(run_error)}. Please check your API keys and permissions."
-                })
-            raise
-        logger.info("Aider coding session finished.")  # Point 4: After run
+                # Process the results after the coder has run
+                logger.info("Processing coder results...")
+                response = _process_coder_results(relative_editable_files, working_dir)
+                logger.info("Coder results processed.")
+                
+                # If we reach here, the operation was successful
+                break
 
-        # Process the results after the coder has run
-        logger.info("Processing coder results...")  # Point 5: Processing results
-        try:
-            response = _process_coder_results(relative_editable_files, working_dir)
-            logger.info("Coder results processed.")
-        except Exception as e:
-            logger.exception(
-                f"Error processing coder results: {str(e)}"
-            )  # Point 6: Error
-            response = {
-                "success": False,
-                "diff": f"Error processing files after execution: {str(e)}",
-            }
+            except Exception as e:
+                logger.warning(f"Error during Aider execution (Attempt {attempt + 1}): {str(e)}")
+                
+                if detect_rate_limit_error(e, provider):
+                    logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
+                    response["rate_limit_info"]["encountered"] = True
+                    response["rate_limit_info"]["retries"] += 1
+
+                    if attempt < max_retries:
+                        delay = initial_delay * (backoff_factor ** attempt)
+                        logger.info(f"Retrying after {delay} seconds...")
+                        time.sleep(delay)
+                        model = get_fallback_model(model, provider)
+                        response["rate_limit_info"]["fallback_model"] = model
+                        logger.info(f"Falling back to model: {model}")
+                    else:
+                        logger.error("Max retries reached. Unable to complete the request.")
+                        raise
+                else:
+                    # If it's not a rate limit error, re-raise the exception
+                    raise
 
     except Exception as e:
-        logger.exception(
-            f"Critical Error in code_with_aider: {str(e)}"
-        )  # Point 6: Error
-        response = {
+        logger.exception(f"Critical Error in code_with_aider: {str(e)}")
+        response.update({
             "success": False,
             "diff": f"Unhandled Error during Aider execution: {str(e)}",
-        }
+        })
 
-    formatted_response = _format_response(response)
-    logger.info(
-        f"code_with_aider process completed. Success: {response.get('success')}"
-    )
-    logger.info(
-        f"Formatted response: {formatted_response}"
-    )  # Log complete response for debugging
+    formatted_response = json.dumps(response, indent=4)
+    logger.info(f"code_with_aider process completed. Success: {response['success']}")
+    logger.info(f"Formatted response: {formatted_response}")
     return formatted_response

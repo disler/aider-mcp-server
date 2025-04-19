@@ -1,0 +1,25 @@
+{
+  "fallback_config": {
+    "openai": {
+      "rate_limit_errors": ["rate_limit_exceeded", "insufficient_quota"],
+      "backoff_factor": 2,
+      "initial_delay": 1,
+      "max_retries": 3,
+      "fallback_models": ["gpt-4", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"]
+    },
+    "anthropic": {
+      "rate_limit_errors": ["rate_limit_exceeded"],
+      "backoff_factor": 2,
+      "initial_delay": 1,
+      "max_retries": 3,
+      "fallback_models": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
+    },
+    "gemini": {
+      "rate_limit_errors": ["quota_exceeded", "rate_limit_exceeded", "resource_exhausted"],
+      "backoff_factor": 2, 
+      "initial_delay": 1,
+      "max_retries": 3,
+      "fallback_models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+    }
+  }
+}
