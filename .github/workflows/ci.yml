@@ -1,5 +1,3 @@
-.github/workflows/ci.yml
-```yaml
 name: CI
 
 on:
@@ -48,4 +46,3 @@ jobs:
         run: |
           hatch run pip install pytest
           hatch run pytest
-```
