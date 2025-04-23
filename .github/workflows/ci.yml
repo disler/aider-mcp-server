@@ -37,11 +37,12 @@ jobs:
           fi
 
   test:
-    runs-on: ubuntu-latest
-
+    needs: lint_and_types
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [3.12]
+        os: [ubuntu-latest]
+        python-version: [3.9, 3.10, 3.11, 3.12]
 
     steps:
       - name: Checkout repository
