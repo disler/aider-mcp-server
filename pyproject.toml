@@ -55,6 +55,14 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.hatch]
 package-dir = {"" = "src"}
 
+[tool.hatch.envs.dev]
+dependencies = ["aider-mcp-server[dev]"]
+features = ["dev"]
+
+[tool.hatch.envs.test]
+dependencies = ["aider-mcp-server[test]"]
+features = ["test"]
+
 [tool.ruff]
 select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
 ignore = ["E501"]  # Ignore line length
