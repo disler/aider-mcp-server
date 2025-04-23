@@ -150,7 +150,6 @@ requires-dist = [
     { name = "isort", marker = "extra == 'dev'" },
     { name = "mcp", specifier = ">=1.6.0" },
     { name = "mkdocs", marker = "extra == 'dev'" },
-    { name = "mypy", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.15.0" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pre-commit-hooks", marker = "extra == 'dev'" },
@@ -165,7 +164,6 @@ requires-dist = [
     { name = "pytest-json-report", marker = "extra == 'test'", specifier = ">=1.5.0" },
     { name = "python-dotenv" },
     { name = "rich", specifier = ">=14.0.0" },
-    { name = "ruff", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.6" },
     { name = "uvloop", specifier = ">=0.17.0" },
 ]
