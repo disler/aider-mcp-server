@@ -1,8 +1,6 @@
-import pytest
 import logging
-from pathlib import Path
 
-from aider_mcp_server.atoms.logging import Logger, get_logger
+from aider_mcp_server.atoms.logging import get_logger
 
 
 def test_logger_creation_and_file_output(tmp_path):
@@ -25,9 +23,9 @@ def test_logger_creation_and_file_output(tmp_path):
 
     # Verify log directory and file exist
     assert log_dir.exists(), f"Log directory should be created by get_logger at {log_dir}"
-    assert log_dir.is_dir(), f"Log path created by get_logger should be a directory"
+    assert log_dir.is_dir(), "Log path created by get_logger should be a directory"
     assert expected_log_file.exists(), f"Log file should be created by get_logger at {expected_log_file}"
-    assert expected_log_file.is_file(), f"Log path created by get_logger should point to a file"
+    assert expected_log_file.is_file(), "Log path created by get_logger should point to a file"
 
 
 def test_log_levels_and_output(tmp_path):

@@ -1,18 +1,15 @@
 import json
-import sys
 import os
-import asyncio
+import shutil
 import subprocess
-import logging
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
-import mcp
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
+from aider_mcp_server.atoms.atoms_utils import DEFAULT_EDITOR_MODEL
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.atoms.atom_utils import DEFAULT_EDITOR_MODEL
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
 
@@ -76,14 +73,22 @@ def is_git_repository(directory: str) -> Tuple[bool, Union[str, None]]:
                                       and an error message if it's not.
     """
     try:
+        git_executable = shutil.which("git")
+        if not git_executable:
+            raise EnvironmentError("Git executable not found")
+
         # Make sure the directory exists
         if not os.path.isdir(directory):
             return False, f"Directory does not exist: {directory}"
 
-        # Use the git command with -C option to specify the working directory
-        # This way we don't need to change our current directory
-        result = subprocess.run(
-            ["git", "-C", directory, "rev-parse", "--is-inside-work-tree"],
+        # Validate directory is a legitimate path before passing to subprocess
+        if not os.path.isabs(directory):
+            directory = os.path.abspath(directory)
+
+        # Using a list of arguments instead of shell=True prevents command injection
+        # Each argument is passed directly to the executable without shell interpretation
+        result = subprocess.run(  # noqa: S603
+            [git_executable, "-C", directory, "rev-parse", "--is-inside-work-tree"],
             capture_output=True,
             text=True,
             check=False,
@@ -283,7 +288,7 @@ async def serve(
     Raises:
         ValueError: If current_working_dir is not provided or is not a git repository.
     """
-    logger.info(f"Starting Aider MCP Server")
+    logger.info("Starting Aider MCP Server")
     logger.info(f"Editor Model: {editor_model}")
 
     # Validate current_working_dir is provided
@@ -323,14 +328,14 @@ async def serve(
 
         try:
             if name == "aider_ai_code":
-                logger.info(f"Processing 'aider_ai_code' tool call...")
+                logger.info("Processing 'aider_ai_code' tool call...")
                 result = process_aider_ai_code_request(
                     arguments, editor_model, current_working_dir
                 )
                 return [TextContent(type="text", text=json.dumps(result))]
 
             elif name == "list_models":
-                logger.info(f"Processing 'list_models' tool call...")
+                logger.info("Processing 'list_models' tool call...")
                 result = process_list_models_request(arguments)
                 return [TextContent(type="text", text=json.dumps(result))]
 

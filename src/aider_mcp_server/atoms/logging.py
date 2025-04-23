@@ -1,6 +1,4 @@
-import os
 import logging
-import time
 from pathlib import Path
 from typing import Optional, Union
 
@@ -36,8 +34,8 @@ class Logger:
 
         # Define a standard formatter
         log_formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
         )
 
         # Add console handler with standard formatting
@@ -57,7 +55,7 @@ class Logger:
             log_file_path = log_dir / log_file_name
 
             # Set up file handler to append
-            file_handler = logging.FileHandler(log_file_path, mode='a')
+            file_handler = logging.FileHandler(log_file_path, mode="a")
             # Use the same formatter as the console handler
             file_handler.setFormatter(log_formatter)
             file_handler.setLevel(level)

@@ -1,5 +1,5 @@
-import pytest
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
+
 
 def test_list_models_openai():
     """Test that list_models returns GPT-4o model when searching for openai."""

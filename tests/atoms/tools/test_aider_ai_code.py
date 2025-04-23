@@ -1,29 +1,63 @@
-import os
+import contextlib
 import json
-import tempfile
-import pytest
+import os
 import shutil
 import subprocess
+import tempfile
+
+import pytest
+
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
+
+
+@pytest.fixture
+def git_repo_with_files():
+    """Create a temporary git repository with some files for testing."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Get the full path to git executable
+        git_executable = shutil.which("git")
+        if not git_executable:
+            pytest.skip("Git executable not found")
+
+        # Initialize git repository in the temp directory
+        subprocess.run([git_executable, "init"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+
+        # Configure git user for the repository
+        subprocess.run([git_executable, "config", "user.name", "Test User"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+        subprocess.run([git_executable, "config", "user.email", "test@example.com"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+
+        # Create and commit an initial file to have a valid git history
+        with open(os.path.join(tmp_dir, "README.md"), "w") as f:
+            f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
+
+        subprocess.run([git_executable, "add", "README.md"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+        subprocess.run([git_executable, "commit", "-m", "Initial commit"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+
+        yield tmp_dir
 
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory with an initialized Git repository for testing."""
     tmp_dir = tempfile.mkdtemp()
     
+    # Get the full path to git executable
+    git_executable = shutil.which("git")
+    if not git_executable:
+        pytest.skip("Git executable not found")
+
     # Initialize git repository in the temp directory
-    subprocess.run(["git", "init"], cwd=tmp_dir, capture_output=True, text=True, check=True)
+    subprocess.run([git_executable, "init"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
     
     # Configure git user for the repository
-    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_dir, capture_output=True, text=True, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_dir, capture_output=True, text=True, check=True)
+    subprocess.run([git_executable, "config", "user.name", "Test User"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+    subprocess.run([git_executable, "config", "user.email", "test@example.com"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
     
     # Create and commit an initial file to have a valid git history
     with open(os.path.join(tmp_dir, "README.md"), "w") as f:
         f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
     
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_dir, capture_output=True, text=True, check=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_dir, capture_output=True, text=True, check=True)
+    subprocess.run([git_executable, "add", "README.md"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
+    subprocess.run([git_executable, "commit", "-m", "Initial commit"], cwd=tmp_dir, capture_output=True, text=True, check=True)  # noqa: S603
     
     yield tmp_dir
     
@@ -226,7 +260,7 @@ def test_complex_tasks(temp_dir):
     test_file = os.path.join(temp_dir, "calculator.py")
     with open(test_file, "w") as f:
         f.write("# This file should implement a calculator class\n")
-    
+
     # More complex prompt suitable for architect mode
     prompt = """
     Create a Calculator class with the following features:
@@ -238,26 +272,26 @@ def test_complex_tasks(temp_dir):
     
     All methods should be well-documented with docstrings.
     """
-    
+
     # Run code_with_aider with explicit model
     result = code_with_aider(
         ai_coding_prompt=prompt,
         relative_editable_files=[test_file],
-        model="gemini/gemini-2.5-pro-exp-03-25",  # Main model
+        model="gemini/gemini-2.5-flash-pro-04-17",  # Main model
         working_dir=temp_dir  # Pass the temp directory as working_dir
     )
-    
+
     # Parse the JSON result
     result_dict = json.loads(result)
-    
+
     # Check that it succeeded
     assert result_dict["success"] is True, "Expected code_with_aider with architect mode to succeed"
     assert "diff" in result_dict, "Expected diff to be in result"
-    
+
     # Check that the file was modified correctly with expected elements
     with open(test_file, "r") as f:
         content = f.read()
-    
+
     # Check for class definition and methods - relaxed assertions to accommodate type hints
     assert "class Calculator" in content, "Expected to find Calculator class definition"
     assert "add" in content, "Expected to find add method"
@@ -266,37 +300,30 @@ def test_complex_tasks(temp_dir):
     assert "divide" in content, "Expected to find divide method"
     assert "memory_" in content, "Expected to find memory functions"
     assert "history" in content, "Expected to find history functionality"
-    
+
     # Import and test basic calculator functionality
     import sys
     sys.path.append(temp_dir)
     from calculator import Calculator
-    
+
     # Test the calculator
     calc = Calculator()
-    
+
     # Test basic operations
     assert calc.add(2, 3) == 5, "Expected add(2, 3) to return 5"
     assert calc.subtract(5, 3) == 2, "Expected subtract(5, 3) to return 2"
     assert calc.multiply(2, 3) == 6, "Expected multiply(2, 3) to return 6"
     assert calc.divide(6, 3) == 2, "Expected divide(6, 3) to return 2"
-    
+
     # Test division by zero error handling
-    try:
+    with contextlib.suppress(Exception):
         result = calc.divide(5, 0)
         assert result is None or isinstance(result, (str, type(None))), \
             "Expected divide by zero to return None, error message, or raise exception"
-    except Exception:
-        # It's fine if it raises an exception - that's valid error handling too
-        pass
-    
     # Test memory functions if implemented as expected
-    try:
+    with contextlib.suppress(AttributeError, TypeError):
         calc.memory_store(10)
         assert calc.memory_recall() == 10, "Expected memory_recall() to return stored value"
         calc.memory_clear()
         assert calc.memory_recall() == 0 or calc.memory_recall() is None, \
             "Expected memory_recall() to return 0 or None after clearing"
-    except (AttributeError, TypeError):
-        # Some implementations might handle memory differently
-        pass

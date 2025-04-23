@@ -19,17 +19,32 @@ dependencies = [
     "pydantic>=2.11.2",
     "python-dotenv",
     "rich>=14.0.0",
+    "uvloop>=0.17.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "isort",
+    "mkdocs",
+    "mypy>=1.15.0",
+    "pre-commit",
+    "pre-commit-hooks",
+    "pytest>=7.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-json-report>=1.5.0",
+    "ruff>=0.11.6",
+]
+
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-json-report>=1.5.0",
 ]
 
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio",
-    "pytest-mock",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -39,3 +54,31 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.hatch]
 package-dir = {"" = "src"}
+
+[tool.ruff]
+select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
+ignore = ["E501"]  # Ignore line length
+target-version = "py312"
+# Ignore S101 (assert usage) in test files
+per-file-ignores = {"tests/*" = ["S101"]}
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.mypy]
+mypy_path = ["src"]
+namespace_packages = true
+explicit_package_bases = true
+plugins = ["pydantic.mypy"]
+strict = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true

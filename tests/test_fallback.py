@@ -4,6 +4,7 @@ Test script for the rate limit fallback mechanism.
 """
 import json
 import sys
+
 # Using proper package import now that we've installed in development mode
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
@@ -11,6 +12,7 @@ from aider_mcp_server.atoms.utils.fallback_config import (
     get_retry_delay,
     handle_rate_limit,
 )
+
 
 def test_detect_rate_limit_error():
     """Test the detect_rate_limit_error function."""
