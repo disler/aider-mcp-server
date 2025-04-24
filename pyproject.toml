@@ -55,6 +55,9 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "api: marks tests that require API keys",
+]
 
 [tool.hatch]
 package-dir = {"" = "src"}

@@ -11,6 +11,13 @@ import pytest
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 
 
+def api_keys_missing() -> bool:
+    """Check if required API keys are missing."""
+    # Add all required environment variables here
+    required_keys = ["OPENAI_API_KEY", "GEMINI_API_KEY"]  # Adjust as needed
+    return any(os.environ.get(key) is None for key in required_keys)
+
+
 @pytest.fixture
 def git_repo_with_files() -> Generator[str, None, None]:
     """Create a temporary git repository with some files for testing."""
@@ -131,6 +138,7 @@ def temp_dir() -> Generator[str, None, None]:
     shutil.rmtree(tmp_dir)
 
 
+@pytest.mark.skipif(api_keys_missing(), reason="API keys required for this test")
 def test_addition(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that adds two numbers."""
     # Create the test file
@@ -172,6 +180,7 @@ def test_addition(temp_dir: str) -> None:
     assert add(2, 3) == 5, "Expected add(2, 3) to return 5"
 
 
+@pytest.mark.skipif(api_keys_missing(), reason="API keys required for this test")
 def test_subtraction(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that subtracts two numbers."""
     # Create the test file
@@ -213,6 +222,7 @@ def test_subtraction(temp_dir: str) -> None:
     assert subtract(5, 3) == 2, "Expected subtract(5, 3) to return 2"
 
 
+@pytest.mark.skipif(api_keys_missing(), reason="API keys required for this test")
 def test_multiplication(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that multiplies two numbers."""
     # Create the test file
@@ -254,6 +264,7 @@ def test_multiplication(temp_dir: str) -> None:
     assert multiply(2, 3) == 6, "Expected multiply(2, 3) to return 6"
 
 
+@pytest.mark.skipif(api_keys_missing(), reason="API keys required for this test")
 def test_division(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that divides two numbers."""
     # Create the test file
@@ -346,6 +357,7 @@ def test_failure_case(temp_dir: str) -> None:
             os.chdir(os.path.expanduser("~"))
 
 
+@pytest.mark.skipif(api_keys_missing(), reason="API keys required for this test")
 def test_complex_tasks(temp_dir: str) -> None:
     """Test that code_with_aider correctly implements more complex tasks."""
     # Create the test file for a calculator class
