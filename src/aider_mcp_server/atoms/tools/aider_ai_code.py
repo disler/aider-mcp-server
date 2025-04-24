@@ -1,16 +1,26 @@
 import json
-from typing import List, Optional, Dict, Any, Union
 import os
 import os.path
+import pathlib
 import subprocess
-from aider.models import Model
-from aider.coders import Coder
-from aider.io import InputOutput
+import time
+from typing import Any, Dict, List, Optional, Union, cast
+
+# Add type ignores to imports that don't have type stubs
+from aider.coders import Coder  # type: ignore
+from aider.io import InputOutput  # type: ignore
+from aider.models import Model  # type: ignore
+
 from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.utils.fallback_config import (
+    detect_rate_limit_error,
+    get_fallback_model,
+)
 
 # Try to import dotenv for environment variable loading
 try:
     from dotenv import load_dotenv
+
     HAS_DOTENV = True
 except ImportError:
     HAS_DOTENV = False
@@ -18,7 +28,58 @@ except ImportError:
 # Configure logging for this module
 logger = get_logger(__name__)
 
-def load_env_files(working_dir=None):
+# Load fallback configuration
+try:
+    # Get the directory where this module is located
+    current_dir = pathlib.Path(__file__).parent.absolute()
+    # Navigate up from tools/aider_ai_code.py to the repository root (4 levels up)
+    repo_root = current_dir.parents[
+        3
+    ]  # atoms/tools -> atoms -> aider_mcp_server -> src -> repo_root
+    mcp_json_path = os.path.join(repo_root, ".rate-limit-fallback.json")
+
+    # Try alternative locations if the default location doesn't work
+    if not os.path.exists(mcp_json_path):
+        # Try the parent directory of the repo root
+        mcp_json_path = os.path.join(repo_root.parent, ".rate-limit-fallback.json")
+
+    if not os.path.exists(mcp_json_path):
+        # Try the current working directory
+        mcp_json_path = os.path.join(os.getcwd(), ".rate-limit-fallback.json")
+
+    logger.info(f"Loading fallback config from: {mcp_json_path}")
+    with open(mcp_json_path, "r") as f:
+        fallback_config = json.load(f)["fallback_config"]
+    logger.info("Successfully loaded fallback configuration")
+except Exception as e:
+    logger.warning(f"Error loading fallback config: {e}")
+    # Use default fallback configuration
+    fallback_config = {
+        "openai": {
+            "rate_limit_errors": ["rate_limit_exceeded", "insufficient_quota"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["gpt-3.5-turbo", "gpt-3.5-turbo-16k"],
+        },
+        "anthropic": {
+            "rate_limit_errors": ["rate_limit_exceeded"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["claude-2", "claude-instant-1"],
+        },
+        "gemini": {
+            "rate_limit_errors": ["quota_exceeded", "rate_limit_exceeded"],
+            "backoff_factor": 2,
+            "initial_delay": 1,
+            "max_retries": 5,
+            "fallback_models": ["gemini-pro", "gemini-1.0-pro"],
+        },
+    }
+
+
+def load_env_files(working_dir: Optional[str] = None) -> None:
     """Load environment variables from .env files in relevant directories."""
     if not HAS_DOTENV:
         logger.warning("python-dotenv not installed. Cannot load .env files.")
@@ -48,7 +109,8 @@ def load_env_files(working_dir=None):
             load_dotenv(env_path)
             # Don't break - load all .env files to allow for overrides
 
-def check_api_keys(working_dir=None):
+
+def check_api_keys(working_dir: Optional[str] = None) -> None:
     """Check if necessary API keys are set in the environment and log their status."""
     # First load any .env files
     load_env_files(working_dir)
@@ -59,49 +121,41 @@ def check_api_keys(working_dir=None):
         "GEMINI_API_KEY": "Google/Gemini (alternative)",
         "ANTHROPIC_API_KEY": "Anthropic/Claude",
         "AZURE_OPENAI_API_KEY": "Azure OpenAI",
-        "VERTEX_AI_API_KEY": "Vertex AI"
+        "VERTEX_AI_API_KEY": "Vertex AI",
     }
-    
+
     logger.info("Checking API keys in environment...")
     for key, provider in keys_to_check.items():
         if os.environ.get(key):
             logger.info(f"✓ {provider} API key found ({key})")
         else:
             logger.warning(f"✗ {provider} API key missing ({key})")
-    
+
     # Special handling for Gemini/Google - check if we need to copy between variables
     if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-        os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key is not None:  # Explicit check for None
+            logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+
 
 # Type alias for response dictionary
-ResponseDict = Dict[str, Union[bool, str]]
+ResponseDict = Dict[str, Union[bool, str, Dict[str, Union[bool, int, Optional[str]]]]]
 
 
-def _get_changes_diff_or_content(
-    relative_editable_files: List[str], working_dir: str = None
-) -> str:
+def _normalize_file_paths(
+    relative_editable_files: List[str], working_dir: Optional[str] = None
+) -> List[str]:
     """
-    Get the git diff for the specified files, or their content if git fails.
+    Normalize file paths to be relative to working_dir for git commands.
 
     Args:
-        relative_editable_files: List of files to check for changes
-        working_dir: The working directory where the git repo is located
+        relative_editable_files: List of files to normalize
+        working_dir: The working directory to make paths relative to
+
+    Returns:
+        List of normalized file paths
     """
-    diff = ""
-    # Log current directory for debugging - safely handle directory issues
-    try:
-        current_dir = os.getcwd()
-        logger.info(f"Current directory during diff: {current_dir}")
-    except FileNotFoundError:
-        logger.warning("Current working directory is invalid or has been deleted.")
-        current_dir = "Unknown (deleted or inaccessible)"
-
-    if working_dir:
-        logger.info(f"Using working directory: {working_dir}")
-
-    # Always attempt to use git
-    # Normalize paths - for git command we need paths relative to working_dir
     normalized_paths = []
     for file_path in relative_editable_files:
         if working_dir and os.path.isabs(file_path):
@@ -113,62 +167,155 @@ def _get_changes_diff_or_content(
             except ValueError:
                 # If paths are on different drives (Windows), just use the basename
                 normalized_paths.append(os.path.basename(file_path))
-                logger.info(f"Using basename: {file_path} -> {os.path.basename(file_path)}")
+                logger.info(
+                    f"Using basename: {file_path} -> {os.path.basename(file_path)}"
+                )
         else:
             normalized_paths.append(file_path)
             logger.info(f"Using as-is: {file_path}")
 
-    files_arg = " ".join(normalized_paths)
-    logger.info(f"Attempting to get git diff for: {files_arg}")
+    return normalized_paths
+
+
+def _get_git_diff(
+    normalized_paths: List[str], working_dir: Optional[str] = None
+) -> str:
+    """
+    Execute git diff command and return the output.
+
+    Args:
+        normalized_paths: List of normalized file paths
+        working_dir: The directory where git commands should be executed
+
+    Returns:
+        Git diff output as string or raises exception if command fails
+    """
+    git_cmd = ["git"]
+    if working_dir:
+        git_cmd.extend(["-C", working_dir])
+
+    git_cmd.append("diff")
+    git_cmd.append("--")
+    git_cmd.extend(normalized_paths)  # Add all file paths as separate arguments
+
+    logger.info(f"Running git command: {git_cmd}")
+    result = subprocess.run(  # noqa: S603 - Using list of args instead of shell=True is safe
+        git_cmd,
+        capture_output=True,
+        text=True,
+        check=False,  # Don't raise exception on non-zero exit
+    )
+
+    if result.returncode == 0:
+        logger.info("Successfully obtained git diff.")
+        return result.stdout
+    else:
+        raise subprocess.CalledProcessError(
+            result.returncode, git_cmd, result.stdout, result.stderr
+        )
+
+
+def _read_file_contents(
+    relative_editable_files: List[str], working_dir: Optional[str] = None
+) -> str:
+    """
+    Read contents of files as a fallback when git diff fails.
+
+    Args:
+        relative_editable_files: List of files to read
+        working_dir: The working directory where files are located
+
+    Returns:
+        String containing file contents with headers
+    """
+    content = "File contents after editing (git not used):\n\n"
+
+    for file_path in relative_editable_files:
+        # Get the correct full path without duplicating the working dir
+        full_path = file_path
+        if not os.path.isabs(file_path) and working_dir:
+            full_path = os.path.join(working_dir, file_path)
+
+        logger.info(f"Reading content from: {full_path}")
+
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, "r") as f:
+                    file_content = f.read()
+                    content += f"--- {file_path} ---\n{file_content}\n\n"
+                    logger.info(f"Read content for {file_path}")
+            except Exception as read_e:
+                logger.error(
+                    f"Failed reading file {full_path} for content fallback: {read_e}"
+                )
+                content += f"--- {file_path} --- (Error reading file)\n\n"
+        else:
+            logger.warning(f"File {full_path} not found during content fallback.")
+            content += f"--- {file_path} --- (File not found)\n\n"
+
+    return content
+
+
+def get_changes_diff_or_content(
+    relative_editable_files: List[str], working_dir: Optional[str] = None
+) -> str:
+    """
+    Get the git diff for the specified files, or their content if git fails.
+
+    Args:
+        relative_editable_files: List of files to check for changes
+        working_dir: The working directory where the git repo is located
+
+    Returns:
+        String containing git diff or file contents
+    """
+    # Log current directory for debugging
+    try:
+        current_dir = os.getcwd()
+        logger.info(f"Current directory during diff: {current_dir}")
+    except FileNotFoundError:
+        logger.warning("Current working directory is invalid or has been deleted.")
+
+    if working_dir:
+        logger.info(f"Using working directory: {working_dir}")
 
     try:
-        # Use git -C to specify the repository directory
-        if working_dir:
-            diff_cmd = f"git -C {working_dir} diff -- {files_arg}"
-        else:
-            diff_cmd = f"git diff -- {files_arg}"
+        # Step 1: Normalize file paths for git command
+        normalized_paths = _normalize_file_paths(relative_editable_files, working_dir)
 
-        logger.info(f"Running git command: {diff_cmd}")
-        diff = subprocess.check_output(
-            diff_cmd, shell=True, text=True, stderr=subprocess.PIPE
-        )
-        logger.info("Successfully obtained git diff.")
+        # Step 2: Try to get git diff
+        return _get_git_diff(normalized_paths, working_dir)
+
     except subprocess.CalledProcessError as e:
         logger.warning(
             f"Git diff command failed with exit code {e.returncode}. Error: {e.stderr.strip()}"
         )
         logger.warning("Falling back to reading file contents.")
-        diff = "File contents after editing (git not used):\n\n"
-        for file_path in relative_editable_files:
-            # Get the correct full path without duplicating the working dir
-            full_path = file_path
-            if not os.path.isabs(file_path) and working_dir:
-                full_path = os.path.join(working_dir, file_path)
 
-            logger.info(f"Reading content from: {full_path}")
+        # Step 3: Fall back to reading file contents
+        return _read_file_contents(relative_editable_files, working_dir)
 
-            if os.path.exists(full_path):
-                try:
-                    with open(full_path, "r") as f:
-                        content = f.read()
-                        diff += f"--- {file_path} ---\n{content}\n\n"
-                        logger.info(f"Read content for {file_path}")
-                except Exception as read_e:
-                    logger.error(
-                        f"Failed reading file {full_path} for content fallback: {read_e}"
-                    )
-                    diff += f"--- {file_path} --- (Error reading file)\n\n"
-            else:
-                logger.warning(f"File {full_path} not found during content fallback.")
-                diff += f"--- {file_path} --- (File not found)\n\n"
     except Exception as e:
         logger.error(f"Unexpected error getting git diff: {str(e)}")
-        diff = f"Error getting git diff: {str(e)}\n\n"  # Provide error in diff string as fallback
-    return diff
+        return f"Error getting git diff: {str(e)}\n\n"
+
+
+# Keep original function name but call the refactored implementation
+def _get_changes_diff_or_content(
+    relative_editable_files: List[str], working_dir: Optional[str] = None
+) -> str:
+    """
+    Get the git diff for the specified files, or their content if git fails.
+
+    Args:
+        relative_editable_files: List of files to check for changes
+        working_dir: The working directory where the git repo is located
+    """
+    return get_changes_diff_or_content(relative_editable_files, working_dir)
 
 
 def _check_for_meaningful_changes(
-    relative_editable_files: List[str], working_dir: str = None
+    relative_editable_files: List[str], working_dir: Optional[str] = None
 ) -> bool:
     """
     Check if the edited files contain meaningful content.
@@ -192,24 +339,62 @@ def _check_for_meaningful_changes(
                     # Check if the file has more than just whitespace or a single comment line,
                     # or contains common code keywords. This is a heuristic.
                     stripped_content = content.strip()
-                    # Improve detection - check for function/class definitions more thoroughly
-                    if stripped_content and (
-                        len(stripped_content.split("\n")) > 1
-                        or any(
-                            kw in content
-                            for kw in [
-                                "def ",
-                                "class ",
-                                "import ",
-                                "from ",
-                                "async def ",
-                                "return ",
-                            ]
-                        )
+
+                    # Improved detection for meaningful changes
+                    if not stripped_content:
+                        continue
+
+                    # If file has multiple lines or recognized code patterns, consider it meaningful
+                    code_patterns = [
+                        "def ",
+                        "class ",
+                        "import ",
+                        "from ",
+                        "async def ",
+                        "return ",
+                        "function ",
+                        "= function",
+                        "const ",
+                        "let ",
+                        "var ",  # JavaScript
+                        "public ",
+                        "private ",
+                        "protected ",
+                        "void ",
+                        "int ",
+                        "string ",  # Java/C#
+                        "if ",
+                        "for ",
+                        "while ",
+                        "try ",
+                        "except ",
+                        "catch ",  # Control structures
+                        "@app",
+                        "self.",
+                        "this.",  # Common framework patterns
+                    ]
+
+                    if len(stripped_content.split("\n")) > 2 or any(
+                        kw in content for kw in code_patterns
                     ):
                         logger.info(f"Meaningful content found in: {file_path}")
                         return True
-                    logger.info(f"No meaningful content found in {file_path}, content: '{stripped_content}'")
+
+                    # Check for class/function implementation with proper indentation
+                    indented_lines = sum(
+                        1
+                        for line in content.split("\n")
+                        if line.strip() and line.startswith((" ", "\t"))
+                    )
+                    if indented_lines > 0:
+                        logger.info(
+                            f"Meaningful indented content found in: {file_path}"
+                        )
+                        return True
+
+                    logger.info(
+                        f"No meaningful content found in {file_path}, content: '{stripped_content}'"
+                    )
             except Exception as e:
                 logger.error(
                     f"Failed reading file {full_path} during meaningful change check: {e}"
@@ -226,7 +411,7 @@ def _check_for_meaningful_changes(
 
 
 def _process_coder_results(
-    relative_editable_files: List[str], working_dir: str = None
+    relative_editable_files: List[str], working_dir: Optional[str] = None
 ) -> ResponseDict:
     """
     Process the results after Aider has run, checking for meaningful changes
@@ -273,12 +458,254 @@ def _format_response(response: ResponseDict) -> str:
     return json.dumps(response, indent=4)
 
 
+def _configure_model(model: str) -> Model:
+    """
+    Configure and initialize the AI model.
+
+    Args:
+        model: Model identifier string
+
+    Returns:
+        Configured Model instance
+    """
+    logger.info(f"Attempting to initialize model: {model}")
+
+    # Check environment variables
+    api_key_env = None
+    if "openai" in model.lower():
+        api_key_env = os.environ.get("OPENAI_API_KEY")
+        logger.info(f"OpenAI API key present: {bool(api_key_env)}")
+    elif "gemini" in model.lower() or "google" in model.lower():
+        api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get(
+            "GEMINI_API_KEY"
+        )
+        logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
+        if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
+            gemini_key = os.environ.get("GEMINI_API_KEY")
+            if gemini_key is not None:
+                os.environ["GOOGLE_API_KEY"] = gemini_key
+                logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+    elif "anthropic" in model.lower():
+        api_key_env = os.environ.get("ANTHROPIC_API_KEY")
+        logger.info(f"Anthropic API key present: {bool(api_key_env)}")
+
+    if not api_key_env:
+        logger.warning(f"No API key found for model type: {model}")
+
+    ai_model = Model(model)
+    logger.info(f"Successfully configured model: {model}")
+    return ai_model
+
+
+def _setup_aider_coder(
+    ai_model: Model,
+    working_dir: str,
+    abs_editable_files: List[str],
+    abs_readonly_files: List[str],
+) -> Coder:
+    """
+    Create and configure the Aider coder instance.
+
+    Args:
+        ai_model: The configured Model instance
+        working_dir: Directory where files are located
+        abs_editable_files: List of files that can be edited (absolute paths)
+        abs_readonly_files: List of files that are read-only (absolute paths)
+
+    Returns:
+        Configured Coder instance
+    """
+    logger.info("Creating Aider coder instance...")
+    history_dir = working_dir
+    chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
+    logger.info(f"Using chat history file: {chat_history_file}")
+
+    coder = Coder.create(
+        main_model=ai_model,
+        io=InputOutput(yes=True, chat_history_file=chat_history_file),
+        fnames=abs_editable_files,
+        read_only_fnames=abs_readonly_files,
+        auto_commits=False,
+        suggest_shell_commands=False,
+        detect_urls=False,
+        use_git=True,
+    )
+    logger.info("Aider coder instance created successfully.")
+    return coder
+
+
+def _run_aider_session(
+    coder: Coder,
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    working_dir: str,
+) -> ResponseDict:
+    """
+    Run the Aider coding session and process the results.
+
+    Args:
+        coder: The configured Coder instance
+        ai_coding_prompt: The prompt to send to the AI
+        relative_editable_files: List of files that can be edited (relative paths)
+        working_dir: Directory where files are located
+
+    Returns:
+        Dictionary with success status and diff output
+    """
+    logger.info("Starting Aider coding session...")
+    result = coder.run(ai_coding_prompt)
+    logger.info(f"Aider coding session result: {result}")
+
+    # Process the results after the coder has run
+    logger.info("Processing coder results...")
+    response = _process_coder_results(relative_editable_files, working_dir)
+    logger.info("Coder results processed.")
+    return response
+
+
+def _normalize_model_name(model: str) -> str:
+    """
+    Normalize the model name to include the provider prefix if missing.
+
+    Args:
+        model: The model identifier string
+
+    Returns:
+        Normalized model name with provider prefix
+    """
+    if model and "/" not in model:
+        # Add provider prefix if missing
+        if "gpt" in model.lower():
+            return f"openai/{model}"
+        elif "gemini" in model.lower():
+            return f"gemini/{model}"
+        elif "claude" in model.lower():
+            return f"anthropic/{model}"
+    return model
+
+
+def _determine_provider(model: str) -> str:
+    """
+    Determine the AI provider from the model name.
+
+    Args:
+        model: The model identifier string
+
+    Returns:
+        Provider name (openai, anthropic, or gemini)
+    """
+    if "openai" in model.lower() or "gpt" in model.lower():
+        return "openai"
+    elif "anthropic" in model.lower() or "claude" in model.lower():
+        return "anthropic"
+    elif "gemini" in model.lower() or "google" in model.lower():
+        return "gemini"
+    return "openai"  # Default provider
+
+
+def _convert_to_absolute_paths(file_paths: List[str], working_dir: str) -> List[str]:
+    """
+    Convert relative paths to absolute paths based on working directory.
+
+    Args:
+        file_paths: List of file paths (relative or absolute)
+        working_dir: Working directory to resolve relative paths
+
+    Returns:
+        List of absolute file paths
+    """
+    return [
+        os.path.join(working_dir, f) if not os.path.isabs(f) else f for f in file_paths
+    ]
+
+
+def _execute_with_retry(
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    abs_editable_files: List[str],
+    abs_readonly_files: List[str],
+    working_dir: str,
+    model: str,
+    provider: str,
+) -> Dict[str, Any]:
+    """
+    Execute Aider with retry logic for rate limit handling.
+
+    Args:
+        ai_coding_prompt: The prompt for the AI
+        relative_editable_files: List of editable files (relative paths)
+        abs_editable_files: List of editable files (absolute paths)
+        abs_readonly_files: List of read-only files (absolute paths)
+        working_dir: Working directory
+        model: Model identifier
+        provider: Provider name
+
+    Returns:
+        Response dictionary
+    """
+    response: Dict[str, Any] = {
+        "success": False,
+        "diff": "",
+        "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
+    }
+
+    max_retries = fallback_config[provider]["max_retries"]
+    initial_delay = fallback_config[provider]["initial_delay"]
+    backoff_factor = fallback_config[provider]["backoff_factor"]
+
+    for attempt in range(max_retries + 1):
+        try:
+            # Configure the model and create the coder
+            ai_model = _configure_model(model)
+            coder = _setup_aider_coder(
+                ai_model, working_dir, abs_editable_files, abs_readonly_files
+            )
+
+            # Run the session and get results
+            session_response = _run_aider_session(
+                coder, ai_coding_prompt, relative_editable_files, working_dir
+            )
+            response.update(session_response)
+
+            # Success, exit the retry loop
+            break
+
+        except Exception as e:
+            logger.warning(
+                f"Error during Aider execution (Attempt {attempt + 1}): {str(e)}"
+            )
+
+            if detect_rate_limit_error(e, provider):
+                logger.info(
+                    f"Rate limit detected for {provider}. Attempting fallback..."
+                )
+                rate_limit_info = cast(Dict[str, Any], response["rate_limit_info"])
+                rate_limit_info["encountered"] = True
+                rate_limit_info["retries"] += 1
+
+                if attempt < max_retries:
+                    delay = initial_delay * (backoff_factor**attempt)
+                    logger.info(f"Retrying after {delay} seconds...")
+                    time.sleep(delay)
+                    model = get_fallback_model(model, provider)
+                    rate_limit_info["fallback_model"] = model
+                    logger.info(f"Falling back to model: {model}")
+                else:
+                    logger.error("Max retries reached. Unable to complete the request.")
+                    raise
+            else:
+                # If it's not a rate limit error, re-raise the exception
+                raise
+
+    return response
+
+
 def code_with_aider(
     ai_coding_prompt: str,
     relative_editable_files: List[str],
-    relative_readonly_files: List[str] = [],
-    model: str = "gemini/gemini-2.5-pro-exp-03-25",
-    working_dir: str = None,
+    relative_readonly_files: Optional[List[str]] = None,
+    model: str = "gemini/gemini-2.5-flash-preview-04-17",
+    working_dir: Optional[str] = None,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -287,19 +714,21 @@ def code_with_aider(
         ai_coding_prompt (str): The prompt for the AI to execute.
         relative_editable_files (List[str]): List of files that can be edited.
         relative_readonly_files (List[str], optional): List of files that can be read but not edited. Defaults to [].
-        model (str, optional): The model to use. Defaults to "gemini/gemini-2.5-pro-exp-03-25".
-        working_dir (str, required): The working directory where git repository is located and files are stored.
+        model (str, optional): The model to use. Defaults to "gemini/gemini-2.5-flash-preview-04-17".
+        working_dir: The working directory where git repository is located and files are stored.
 
     Returns:
-        Dict[str, Any]: {'success': True/False, 'diff': str with git diff output}
+        str: JSON string containing 'success', 'diff', and additional rate limit information.
     """
+    if relative_readonly_files is None:
+        relative_readonly_files = []
     logger.info("Starting code_with_aider process.")
     logger.info(f"Prompt: '{ai_coding_prompt}'")
-    
-    # Check API keys at the beginning - now passing working_dir
+
+    # Check API keys at the beginning
     check_api_keys(working_dir)
 
-    # Working directory must be provided
+    # Validate working directory
     if not working_dir:
         error_msg = "Error: working_dir is required for code_with_aider"
         logger.error(error_msg)
@@ -308,124 +737,47 @@ def code_with_aider(
     logger.info(f"Working directory: {working_dir}")
     logger.info(f"Editable files: {relative_editable_files}")
     logger.info(f"Readonly files: {relative_readonly_files}")
-    logger.info(f"Model: {model}")
+    logger.info(f"Initial model: {model}")
+
+    # Normalize model name
+    model = _normalize_model_name(model)
+    logger.info(f"Normalized model name: {model}")
+
+    # Determine provider
+    provider = _determine_provider(model)
+    logger.info(f"Using provider: {provider}")
+
+    # Convert to absolute paths
+    abs_editable_files = _convert_to_absolute_paths(
+        relative_editable_files, working_dir
+    )
+    abs_readonly_files = _convert_to_absolute_paths(
+        relative_readonly_files, working_dir
+    )
 
     try:
-        # Configure the model
-        logger.info("Configuring AI model...")  # Point 1: Before init
-        logger.info(f"Attempting to initialize model: {model}")
-        try:
-            # Check environment variables
-            api_key_env = None
-            if "openai" in model.lower():
-                api_key_env = os.environ.get("OPENAI_API_KEY")
-                logger.info(f"OpenAI API key present: {bool(api_key_env)}")
-            elif "gemini" in model.lower() or "google" in model.lower():
-                # Check both possible environment variable names for Gemini
-                api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-                logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
-                # If using GEMINI_API_KEY, set GOOGLE_API_KEY for compatibility with aider
-                if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-                    os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
-                    logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-            elif "anthropic" in model.lower():
-                api_key_env = os.environ.get("ANTHROPIC_API_KEY")
-                logger.info(f"Anthropic API key present: {bool(api_key_env)}")
-            
-            if not api_key_env:
-                logger.warning(f"No API key found for model type: {model}")
-            
-            ai_model = Model(model)
-            logger.info(f"Successfully configured model: {model}")
-        except Exception as model_error:
-            logger.exception(f"Error initializing model {model}: {str(model_error)}")
-            raise
-        logger.info("AI model configured.")  # Point 2: After init
-
-        # Create the coder instance
-        logger.info("Creating Aider coder instance...")
-        # Use working directory for chat history file if provided
-        history_dir = working_dir
-        # Handle both absolute and relative paths correctly for editable files
-        abs_editable_files = []
-        for file in relative_editable_files:
-            if os.path.isabs(file):
-                abs_editable_files.append(file)
-            else:
-                abs_editable_files.append(os.path.join(working_dir, file))
-
-        # Same for readonly files
-        abs_readonly_files = []
-        for file in relative_readonly_files:
-            if os.path.isabs(file):
-                abs_readonly_files.append(file)
-            else:
-                abs_readonly_files.append(os.path.join(working_dir, file))
-
-        chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
-        logger.info(f"Using chat history file: {chat_history_file}")
-
-        coder = Coder.create(
-            main_model=ai_model,
-            io=InputOutput(
-                yes=True,
-                chat_history_file=chat_history_file,
-            ),
-            fnames=abs_editable_files,
-            read_only_fnames=abs_readonly_files,
-            auto_commits=False,  # We'll handle commits separately
-            suggest_shell_commands=False,
-            detect_urls=False,
-            use_git=True,  # Always use git
+        # Execute with retry logic
+        response = _execute_with_retry(
+            ai_coding_prompt,
+            relative_editable_files,
+            abs_editable_files,
+            abs_readonly_files,
+            working_dir,
+            model,
+            provider,
         )
-        logger.info("Aider coder instance created successfully.")
-
-        # Run the coding session
-        logger.info("Starting Aider coding session...")  # Point 3: Before run
-        try:
-            result = coder.run(ai_coding_prompt)
-            logger.info(f"Aider coding session result: {result}")
-        except Exception as run_error:
-            logger.exception(f"Error during Aider coding session: {str(run_error)}")
-            # Check if it's an authentication error
-            error_str = str(run_error).lower()
-            if any(term in error_str for term in ["auth", "api key", "credential", "unauthorized", "permission"]):
-                logger.critical("Authentication error detected. Please check your API keys.")
-                return json.dumps({
-                    "success": False,
-                    "diff": f"Authentication error: {str(run_error)}. Please check your API keys and permissions."
-                })
-            raise
-        logger.info("Aider coding session finished.")  # Point 4: After run
-
-        # Process the results after the coder has run
-        logger.info("Processing coder results...")  # Point 5: Processing results
-        try:
-            response = _process_coder_results(relative_editable_files, working_dir)
-            logger.info("Coder results processed.")
-        except Exception as e:
-            logger.exception(
-                f"Error processing coder results: {str(e)}"
-            )  # Point 6: Error
-            response = {
-                "success": False,
-                "diff": f"Error processing files after execution: {str(e)}",
-            }
-
     except Exception as e:
-        logger.exception(
-            f"Critical Error in code_with_aider: {str(e)}"
-        )  # Point 6: Error
+        logger.exception(f"Critical Error in code_with_aider: {str(e)}")
         response = {
             "success": False,
             "diff": f"Unhandled Error during Aider execution: {str(e)}",
+            "rate_limit_info": {
+                "encountered": False,
+                "retries": 0,
+                "fallback_model": None,
+            },
         }
 
-    formatted_response = _format_response(response)
-    logger.info(
-        f"code_with_aider process completed. Success: {response.get('success')}"
-    )
-    logger.info(
-        f"Formatted response: {formatted_response}"
-    )  # Log complete response for debugging
+    formatted_response = json.dumps(response, indent=4)
+    logger.info(f"code_with_aider process completed. Success: {response['success']}")
     return formatted_response

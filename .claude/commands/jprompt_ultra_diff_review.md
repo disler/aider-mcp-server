@@ -9,7 +9,7 @@ At the top of the file, add the following markdown:
 
 ```md
 # Code Review
-- Review the diff, report on issues, bugs, and improvements. 
+- Review the diff, report on issues, bugs, and improvements.
 - End with a concise markdown table of any issues found, their solutions, and a risk assessment for each issue if applicable.
 - Use emojis to convey the severity of each issue.
 

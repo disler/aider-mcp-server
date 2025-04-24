@@ -16,26 +16,115 @@ dependencies = [
     "aider-chat>=0.81.0",
     "boto3>=1.37.27",
     "mcp>=1.6.0",
-    "pydantic>=2.11.2",
+    "pydantic>=2.11.2",  # Explicit pydantic dependency
+    "pydantic[mypy]>=2.11.2",  # Added mypy plugin
     "python-dotenv",
     "rich>=14.0.0",
+    "uvloop>=0.17.0",
+    "hatch",
+]
+
+[project.optional-dependencies]
+dev = [
+    "isort",
+    "mkdocs",
+    "mypy>=1.15.0",
+    "pre-commit",
+    "pre-commit-hooks",
+    "pytest>=7.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-json-report>=1.5.0",
+    "ruff>=0.11.6",
+    "pydantic>=2.11.2",  # Explicit pydantic dependency
+    "pydantic[mypy]",
+]
+
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-json-report>=1.5.0",
 ]
 
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio",
-    "pytest-mock",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "api: marks tests that require API keys",
+]
 
 [tool.hatch]
 package-dir = {"" = "src"}
+
+[tool.hatch.envs.dev]
+dependencies = ["aider-mcp-server[dev]"]
+features = ["dev"]
+
+[tool.hatch.envs.test]
+dependencies = ["aider-mcp-server[test]"]
+features = ["test"]
+
+[tool.ruff]
+select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
+ignore = ["E501"]  # Ignore line length
+target-version = "py312"
+# Ignore S101 (assert usage) in test files
+per-file-ignores = {"tests/*" = ["S101"]}
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["aider_mcp_server"]
+package_root = ["src"]
+namespace_packages = true
+explicit_package_bases = true
+plugins = ["pydantic.mypy"]
+strict = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "dotenv"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcp.server"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcp.server.stdio"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcp.types"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.server"
+ignore_missing_imports = true
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.atoms.*"
+ignore_missing_imports = true

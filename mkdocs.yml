@@ -1,0 +1,9 @@
+site_name: aider-mcp-server
+repo_name: https://github.com/MementoRC/aider-mcp-server
+edit_uri: edit/main/docs/
+docs_dir: .
+theme:
+  name: readthedocs
+nav:
+  - Home: docs/index.md
+  - README: README.md
