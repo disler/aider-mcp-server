@@ -16,7 +16,7 @@
     },
     "gemini": {
       "rate_limit_errors": ["quota_exceeded", "rate_limit_exceeded", "resource_exhausted"],
-      "backoff_factor": 2, 
+      "backoff_factor": 2,
       "initial_delay": 1,
       "max_retries": 3,
       "fallback_models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]

@@ -18,12 +18,13 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        name: mypy
-        entry: hatch run mypy
-        language: system
-        types: [python]
-        pass_filenames: false
-        args: ["src", "tests"]
+        args: [
+          "--explicit-package-bases",
+          "--namespace-packages",
+          "--python-version=3.12",
+        ]
+        files: "^(src/aider_mcp_server|tests)/"
+        additional_dependencies: ["pydantic>=2.11.2"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

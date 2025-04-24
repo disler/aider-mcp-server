@@ -297,11 +297,11 @@ list_models(provider: str) -> List[str]
               GROQ = ("groq", "q")
               DEEPSEEK = ("deepseek", "d")
               OLLAMA = ("ollama", "l")
-              
+
               def __init__(self, full_name, short_name):
                   self.full_name = full_name
                   self.short_name = short_name
-                  
+
               @classmethod
               def from_name(cls, name):
                   for provider in cls:
@@ -446,24 +446,24 @@ client = OpenAI(
 def prompt(text: str, model: str) -> str:
     """
     Send a prompt to DeepSeek and get a response.
-    
+
     Args:
         text: The prompt text
         model: The model name
-        
+
     Returns:
         Response string from the model
     """
     try:
         logger.info(f"Sending prompt to DeepSeek model: {model}")
-        
+
         # Create chat completion
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": text}],
             stream=False,
         )
-        
+
         # Extract response content
         return response.choices[0].message.content
     except Exception as e:
@@ -474,17 +474,17 @@ def prompt(text: str, model: str) -> str:
 def list_models() -> List[str]:
     """
     List available DeepSeek models.
-    
+
     Returns:
         List of model names
     """
     try:
         logger.info("Listing DeepSeek models")
         response = client.models.list()
-        
+
         # Extract model IDs
         models = [model.id for model in response.data]
-        
+
         return models
     except Exception as e:
         logger.error(f"Error listing DeepSeek models: {e}")
@@ -523,23 +523,23 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 def prompt(text: str, model: str) -> str:
     """
     Send a prompt to Google Gemini and get a response.
-    
+
     Args:
         text: The prompt text
         model: The model name
-        
+
     Returns:
         Response string from the model
     """
     try:
         logger.info(f"Sending prompt to Gemini model: {model}")
-        
+
         # Create generative model
         gemini_model = genai.GenerativeModel(model_name=model)
-        
+
         # Generate content
         response = gemini_model.generate_content(text)
-        
+
         return response.text
     except Exception as e:
         logger.error(f"Error sending prompt to Gemini: {e}")
@@ -549,22 +549,22 @@ def prompt(text: str, model: str) -> str:
 def list_models() -> List[str]:
     """
     List available Google Gemini models.
-    
+
     Returns:
         List of model names
     """
     try:
         logger.info("Listing Gemini models")
-        
+
         # Get the list of models
         models = []
         for m in genai.list_models():
             if "generateContent" in m.supported_generation_methods:
                 models.append(m.name)
-                
+
         # Format model names - strip the "models/" prefix if present
         formatted_models = [model.replace("models/", "") for model in models]
-        
+
         return formatted_models
     except Exception as e:
         logger.error(f"Error listing Gemini models: {e}")
@@ -603,23 +603,23 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 def prompt(text: str, model: str) -> str:
     """
     Send a prompt to Groq and get a response.
-    
+
     Args:
         text: The prompt text
         model: The model name
-        
+
     Returns:
         Response string from the model
     """
     try:
         logger.info(f"Sending prompt to Groq model: {model}")
-        
+
         # Create chat completion
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": text}],
             model=model,
         )
-        
+
         # Extract response content
         return chat_completion.choices[0].message.content
     except Exception as e:
@@ -630,17 +630,17 @@ def prompt(text: str, model: str) -> str:
 def list_models() -> List[str]:
     """
     List available Groq models.
-    
+
     Returns:
         List of model names
     """
     try:
         logger.info("Listing Groq models")
         response = client.models.list()
-        
+
         # Extract model IDs
         models = [model.id for model in response.data]
-        
+
         return models
     except Exception as e:
         logger.error(f"Error listing Groq models: {e}")
@@ -684,16 +684,16 @@ logger = logging.getLogger(__name__)
 def list_models(provider: str) -> List[str]:
     """
     List available models for a provider.
-    
+
     Args:
         provider: Provider name (full or short)
-        
+
     Returns:
         List of model names
     """
     # Validate provider
     validate_provider(provider)
-    
+
     # Get models from provider
     return ModelRouter.route_list_models(provider)
 </file>
@@ -713,7 +713,7 @@ logger = logging.getLogger(__name__)
 def list_providers() -> List[Dict[str, str]]:
     """
     List all available providers with their full and short names.
-    
+
     Returns:
         List of dictionaries with provider information
     """
@@ -724,7 +724,7 @@ def list_providers() -> List[Dict[str, str]]:
             "full_name": provider.full_name,
             "short_name": provider.short_name
         })
-    
+
     return providers
 </file>
 
@@ -819,17 +819,17 @@ def test_split_provider_and_model():
     provider, model = split_provider_and_model("openai:gpt-4")
     assert provider == "openai"
     assert model == "gpt-4"
-    
+
     # Test short provider name
     provider, model = split_provider_and_model("o:gpt-4")
     assert provider == "o"
     assert model == "gpt-4"
-    
+
     # Test model with colons
     provider, model = split_provider_and_model("ollama:llama3:latest")
     assert provider == "ollama"
     assert model == "llama3:latest"
-    
+
     # Test invalid format
     with pytest.raises(ValueError):
         split_provider_and_model("invalid-model-string")
@@ -844,7 +844,7 @@ def test_get_provider_from_prefix():
     assert get_provider_from_prefix("groq") == "groq"
     assert get_provider_from_prefix("deepseek") == "deepseek"
     assert get_provider_from_prefix("ollama") == "ollama"
-    
+
     # Test short names
     assert get_provider_from_prefix("o") == "openai"
     assert get_provider_from_prefix("a") == "anthropic"
@@ -852,7 +852,7 @@ def test_get_provider_from_prefix():
     assert get_provider_from_prefix("q") == "groq"
     assert get_provider_from_prefix("d") == "deepseek"
     assert get_provider_from_prefix("l") == "ollama"
-    
+
     # Test invalid prefix
     with pytest.raises(ValueError):
         get_provider_from_prefix("unknown")
@@ -878,12 +878,12 @@ from just_prompt.molecules.list_providers import list_providers
 def test_list_providers():
     """Test listing providers."""
     providers = list_providers()
-    
+
     # Check basic structure
     assert isinstance(providers, list)
     assert len(providers) > 0
     assert all(isinstance(p, dict) for p in providers)
-    
+
     # Check expected providers are present
     provider_names = [p["name"] for p in providers]
     assert "OPENAI" in provider_names
@@ -892,13 +892,13 @@ def test_list_providers():
     assert "GROQ" in provider_names
     assert "DEEPSEEK" in provider_names
     assert "OLLAMA" in provider_names
-    
+
     # Check each provider has required fields
     for provider in providers:
         assert "name" in provider
         assert "full_name" in provider
         assert "short_name" in provider
-        
+
         # Check full_name and short_name values
         if provider["name"] == "OPENAI":
             assert provider["full_name"] == "openai"
@@ -992,34 +992,34 @@ The diff introduces modularity and improves the structure of the script by encap
 <file path="ultra_diff_review/diff_openai_o3-mini.md">
 Below is a review of the changes with observations on potential issues, bugs, and improvements:
 
-1. Hardcoded API key in list_deepseek_models  
- • Issue: The Deepseek function uses a hardcoded API key ("sk-ds-3f422175ff114212a42d7107c3efd1e4"). This exposes sensitive credentials in the source code.  
- • Recommendation: Retrieve the key from an environment variable (or a secure vault) as is done for other models.  
+1. Hardcoded API key in list_deepseek_models
+ • Issue: The Deepseek function uses a hardcoded API key ("sk-ds-3f422175ff114212a42d7107c3efd1e4"). This exposes sensitive credentials in the source code.
+ • Recommendation: Retrieve the key from an environment variable (or a secure vault) as is done for other models.
  • Severity: 🚨 Critical
 
-2. Repeated load_dotenv calls  
- • Issue: Both list_anthropic_models and list_gemini_models call load_dotenv() even if they might be used in the same run.  
- • Recommendation: Consider loading environment variables once in a main entry point or in a shared initialization function.  
+2. Repeated load_dotenv calls
+ • Issue: Both list_anthropic_models and list_gemini_models call load_dotenv() even if they might be used in the same run.
+ • Recommendation: Consider loading environment variables once in a main entry point or in a shared initialization function.
  • Severity: ⚠️ Moderate
 
-3. Redundant API calls in list_gemini_models  
- • Issue: The Gemini function calls client.models.list() twice (once for generateContent and again for embedContent). This might be inefficient if each call performs network I/O.  
- • Recommendation: Cache the result of client.models.list() into a variable and reuse it for both loops.  
+3. Redundant API calls in list_gemini_models
+ • Issue: The Gemini function calls client.models.list() twice (once for generateContent and again for embedContent). This might be inefficient if each call performs network I/O.
+ • Recommendation: Cache the result of client.models.list() into a variable and reuse it for both loops.
  • Severity: ⚠️ Low
 
-4. Inconsistent variable naming and potential confusion  
- • Observation: In list_groq_models, the result of client.models.list() is stored in a variable named chat_completion even though the function is about listing models.  
- • Recommendation: Use a name such as models or model_list for clarity.  
+4. Inconsistent variable naming and potential confusion
+ • Observation: In list_groq_models, the result of client.models.list() is stored in a variable named chat_completion even though the function is about listing models.
+ • Recommendation: Use a name such as models or model_list for clarity.
  • Severity: ℹ️ Low
 
-5. Lack of error handling for API calls  
- • Observation: All functions simply print the results of API calls without handling potential exceptions (e.g., network errors, invalid credentials).  
- • Recommendation: Wrap API calls in try-except blocks and add meaningful error messages.  
+5. Lack of error handling for API calls
+ • Observation: All functions simply print the results of API calls without handling potential exceptions (e.g., network errors, invalid credentials).
+ • Recommendation: Wrap API calls in try-except blocks and add meaningful error messages.
  • Severity: ⚠️ Moderate
 
-6. Consistency in output formatting  
- • Observation: While some functions print header messages (like list_anthropic_models and list_gemini_models), others (like list_openai_models or list_deepseek_models) simply print the raw result.  
- • Recommendation: Add consistent formatting or output messages for clarity.  
+6. Consistency in output formatting
+ • Observation: While some functions print header messages (like list_anthropic_models and list_gemini_models), others (like list_openai_models or list_deepseek_models) simply print the raw result.
+ • Recommendation: Add consistent formatting or output messages for clarity.
  • Severity: ℹ️ Low
 
 Below is a concise summary in a markdown table:
@@ -1085,7 +1085,7 @@ models = client.models.list()
 print("List of models that support generateContent:\n")
 for m in models:
     # Filter for generateContent
-    
+
 print("List of models that support embedContent:\n")
 for m in models:
     # Filter for embedContent
@@ -1163,23 +1163,23 @@ class ModelProviders(Enum):
     """
     OPENAI = ("openai", "o")
     ANTHROPIC = ("anthropic", "a")
-    GEMINI = ("gemini", "g") 
+    GEMINI = ("gemini", "g")
     GROQ = ("groq", "q")
     DEEPSEEK = ("deepseek", "d")
     OLLAMA = ("ollama", "l")
-    
+
     def __init__(self, full_name, short_name):
         self.full_name = full_name
         self.short_name = short_name
-        
+
     @classmethod
     def from_name(cls, name):
         """
         Get provider enum from full or short name.
-        
+
         Args:
             name: The provider name (full or short)
-            
+
         Returns:
             ModelProviders: The corresponding provider enum, or None if not found
         """
@@ -1206,16 +1206,16 @@ logger = logging.getLogger(__name__)
 def validate_models_prefixed_by_provider(models_prefixed_by_provider: List[str]) -> bool:
     """
     Validate that provider prefixes in model strings are valid.
-    
+
     Args:
         models_prefixed_by_provider: List of model strings in format "provider:model"
-        
+
     Returns:
         True if all valid, raises ValueError otherwise
     """
     if not models_prefixed_by_provider:
         raise ValueError("No models provided")
-    
+
     for model_string in models_prefixed_by_provider:
         try:
             provider_prefix, model_name = split_provider_and_model(model_string)
@@ -1225,40 +1225,40 @@ def validate_models_prefixed_by_provider(models_prefixed_by_provider: List[str])
         except Exception as e:
             logger.error(f"Validation error for model string '{model_string}': {str(e)}")
             raise
-    
+
     return True
 
 
 def validate_provider(provider: str) -> bool:
     """
     Validate that a provider name is valid.
-    
+
     Args:
         provider: Provider name (full or short)
-        
+
     Returns:
         True if valid, raises ValueError otherwise
     """
     provider_enum = ModelProviders.from_name(provider)
     if provider_enum is None:
         raise ValueError(f"Unknown provider: {provider}")
-    
+
     return True
 
 
 def validate_provider_api_keys() -> Dict[str, bool]:
     """
     Validate that API keys are available for each provider.
-    
+
     Returns:
         Dictionary mapping provider names to availability status (True if available, False otherwise)
     """
     available_providers = {}
-    
+
     # Check API keys for each provider
     for provider in ModelProviders:
         provider_name = provider.full_name
-        
+
         # Special case for Ollama which uses OLLAMA_HOST instead of an API key
         if provider_name == "ollama":
             host = os.environ.get("OLLAMA_HOST")
@@ -1269,35 +1269,35 @@ def validate_provider_api_keys() -> Dict[str, bool]:
             api_key = get_api_key(provider_name)
             is_available = api_key is not None and api_key.strip() != ""
             available_providers[provider_name] = is_available
-    
+
     return available_providers
 
 
 def print_provider_availability(detailed: bool = True) -> None:
     """
     Print information about which providers are available based on API keys.
-    
+
     Args:
         detailed: Whether to print detailed information about missing keys
     """
     availability = validate_provider_api_keys()
-    
+
     available = [p for p, status in availability.items() if status]
     unavailable = [p for p, status in availability.items() if not status]
-    
+
     # Print availability information
     logger.info(f"Available LLM providers: {', '.join(available)}")
-    
+
     if detailed and unavailable:
         env_vars = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
-            "gemini": "GEMINI_API_KEY", 
+            "gemini": "GEMINI_API_KEY",
             "groq": "GROQ_API_KEY",
             "deepseek": "DEEPSEEK_API_KEY",
             "ollama": "OLLAMA_HOST"
         }
-        
+
         logger.warning(f"The following providers are unavailable due to missing API keys:")
         for provider in unavailable:
             env_var = env_vars.get(provider)
@@ -1324,24 +1324,24 @@ logger = logging.getLogger(__name__)
 def prompt_from_file(file: str, models_prefixed_by_provider: List[str] = None) -> List[str]:
     """
     Read text from a file and send it as a prompt to multiple models.
-    
+
     Args:
         file: Path to the text file
         models_prefixed_by_provider: List of model strings in format "provider:model"
                                     If None, uses the DEFAULT_MODELS environment variable
-        
+
     Returns:
         List of responses from the models
     """
     file_path = Path(file)
-    
+
     # Validate file
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file}")
-    
+
     if not file_path.is_file():
         raise ValueError(f"Not a file: {file}")
-    
+
     # Read file content
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -1349,7 +1349,7 @@ def prompt_from_file(file: str, models_prefixed_by_provider: List[str] = None) -
     except Exception as e:
         logger.error(f"Error reading file {file}: {e}")
         raise ValueError(f"Error reading file: {str(e)}")
-    
+
     # Send prompt with file content
     return prompt(text, models_prefixed_by_provider)
 </file>
@@ -1375,12 +1375,12 @@ if not os.environ.get("GEMINI_API_KEY"):
 def test_list_models():
     """Test listing Gemini models."""
     models = gemini.list_models()
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
     assert all(isinstance(model, str) for model in models)
-    
+
     # Check for at least one expected model containing gemini
     gemini_models = [model for model in models if "gemini" in model.lower()]
     assert len(gemini_models) > 0, "No Gemini models found"
@@ -1390,7 +1390,7 @@ def test_prompt():
     """Test sending prompt to Gemini."""
     # Using gemini-1.5-flash as the model for testing
     response = gemini.prompt("What is the capital of France?", "gemini-1.5-flash")
-    
+
     # Assertions
     assert isinstance(response, str)
     assert len(response) > 0
@@ -1452,12 +1452,12 @@ if not os.environ.get("OPENAI_API_KEY"):
 def test_list_models():
     """Test listing OpenAI models."""
     models = openai.list_models()
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
     assert all(isinstance(model, str) for model in models)
-    
+
     # Check for at least one expected model
     gpt_models = [model for model in models if "gpt" in model.lower()]
     assert len(gpt_models) > 0, "No GPT models found"
@@ -1466,7 +1466,7 @@ def test_list_models():
 def test_prompt():
     """Test sending prompt to OpenAI."""
     response = openai.prompt("What is the capital of France?", "gpt-4o-mini")
-    
+
     # Assertions
     assert isinstance(response, str)
     assert len(response) > 0
@@ -1482,7 +1482,7 @@ import pytest
 import os
 from unittest.mock import patch
 from just_prompt.atoms.shared.validator import (
-    validate_models_prefixed_by_provider, 
+    validate_models_prefixed_by_provider,
     validate_provider,
     validate_provider_api_keys,
     print_provider_availability
@@ -1495,14 +1495,14 @@ def test_validate_models_prefixed_by_provider():
     assert validate_models_prefixed_by_provider(["openai:gpt-4o-mini"]) == True
     assert validate_models_prefixed_by_provider(["anthropic:claude-3-5-haiku"]) == True
     assert validate_models_prefixed_by_provider(["o:gpt-4o-mini", "a:claude-3-5-haiku"]) == True
-    
+
     # Invalid model strings
     with pytest.raises(ValueError):
         validate_models_prefixed_by_provider([])
-    
+
     with pytest.raises(ValueError):
         validate_models_prefixed_by_provider(["unknown:model"])
-    
+
     with pytest.raises(ValueError):
         validate_models_prefixed_by_provider(["invalid-format"])
 
@@ -1514,11 +1514,11 @@ def test_validate_provider():
     assert validate_provider("anthropic") == True
     assert validate_provider("o") == True
     assert validate_provider("a") == True
-    
+
     # Invalid providers
     with pytest.raises(ValueError):
         validate_provider("unknown")
-        
+
     with pytest.raises(ValueError):
         validate_provider("")
 
@@ -1529,25 +1529,25 @@ def test_validate_provider_api_keys():
     with patch.dict(os.environ, {
         "OPENAI_API_KEY": "test-key",
         "ANTHROPIC_API_KEY": "test-key",
-        "GROQ_API_KEY": "test-key",  
+        "GROQ_API_KEY": "test-key",
         # GEMINI_API_KEY not defined
         "DEEPSEEK_API_KEY": "test-key",
         "OLLAMA_HOST": "http://localhost:11434"
     }):
         # Call the function to validate provider API keys
         availability = validate_provider_api_keys()
-        
+
         # Check that each provider has the correct availability status
         assert availability["openai"] is True
         assert availability["anthropic"] is True
         assert availability["groq"] is True
-        
+
         # This depends on the actual implementation. Since we're mocking the environment,
         # let's just assert that the keys exist rather than specific values
         assert "gemini" in availability
         assert "deepseek" in availability
         assert "ollama" in availability
-        
+
         # Make sure all providers are included in the result
         assert set(availability.keys()) == {"openai", "anthropic", "gemini", "groq", "deepseek", "ollama"}
 
@@ -1558,7 +1558,7 @@ def test_validate_provider_api_keys_none():
     with patch.dict(os.environ, {}, clear=True):
         # Call the function to validate provider API keys
         availability = validate_provider_api_keys()
-        
+
         # Check that all providers are marked as unavailable
         assert all(status is False for status in availability.values())
         assert set(availability.keys()) == {"openai", "anthropic", "gemini", "groq", "deepseek", "ollama"}
@@ -1575,15 +1575,15 @@ def test_print_provider_availability():
         "deepseek": True,
         "ollama": False
     }
-    
-    with patch('just_prompt.atoms.shared.validator.validate_provider_api_keys', 
+
+    with patch('just_prompt.atoms.shared.validator.validate_provider_api_keys',
               return_value=mock_availability):
-        
+
         # Mock the logger to verify the log messages
         with patch('just_prompt.atoms.shared.validator.logger') as mock_logger:
             # Call the function to print provider availability
             print_provider_availability(detailed=True)
-            
+
             # Verify that info was called with a message about available providers
             mock_logger.info.assert_called_once()
             info_call_args = mock_logger.info.call_args[0][0]
@@ -1591,10 +1591,10 @@ def test_print_provider_availability():
             assert "openai" in info_call_args
             assert "gemini" in info_call_args
             assert "deepseek" in info_call_args
-            
+
             # Check that warning was called multiple times
             assert mock_logger.warning.call_count >= 2
-            
+
             # Check that the first warning is about missing API keys
             warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
             assert "The following providers are unavailable due to missing API keys:" in warning_calls
@@ -1627,11 +1627,11 @@ def test_file_read():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp:
         temp.write("What is the capital of France?")
         temp_path = temp.name
-    
+
     try:
         # Make real API call
         response = prompt_from_file(temp_path, ["o:gpt-4o-mini"])
-        
+
         # Assertions
         assert isinstance(response, list)
         assert len(response) == 1
@@ -1673,7 +1673,7 @@ def test_prompt_multiple_models():
     # Skip if API keys aren't available
     if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("Required API keys not available")
-        
+
     # Define a simple test case
     test_prompt = "What is the capital of France?"
     test_models = ["openai:gpt-4o-mini", "anthropic:claude-3-5-haiku-20241022"]
@@ -1737,14 +1737,14 @@ def parse_thinking_suffix(model: str) -> Tuple[str, int]:
     """
     Parse a model name to check for thinking token budget suffixes.
     Only works with the claude-3-7-sonnet-20250219 model.
-    
+
     Supported formats:
     - model:1k, model:4k, model:16k
     - model:1000, model:1054, model:1333, etc. (any value between 1024-16000)
-    
+
     Args:
         model: The model name potentially with a thinking suffix
-        
+
     Returns:
         Tuple of (base_model_name, thinking_budget)
         If no thinking suffix is found, thinking_budget will be 0
@@ -1752,28 +1752,28 @@ def parse_thinking_suffix(model: str) -> Tuple[str, int]:
     # Look for patterns like ":1k", ":4k", ":16k" or ":1000", ":1054", etc.
     pattern = r'^(.+?)(?::(\d+)k?)?$'
     match = re.match(pattern, model)
-    
+
     if not match:
         return model, 0
-    
+
     base_model = match.group(1)
     thinking_suffix = match.group(2)
-    
+
     # Validate the model - only claude-3-7-sonnet-20250219 supports thinking
     if base_model != "claude-3-7-sonnet-20250219":
         logger.warning(f"Model {base_model} does not support thinking, ignoring thinking suffix")
         return base_model, 0
-    
+
     if not thinking_suffix:
         return model, 0
-    
+
     # Convert to integer
     try:
         thinking_budget = int(thinking_suffix)
         # If a small number like 1, 4, 16 is provided, assume it's in "k" (multiply by 1024)
         if thinking_budget < 100:
             thinking_budget *= 1024
-            
+
         # Adjust values outside the range
         if thinking_budget < 1024:
             logger.warning(f"Thinking budget {thinking_budget} below minimum (1024), using 1024 instead")
@@ -1781,7 +1781,7 @@ def parse_thinking_suffix(model: str) -> Tuple[str, int]:
         elif thinking_budget > 16000:
             logger.warning(f"Thinking budget {thinking_budget} above maximum (16000), using 16000 instead")
             thinking_budget = 16000
-            
+
         logger.info(f"Using thinking budget of {thinking_budget} tokens for model {base_model}")
         return base_model, thinking_budget
     except ValueError:
@@ -1792,12 +1792,12 @@ def parse_thinking_suffix(model: str) -> Tuple[str, int]:
 def prompt_with_thinking(text: str, model: str, thinking_budget: int) -> str:
     """
     Send a prompt to Anthropic Claude with thinking enabled and get a response.
-    
+
     Args:
         text: The prompt text
         model: The base model name (without thinking suffix)
         thinking_budget: The token budget for thinking
-        
+
     Returns:
         Response string from the model
     """
@@ -1805,7 +1805,7 @@ def prompt_with_thinking(text: str, model: str, thinking_budget: int) -> str:
         # Ensure max_tokens is greater than thinking_budget
         # Documentation requires this: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#max-tokens-and-context-window-size
         max_tokens = thinking_budget + 1000  # Adding 1000 tokens for the response
-        
+
         logger.info(f"Sending prompt to Anthropic model {model} with thinking budget {thinking_budget}")
         message = client.messages.create(
             model=model,
@@ -1816,14 +1816,14 @@ def prompt_with_thinking(text: str, model: str, thinking_budget: int) -> str:
             },
             messages=[{"role": "user", "content": text}]
         )
-        
+
         # Extract the response from the message content
         # Filter out thinking blocks and only get text blocks
         text_blocks = [block for block in message.content if block.type == "text"]
-        
+
         if not text_blocks:
             raise ValueError("No text content found in response")
-            
+
         return text_blocks[0].text
     except Exception as e:
         logger.error(f"Error sending prompt with thinking to Anthropic: {e}")
@@ -1833,23 +1833,23 @@ def prompt_with_thinking(text: str, model: str, thinking_budget: int) -> str:
 def prompt(text: str, model: str) -> str:
     """
     Send a prompt to Anthropic Claude and get a response.
-    
+
     Automatically handles thinking suffixes in the model name (e.g., claude-3-7-sonnet-20250219:4k)
-    
+
     Args:
         text: The prompt text
         model: The model name, optionally with thinking suffix
-        
+
     Returns:
         Response string from the model
     """
     # Parse the model name to check for thinking suffixes
     base_model, thinking_budget = parse_thinking_suffix(model)
-    
+
     # If thinking budget is specified, use prompt_with_thinking
     if thinking_budget > 0:
         return prompt_with_thinking(text, base_model, thinking_budget)
-    
+
     # Otherwise, use regular prompt
     try:
         logger.info(f"Sending prompt to Anthropic model: {base_model}")
@@ -1860,10 +1860,10 @@ def prompt(text: str, model: str) -> str:
         # Extract the response from the message content
         # Get only text blocks
         text_blocks = [block for block in message.content if block.type == "text"]
-        
+
         if not text_blocks:
             raise ValueError("No text content found in response")
-            
+
         return text_blocks[0].text
     except Exception as e:
         logger.error(f"Error sending prompt to Anthropic: {e}")
@@ -1873,7 +1873,7 @@ def prompt(text: str, model: str) -> str:
 def list_models() -> List[str]:
     """
     List available Anthropic models.
-    
+
     Returns:
         List of model names
     """
@@ -2200,21 +2200,21 @@ DEFAULT_MODEL = "anthropic:claude-3-7-sonnet-20250219"
 def split_provider_and_model(model_string: str) -> Tuple[str, str]:
     """
     Split a model string into provider and model name.
-    
+
     Note: This only splits the first colon in the model string and leaves the rest of the string
     as the model name. Models will have additional colons in the string and we want to ignore them
     and leave them for the model name.
-    
+
     Args:
         model_string: String in format "provider:model"
-        
+
     Returns:
         Tuple containing (provider, model)
     """
     parts = model_string.split(":", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid model string format: {model_string}. Expected format: 'provider:model'")
-    
+
     provider, model = parts
     return provider, model
 
@@ -2222,30 +2222,30 @@ def split_provider_and_model(model_string: str) -> Tuple[str, str]:
 def get_provider_from_prefix(prefix: str) -> str:
     """
     Get the full provider name from a prefix.
-    
+
     Args:
         prefix: Provider prefix (short or full name)
-        
+
     Returns:
         Full provider name
     """
     from .data_types import ModelProviders
-    
+
     provider = ModelProviders.from_name(prefix)
     if provider is None:
         raise ValueError(f"Unknown provider prefix: {prefix}")
-    
+
     return provider.full_name
 
 
 def get_models_prefixed_by_provider(provider_prefix: str, model_name: str) -> str:
     """
     Format a model string with provider prefix.
-    
+
     Args:
         provider_prefix: The provider prefix (short or full name)
         model_name: The model name
-        
+
     Returns:
         Formatted string in "provider:model" format
     """
@@ -2256,10 +2256,10 @@ def get_models_prefixed_by_provider(provider_prefix: str, model_name: str) -> st
 def get_api_key(provider: str) -> str:
     """
     Get the API key for a provider from environment variables.
-    
+
     Args:
         provider: Provider name (full name)
-        
+
     Returns:
         API key as string
     """
@@ -2270,11 +2270,11 @@ def get_api_key(provider: str) -> str:
         "groq": "GROQ_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY"
     }
-    
+
     env_var = key_mapping.get(provider)
     if not env_var:
         return None
-    
+
     return os.environ.get(env_var)
 </file>
 
@@ -2299,12 +2299,12 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 def test_list_models():
     """Test listing Anthropic models."""
     models = anthropic.list_models()
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
     assert all(isinstance(model, str) for model in models)
-    
+
     # Check for at least one expected model
     claude_models = [model for model in models if "claude" in model.lower()]
     assert len(claude_models) > 0, "No Claude models found"
@@ -2314,7 +2314,7 @@ def test_prompt():
     """Test sending prompt to Anthropic."""
     # Use the correct model name from the available models
     response = anthropic.prompt("What is the capital of France?", "claude-3-5-haiku-20241022")
-    
+
     # Assertions
     assert isinstance(response, str)
     assert len(response) > 0
@@ -2326,21 +2326,21 @@ def test_parse_thinking_suffix():
     # Test cases with no suffix
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet") == ("claude-3-7-sonnet", 0)
     assert anthropic.parse_thinking_suffix("claude-3-5-haiku-20241022") == ("claude-3-5-haiku-20241022", 0)
-    
+
     # Test cases with supported model and k suffixes
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:1k") == ("claude-3-7-sonnet-20250219", 1024)
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:4k") == ("claude-3-7-sonnet-20250219", 4096)
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:15k") == ("claude-3-7-sonnet-20250219", 15360)  # 15*1024=15360 < 16000
-    
+
     # Test cases with supported model and numeric suffixes
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:1024") == ("claude-3-7-sonnet-20250219", 1024)
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:4096") == ("claude-3-7-sonnet-20250219", 4096)
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:8000") == ("claude-3-7-sonnet-20250219", 8000)
-    
+
     # Test cases with non-supported model
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet:1k") == ("claude-3-7-sonnet", 0)
     assert anthropic.parse_thinking_suffix("claude-3-5-haiku:4k") == ("claude-3-5-haiku", 0)
-    
+
     # Test cases with out-of-range values (should adjust to valid range)
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:500") == ("claude-3-7-sonnet-20250219", 1024)  # Below min 1024, should use 1024
     assert anthropic.parse_thinking_suffix("claude-3-7-sonnet-20250219:20000") == ("claude-3-7-sonnet-20250219", 16000)  # Above max 16000, should use 16000
@@ -2350,23 +2350,23 @@ def test_prompt_with_thinking():
     """Test sending prompt with thinking enabled."""
     # Test with 1k thinking tokens on the supported model
     response = anthropic.prompt("What is the capital of Spain?", "claude-3-7-sonnet-20250219:1k")
-    
+
     # Assertions
     assert isinstance(response, str)
     assert len(response) > 0
     assert "madrid" in response.lower() or "Madrid" in response
-    
+
     # Test with 2k thinking tokens on the supported model
     response = anthropic.prompt("What is the capital of Germany?", "claude-3-7-sonnet-20250219:2k")
-    
+
     # Assertions
     assert isinstance(response, str)
     assert len(response) > 0
     assert "berlin" in response.lower() or "Berlin" in response
-    
+
     # Test with out-of-range but auto-corrected thinking tokens
     response = anthropic.prompt("What is the capital of Italy?", "claude-3-7-sonnet-20250219:500")
-    
+
     # Assertions (should still work with a corrected budget of 1024)
     assert isinstance(response, str)
     assert len(response) > 0
@@ -2393,17 +2393,17 @@ def test_route_prompt(mock_import_module):
     mock_module = MagicMock()
     mock_module.prompt.return_value = "Paris is the capital of France."
     mock_import_module.return_value = mock_module
-    
+
     # Test with full provider name
     response = ModelRouter.route_prompt("openai:gpt-4o-mini", "What is the capital of France?")
     assert response == "Paris is the capital of France."
     mock_import_module.assert_called_with("just_prompt.atoms.llm_providers.openai")
     mock_module.prompt.assert_called_with("What is the capital of France?", "gpt-4o-mini")
-    
+
     # Test with short provider name
     response = ModelRouter.route_prompt("o:gpt-4o-mini", "What is the capital of France?")
     assert response == "Paris is the capital of France."
-    
+
     # Test invalid provider
     with pytest.raises(ValueError):
         ModelRouter.route_prompt("unknown:model", "What is the capital of France?")
@@ -2416,17 +2416,17 @@ def test_route_list_models(mock_import_module):
     mock_module = MagicMock()
     mock_module.list_models.return_value = ["model1", "model2"]
     mock_import_module.return_value = mock_module
-    
+
     # Test with full provider name
     models = ModelRouter.route_list_models("openai")
     assert models == ["model1", "model2"]
     mock_import_module.assert_called_with("just_prompt.atoms.llm_providers.openai")
     mock_module.list_models.assert_called_once()
-    
+
     # Test with short provider name
     models = ModelRouter.route_list_models("o")
     assert models == ["model1", "model2"]
-    
+
     # Test invalid provider
     with pytest.raises(ValueError):
         ModelRouter.route_list_models("unknown")
@@ -2440,13 +2440,13 @@ def test_validate_and_correct_model_shorthand():
         # First, use the split_provider_and_model to get the provider and model
         from just_prompt.atoms.shared.utils import split_provider_and_model
         provider_prefix, model = split_provider_and_model("a:sonnet.3.7")
-        
+
         # Get the provider enum
         provider = ModelProviders.from_name(provider_prefix)
-        
+
         # Call validate_and_correct_model
         result = ModelRouter.magic_model_correction(provider.full_name, model, "anthropic:claude-3-7-sonnet-20250219")
-        
+
         # The magic_model_correction method should correct sonnet.3.7 to claude-3-7-sonnet-20250219
         assert "claude-3-7" in result, f"Expected sonnet.3.7 to be corrected to a claude-3-7 model, got {result}"
         print(f"Shorthand model 'sonnet.3.7' was corrected to '{result}'")
@@ -2472,30 +2472,30 @@ def test_list_models_openai():
     # Skip if API key isn't available
     if not os.environ.get("OPENAI_API_KEY"):
         pytest.skip("OpenAI API key not available")
-        
+
     # Test with full provider name
     models = list_models("openai")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for specific model patterns that should exist
     assert any("gpt" in model.lower() for model in models)
-    
+
 def test_list_models_anthropic():
     """Test listing Anthropic models with real API call."""
     # Skip if API key isn't available
     if not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("Anthropic API key not available")
-        
+
     # Test with full provider name
     models = list_models("anthropic")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for specific model patterns that should exist
     assert any("claude" in model.lower() for model in models)
 
@@ -2504,14 +2504,14 @@ def test_list_models_gemini():
     # Skip if API key isn't available
     if not os.environ.get("GEMINI_API_KEY"):
         pytest.skip("Gemini API key not available")
-        
+
     # Test with full provider name
     models = list_models("gemini")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for specific model patterns that should exist
     assert any("gemini" in model.lower() for model in models)
 
@@ -2520,14 +2520,14 @@ def test_list_models_groq():
     # Skip if API key isn't available
     if not os.environ.get("GROQ_API_KEY"):
         pytest.skip("Groq API key not available")
-        
+
     # Test with full provider name
     models = list_models("groq")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for specific model patterns (llama or mixtral are common in Groq)
     assert any(("llama" in model.lower() or "mixtral" in model.lower()) for model in models)
 
@@ -2536,14 +2536,14 @@ def test_list_models_deepseek():
     # Skip if API key isn't available
     if not os.environ.get("DEEPSEEK_API_KEY"):
         pytest.skip("DeepSeek API key not available")
-        
+
     # Test with full provider name
     models = list_models("deepseek")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for basic list return (no specific pattern needed)
     assert all(isinstance(model, str) for model in models)
 
@@ -2551,51 +2551,51 @@ def test_list_models_ollama():
     """Test listing Ollama models with real API call."""
     # Test with full provider name
     models = list_models("ollama")
-    
+
     # Assertions
     assert isinstance(models, list)
     assert len(models) > 0
-    
+
     # Check for basic list return (model entries could be anything)
     assert all(isinstance(model, str) for model in models)
 
 def test_list_models_with_short_names():
     """Test listing models using short provider names."""
     # Test each provider with short name (only if API key available)
-    
+
     # OpenAI - short name "o"
     if os.environ.get("OPENAI_API_KEY"):
         models = list_models("o")
         assert isinstance(models, list)
         assert len(models) > 0
         assert any("gpt" in model.lower() for model in models)
-    
+
     # Anthropic - short name "a"
     if os.environ.get("ANTHROPIC_API_KEY"):
         models = list_models("a")
         assert isinstance(models, list)
         assert len(models) > 0
         assert any("claude" in model.lower() for model in models)
-    
+
     # Gemini - short name "g"
     if os.environ.get("GEMINI_API_KEY"):
         models = list_models("g")
         assert isinstance(models, list)
         assert len(models) > 0
         assert any("gemini" in model.lower() for model in models)
-    
+
     # Groq - short name "q"
     if os.environ.get("GROQ_API_KEY"):
         models = list_models("q")
         assert isinstance(models, list)
         assert len(models) > 0
-    
+
     # DeepSeek - short name "d"
     if os.environ.get("DEEPSEEK_API_KEY"):
         models = list_models("d")
         assert isinstance(models, list)
         assert len(models) > 0
-    
+
     # Ollama - short name "l"
     models = list_models("l")
     assert isinstance(models, list)
@@ -2630,28 +2630,28 @@ def test_directory_creation_and_file_writing():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
         temp_file.write("What is the capital of France?")
         input_path = temp_file.name
-    
+
     # Create a deep non-existent directory path
     temp_dir = os.path.join(tempfile.gettempdir(), "just_prompt_test_dir", "output")
-    
+
     try:
         # Make real API call
         file_paths = prompt_from_file_to_file(
-            input_path, 
+            input_path,
             ["o:gpt-4o-mini"],
             temp_dir
         )
-        
+
         # Assertions
         assert isinstance(file_paths, list)
         assert len(file_paths) == 1
-        
+
         # Check that the file exists
         assert os.path.exists(file_paths[0])
-        
+
         # Check that the file has a .md extension
         assert file_paths[0].endswith('.md')
-        
+
         # Check file content contains the expected response
         with open(file_paths[0], 'r') as f:
             content = f.read()
@@ -2800,13 +2800,13 @@ logger = logging.getLogger(__name__)
 def prompt_from_file_to_file(file: str, models_prefixed_by_provider: List[str] = None, output_dir: str = ".") -> List[str]:
     """
     Read text from a file, send it as prompt to multiple models, and save responses to files.
-    
+
     Args:
         file: Path to the text file
         models_prefixed_by_provider: List of model strings in format "provider:model"
                                     If None, uses the DEFAULT_MODELS environment variable
         output_dir: Directory to save response files
-        
+
     Returns:
         List of paths to the output files
     """
@@ -2814,32 +2814,32 @@ def prompt_from_file_to_file(file: str, models_prefixed_by_provider: List[str] =
     output_path = Path(output_dir)
     if not output_path.exists():
         output_path.mkdir(parents=True, exist_ok=True)
-    
+
     if not output_path.is_dir():
         raise ValueError(f"Not a directory: {output_dir}")
-    
+
     # Get the base name of the input file
     input_file_name = Path(file).stem
-    
+
     # Get responses
     responses = prompt_from_file(file, models_prefixed_by_provider)
-    
+
     # Save responses to files
     output_files = []
-    
+
     # Get the models that were actually used
     models_used = models_prefixed_by_provider
     if not models_used:
         default_models = os.environ.get("DEFAULT_MODELS", DEFAULT_MODEL)
         models_used = [model.strip() for model in default_models.split(",")]
-    
+
     for i, (model_string, response) in enumerate(zip(models_used, responses)):
         # Sanitize model string for filename (replace colons with underscores)
         safe_model_name = model_string.replace(":", "_")
-        
+
         # Create output filename with .md extension
         output_file = output_path / f"{input_file_name}_{safe_model_name}.md"
-        
+
         # Write response to file as markdown
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
@@ -2848,7 +2848,7 @@ def prompt_from_file_to_file(file: str, models_prefixed_by_provider: List[str] =
         except Exception as e:
             logger.error(f"Error writing response to {output_file}: {e}")
             output_files.append(f"Error: {str(e)}")
-    
+
     return output_files
 </file>
 
@@ -2871,11 +2871,11 @@ logger = logging.getLogger(__name__)
 def _process_model_prompt(model_string: str, text: str) -> str:
     """
     Process a single model prompt.
-    
+
     Args:
         model_string: String in format "provider:model"
         text: The prompt text
-        
+
     Returns:
         Response from the model
     """
@@ -2889,12 +2889,12 @@ def _process_model_prompt(model_string: str, text: str) -> str:
 def _correct_model_name(provider: str, model: str, correction_model: str) -> str:
     """
     Correct a model name using the correction model.
-    
+
     Args:
         provider: Provider name
         model: Model name
         correction_model: Model to use for correction
-        
+
     Returns:
         Corrected model name
     """
@@ -2908,12 +2908,12 @@ def _correct_model_name(provider: str, model: str, correction_model: str) -> str
 def prompt(text: str, models_prefixed_by_provider: List[str] = None) -> List[str]:
     """
     Send a prompt to multiple models using parallel processing.
-    
+
     Args:
         text: The prompt text
         models_prefixed_by_provider: List of model strings in format "provider:model"
                                     If None, uses the DEFAULT_MODELS environment variable
-        
+
     Returns:
         List of responses from the models
     """
@@ -2923,24 +2923,24 @@ def prompt(text: str, models_prefixed_by_provider: List[str] = None) -> List[str
         models_prefixed_by_provider = [model.strip() for model in default_models.split(",")]
     # Validate model strings
     validate_models_prefixed_by_provider(models_prefixed_by_provider)
-    
+
     # Prepare corrected model strings
     corrected_models = []
     for model_string in models_prefixed_by_provider:
         provider, model = split_provider_and_model(model_string)
-        
+
         # Get correction model from environment
         correction_model = os.environ.get("CORRECTION_MODEL", DEFAULT_MODEL)
-        
+
         # Check if model needs correction
         corrected_model = _correct_model_name(provider, model, correction_model)
-        
+
         # Use corrected model
         if corrected_model != model:
             model_string = f"{provider}:{corrected_model}"
-        
+
         corrected_models.append(model_string)
-    
+
     # Process each model in parallel using ThreadPoolExecutor
     responses = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -2949,14 +2949,14 @@ def prompt(text: str, models_prefixed_by_provider: List[str] = None) -> List[str
             executor.submit(_process_model_prompt, model_string, text): model_string
             for model_string in corrected_models
         }
-        
+
         # Collect results in order
         for model_string in corrected_models:
             for future, future_model in future_to_model.items():
                 if future_model == model_string:
                     responses.append(future.result())
                     break
-    
+
     return responses
 </file>
 
@@ -3077,12 +3077,12 @@ def main():
     """
     parser = argparse.ArgumentParser(description="just-prompt - A lightweight MCP server for various LLM providers")
     parser.add_argument(
-        "--default-models", 
+        "--default-models",
         default=DEFAULT_MODEL,
         help="Comma-separated list of default models to use for prompts and model name correction, in format provider:model"
     )
     parser.add_argument(
-        "--log-level", 
+        "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
         help="Logging level"
@@ -3092,19 +3092,19 @@ def main():
         action="store_true",
         help="Show available providers and exit"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set logging level
     logging.getLogger().setLevel(getattr(logging, args.log_level))
-    
+
     # Show provider availability
     print_provider_availability()
-    
+
     # If --show-providers flag is provided, exit after showing provider info
     if args.show_providers:
         sys.exit(0)
-    
+
     try:
         # Start server (asyncio)
         asyncio.run(serve(args.default_models))
@@ -3198,7 +3198,7 @@ At the top of the file, add the following markdown:
 
 ```md
 # Code Review
-- Review the diff, report on issues, bugs, and improvements. 
+- Review the diff, report on issues, bugs, and improvements.
 - End with a concise markdown table of any issues found, their solutions, and a risk assessment for each issue if applicable.
 - Use emojis to convey the severity of each issue.
 
@@ -3274,25 +3274,25 @@ class JustPromptTools:
 class PromptSchema(BaseModel):
     text: str = Field(..., description="The prompt text")
     models_prefixed_by_provider: Optional[List[str]] = Field(
-        None, 
+        None,
         description="List of models with provider prefixes (e.g., 'openai:gpt-4o' or 'o:gpt-4o'). If not provided, uses default models."
     )
 
 class PromptFromFileSchema(BaseModel):
     file: str = Field(..., description="Path to the file containing the prompt")
     models_prefixed_by_provider: Optional[List[str]] = Field(
-        None, 
+        None,
         description="List of models with provider prefixes (e.g., 'openai:gpt-4o' or 'o:gpt-4o'). If not provided, uses default models."
     )
 
 class PromptFromFileToFileSchema(BaseModel):
     file: str = Field(..., description="Path to the file containing the prompt")
     models_prefixed_by_provider: Optional[List[str]] = Field(
-        None, 
+        None,
         description="List of models with provider prefixes (e.g., 'openai:gpt-4o' or 'o:gpt-4o'). If not provided, uses default models."
     )
     output_dir: str = Field(
-        default=".", 
+        default=".",
         description="Directory to save the response files to (default: current directory)"
     )
 
@@ -3306,29 +3306,29 @@ class ListModelsSchema(BaseModel):
 async def serve(default_models: str = DEFAULT_MODEL) -> None:
     """
     Start the MCP server.
-    
+
     Args:
         default_models: Comma-separated list of default models to use for prompts and corrections
     """
     # Set global default models for prompts and corrections
     os.environ["DEFAULT_MODELS"] = default_models
-    
+
     # Parse default models into a list
     default_models_list = [model.strip() for model in default_models.split(",")]
-    
+
     # Set the first model as the correction model
     correction_model = default_models_list[0] if default_models_list else "o:gpt-4o-mini"
     os.environ["CORRECTION_MODEL"] = correction_model
-    
+
     logger.info(f"Starting server with default models: {default_models}")
     logger.info(f"Using correction model: {correction_model}")
-    
+
     # Check and log provider availability
     print_provider_availability()
-    
+
     # Create the MCP server
     server = Server("just-prompt")
-    
+
     @server.list_tools()
     async def list_tools() -> List[Tool]:
         """Register all available tools with the MCP server."""
@@ -3359,44 +3359,44 @@ async def serve(default_models: str = DEFAULT_MODEL) -> None:
                 inputSchema=ListModelsSchema.schema(),
             ),
         ]
-    
+
     @server.call_tool()
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls from the MCP client."""
         logger.info(f"Tool call: {name}, arguments: {arguments}")
-        
+
         try:
             if name == JustPromptTools.PROMPT:
                 models_to_use = arguments.get("models_prefixed_by_provider")
                 responses = prompt(arguments["text"], models_to_use)
-                
+
                 # Get the model names that were actually used
                 models_used = models_to_use if models_to_use else [model.strip() for model in os.environ.get("DEFAULT_MODELS", DEFAULT_MODEL).split(",")]
-                
+
                 return [TextContent(
                     type="text",
-                    text="\n".join([f"Model: {models_used[i]}\nResponse: {resp}" 
+                    text="\n".join([f"Model: {models_used[i]}\nResponse: {resp}"
                                   for i, resp in enumerate(responses)])
                 )]
-                
+
             elif name == JustPromptTools.PROMPT_FROM_FILE:
                 models_to_use = arguments.get("models_prefixed_by_provider")
                 responses = prompt_from_file(arguments["file"], models_to_use)
-                
+
                 # Get the model names that were actually used
                 models_used = models_to_use if models_to_use else [model.strip() for model in os.environ.get("DEFAULT_MODELS", DEFAULT_MODEL).split(",")]
-                
+
                 return [TextContent(
                     type="text",
-                    text="\n".join([f"Model: {models_used[i]}\nResponse: {resp}" 
+                    text="\n".join([f"Model: {models_used[i]}\nResponse: {resp}"
                                   for i, resp in enumerate(responses)])
                 )]
-                
+
             elif name == JustPromptTools.PROMPT_FROM_FILE_TO_FILE:
                 output_dir = arguments.get("output_dir", ".")
                 models_to_use = arguments.get("models_prefixed_by_provider")
                 file_paths = prompt_from_file_to_file(
-                    arguments["file"], 
+                    arguments["file"],
                     models_to_use,
                     output_dir
                 )
@@ -3404,7 +3404,7 @@ async def serve(default_models: str = DEFAULT_MODEL) -> None:
                     type="text",
                     text=f"Responses saved to:\n" + "\n".join(file_paths)
                 )]
-                
+
             elif name == JustPromptTools.LIST_PROVIDERS:
                 providers = list_providers_func()
                 provider_text = "\nAvailable Providers:\n"
@@ -3414,28 +3414,28 @@ async def serve(default_models: str = DEFAULT_MODEL) -> None:
                     type="text",
                     text=provider_text
                 )]
-                
+
             elif name == JustPromptTools.LIST_MODELS:
                 models = list_models_func(arguments["provider"])
                 return [TextContent(
                     type="text",
-                    text=f"Models for provider '{arguments['provider']}':\n" + 
+                    text=f"Models for provider '{arguments['provider']}':\n" +
                          "\n".join([f"- {model}" for model in models])
                 )]
-                
+
             else:
                 return [TextContent(
                     type="text",
                     text=f"Unknown tool: {name}"
                 )]
-                
+
         except Exception as e:
             logger.error(f"Error handling tool call: {name}, error: {e}")
             return [TextContent(
                 type="text",
                 text=f"Error: {str(e)}"
             )]
-    
+
     # Initialize and run the server
     try:
         options = server.create_initialization_options()
@@ -3483,22 +3483,22 @@ The following MCP tools are available in the server:
 >
 > use the short name for faster referencing
 
-- `o` or `openai`: OpenAI 
+- `o` or `openai`: OpenAI
   - `o:gpt-4o-mini`
   - `openai:gpt-4o-mini`
-- `a` or `anthropic`: Anthropic 
+- `a` or `anthropic`: Anthropic
   - `a:claude-3-5-haiku`
   - `anthropic:claude-3-5-haiku`
-- `g` or `gemini`: Google Gemini 
+- `g` or `gemini`: Google Gemini
   - `g:gemini-2.5-pro-exp-03-25`
   - `gemini:gemini:gemini-2.5-pro-exp-03-25`
-- `q` or `groq`: Groq 
+- `q` or `groq`: Groq
   - `q:llama-3.1-70b-versatile`
   - `groq:llama-3.1-70b-versatile`
-- `d` or `deepseek`: DeepSeek 
+- `d` or `deepseek`: DeepSeek
   - `d:deepseek-coder`
   - `deepseek:deepseek-coder`
-- `l` or `ollama`: Ollama 
+- `l` or `ollama`: Ollama
   - `l:llama3.1`
   - `ollama:llama3.1`
 

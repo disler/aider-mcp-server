@@ -63,4 +63,3 @@ ai_docs/programmable-aider-documentation.md
 - Use `uv run pytest <path_to_test_file.py>` to run tests. Every atom/ must be tested.
 - Don't mock any tests - run real LLM calls. Make sure to test for failure paths.
 - At the end run `uv run aider-mcp-server --help` to validate the server is working.
-

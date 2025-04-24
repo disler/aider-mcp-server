@@ -272,7 +272,7 @@ def handle_request(
 
 async def serve(
     editor_model: str = DEFAULT_EDITOR_MODEL,
-    current_working_dir: str = None,
+    current_working_dir: str | None = None,
 ) -> None:
     """
     Start the MCP server following the Model Context Protocol.
@@ -315,12 +315,12 @@ async def serve(
     # Create the MCP server
     server = Server("aider-mcp-server")
 
-    @server.list_tools()
+    @server.list_tools()  # type: ignore[misc]
     async def list_tools() -> List[Tool]:
         """Register all available tools with the MCP server."""
         return [AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL]
 
-    @server.call_tool()
+    @server.call_tool()  # type: ignore[misc]
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls from the MCP client."""
         logger.info(f"Received Tool Call: Name='{name}'")
