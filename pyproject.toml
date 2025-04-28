@@ -62,6 +62,13 @@ markers = [
 [tool.hatch]
 package-dir = {"" = "src"}
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/aider_mcp_server"]
+
+[tool.hatch.build.targets.wheel.sources]
+# Ensure py.typed is included in the package
+include = ["src/aider_mcp_server/py.typed"]
+
 [tool.hatch.envs.dev]
 dependencies = ["aider-mcp-server[dev]"]
 features = ["dev"]
