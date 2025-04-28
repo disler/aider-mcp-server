@@ -4,18 +4,44 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Generator
+import pathlib
+from typing import Generator, Any
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider, load_env_files
 
 
 def api_keys_missing() -> bool:
-    """Check if required API keys are missing."""
-    # Add all required environment variables here
-    required_keys = ["OPENAI_API_KEY", "GEMINI_API_KEY"]  # Adjust as needed
-    return any(os.environ.get(key) is None for key in required_keys)
+    """
+    Check if required API keys are missing after loading .env files.
+    Looks for any one of the common API keys.
+    """
+    # Determine the project root directory relative to this test file
+    # This file is tests/atoms/tools/test_aider_ai_code.py
+    # Project root is 4 levels up
+    try:
+        project_root = pathlib.Path(__file__).parent.parent.parent.parent.absolute()
+        # Load environment variables from .env files, starting search from project root
+        load_env_files(working_dir=str(project_root))
+    except Exception as e:
+        # Log or handle error if path resolution or loading fails, but don't fail the check
+        print(f"Warning: Could not load .env files for API key check: {e}")
+        pass # Continue checking environment variables directly
+
+    # List of potential API keys for different providers
+    potential_keys = [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "VERTEX_AI_API_KEY",
+    ]
+
+    # Check if any of the potential keys are set in the environment
+    # Return True if *none* are found, False if *at least one* is found
+    return not any(os.environ.get(key) is not None for key in potential_keys)
 
 
 @pytest.fixture
@@ -386,6 +412,7 @@ def test_complex_tasks(temp_dir: str) -> None:
     ]
 
     last_error = None
+    result_dict: Any = None # Initialize result_dict
 
     for model in models_to_try:
         try:
@@ -400,18 +427,18 @@ def test_complex_tasks(temp_dir: str) -> None:
             result_dict = json.loads(result)
 
             # If this succeeded, break out of the loop
-            if result_dict["success"] is True:
+            if result_dict.get("success") is True:
                 break
 
             # Otherwise, record the error but continue trying other models
-            last_error = f"Model {model} did not produce successful changes"
+            last_error = f"Model {model} did not produce successful changes. Result: {result_dict.get('diff', 'No diff provided')}"
 
         except Exception as e:
             last_error = f"Error with model {model}: {str(e)}"
             continue
 
     # Skip test if all models failed rather than failing the test
-    if result_dict is None or result_dict["success"] is False:
+    if result_dict is None or result_dict.get("success") is False:
         pytest.skip(f"All models failed to generate code: {last_error}")
 
     # Check that it succeeded
@@ -437,10 +464,21 @@ def test_complex_tasks(temp_dir: str) -> None:
     import sys
 
     sys.path.append(temp_dir)
-    from calculator import Calculator  # type: ignore
+    # Use a try-except block for import in case the generated code is invalid
+    try:
+        from calculator import Calculator  # type: ignore
+    except ImportError as e:
+        pytest.fail(f"Failed to import Calculator class from generated code: {e}\nGenerated content:\n{content}")
+    except Exception as e:
+         pytest.fail(f"Unexpected error importing Calculator class: {e}\nGenerated content:\n{content}")
+
 
     # Test the calculator
-    calc = Calculator()
+    try:
+        calc = Calculator()
+    except Exception as e:
+        pytest.fail(f"Failed to instantiate Calculator class: {e}\nGenerated content:\n{content}")
+
 
     # Test basic operations
     assert calc.add(2, 3) == 5, "Expected add(2, 3) to return 5"
@@ -449,13 +487,22 @@ def test_complex_tasks(temp_dir: str) -> None:
     assert calc.divide(6, 3) == 2, "Expected divide(6, 3) to return 2"
 
     # Test division by zero error handling
-    with contextlib.suppress(Exception):
+    # Use a more specific check for the expected behavior (returning None or raising specific error)
+    try:
         result = calc.divide(5, 0)
         assert result is None or isinstance(result, (str, type(None))), (
-            "Expected divide by zero to return None, error message, or raise exception"
+            "Expected divide by zero to return None or an error message string"
         )
+    except ZeroDivisionError:
+        # If it raises ZeroDivisionError, that's also acceptable error handling
+        pass
+    except Exception as e:
+        pytest.fail(f"Unexpected exception during divide by zero test: {e}")
+
+
     # Test memory functions if implemented as expected
-    with contextlib.suppress(AttributeError, TypeError):
+    # Use try-except for attribute/type errors in case methods weren't generated correctly
+    try:
         calc.memory_store(10)
         assert calc.memory_recall() == 10, (
             "Expected memory_recall() to return stored value"
@@ -464,3 +511,8 @@ def test_complex_tasks(temp_dir: str) -> None:
         assert calc.memory_recall() == 0 or calc.memory_recall() is None, (
             "Expected memory_recall() to return 0 or None after clearing"
         )
+    except (AttributeError, TypeError) as e:
+        pytest.fail(f"Memory function test failed: {e}\nGenerated content:\n{content}")
+    except Exception as e:
+        pytest.fail(f"Unexpected error during memory function test: {e}")
+

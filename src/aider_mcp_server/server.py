@@ -313,14 +313,15 @@ async def serve(
     os.chdir(current_working_dir)
 
     # Create the MCP server
-    server = Server("aider-mcp-server")
+    # Server is generic, expecting Dict[str, Any] for request and response types
+    server: Server[List[TextContent]] = Server("aider-mcp-server")
 
-    @server.list_tools()  # type: ignore[misc]
+    @server.list_tools()  # type: ignore[misc, no-untyped-call]
     async def list_tools() -> List[Tool]:
         """Register all available tools with the MCP server."""
         return [AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL]
 
-    @server.call_tool()  # type: ignore[misc]
+    @server.call_tool()  # type: ignore[misc, no-untyped-call]
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls from the MCP client."""
         logger.info(f"Received Tool Call: Name='{name}'")
