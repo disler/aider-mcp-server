@@ -15,14 +15,26 @@ authors = [
 dependencies = [
     "aider-chat>=0.81.0",
     "boto3>=1.37.27",
+    "fastapi>=0.110.0",  # Added for API endpoints
+    "httpx>=0.27.0",     # Added for testing SSE
     "mcp>=1.6.0",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "pydantic[mypy]>=2.11.2",  # Added mypy plugin
     "python-dotenv",
     "rich>=14.0.0",
+    "sse-starlette>=2.0.0",  # Added for SSE specific functionality
+    "starlette>=0.38.0",     # Added for SSE server
+    "uvicorn[standard]>=0.30.0", # Added for running Starlette/SSE server
     "uvloop>=0.17.0",
     "hatch",
 ]
+
+[project.scripts]
+mcp-aider-server = "aider_mcp_server:main" # Generic entry point
+# Specific entry points
+mcp-aider-stdio = "aider_mcp_server:main"
+mcp-aider-sse = "aider_mcp_server.sse_server:main"
+mcp-aider-multi = "aider_mcp_server:main"
 
 [project.optional-dependencies]
 dev = [
@@ -35,6 +47,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-json-report>=1.5.0",
+    "pytest-mock",
     "ruff>=0.11.6",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "pydantic[mypy]",
@@ -45,10 +58,9 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-json-report>=1.5.0",
+    "pytest-mock",
+    "httpx>=0.27.0",  # Added for testing SSE endpoints
 ]
-
-[project.scripts]
-mcp-aider-server = "aider_mcp_server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -65,9 +77,9 @@ package-dir = {"" = "src"}
 [tool.hatch.build.targets.wheel]
 packages = ["src/aider_mcp_server"]
 
-[tool.hatch.build.targets.wheel.sources]
-# Ensure py.typed is included in the package
-include = ["src/aider_mcp_server/py.typed"]
+# [tool.hatch.build.targets.wheel.sources]
+# # Ensure py.typed is included in the package
+# include = ["src/aider_mcp_server/py.typed"]
 
 [tool.hatch.envs.dev]
 dependencies = ["aider-mcp-server[dev]"]
@@ -100,6 +112,7 @@ package_root = ["src"]
 namespace_packages = true
 explicit_package_bases = true
 plugins = ["pydantic.mypy"]
+mypy_path = "src"
 strict = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
@@ -134,4 +147,20 @@ disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
 module = "aider_mcp_server.atoms.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "starlette.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "uvicorn.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sse_starlette.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "fastapi.*"
 ignore_missing_imports = true

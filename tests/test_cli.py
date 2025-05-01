@@ -1,0 +1,353 @@
+import sys
+import os
+import pytest
+from unittest import mock
+from pathlib import Path
+from typing import List, Tuple, Any, Generator
+
+# Use absolute imports from the package root
+from aider_mcp_server import __main__ as cli_main
+from aider_mcp_server.atoms.atoms_utils import DEFAULT_EDITOR_MODEL, DEFAULT_WS_HOST, DEFAULT_WS_PORT
+# Import is_git_repository from server, as __main__ imports it from there
+from aider_mcp_server.server import is_git_repository
+# Import get_logger from atoms.logging, as __main__ imports it from there
+from aider_mcp_server.atoms.logging import get_logger, Logger
+
+
+# Helper function to run the main function with specific args
+def run_main(monkeypatch: pytest.MonkeyPatch, args: List[str]) -> Tuple[mock.MagicMock, mock.MagicMock, mock.MagicMock, mock.MagicMock, mock.MagicMock, mock.MagicMock, mock.MagicMock, mock.MagicMock]:
+    """Runs the CLI main function with mocked dependencies."""
+    mock_serve = mock.MagicMock()
+    mock_serve_sse = mock.MagicMock()
+    mock_serve_multi = mock.MagicMock()
+    mock_logger_instance = mock.MagicMock(spec=Logger) # Mock the logger instance
+    # Mock the get_logger function *where it's used* in __main__
+    mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
+    # Mock os.path.isdir *where it's used* in __main__ (directly via os.path)
+    # It needs to handle Path objects now as __main__ uses Path.is_dir()
+    mock_path_is_dir = mock.MagicMock(return_value=True)
+    # Mock is_git_repository *where it's used* in __main__
+    mock_is_git_repo = mock.MagicMock(return_value=(True, None)) # Default to True
+    mock_exit = mock.MagicMock(side_effect=SystemExit) # Raise SystemExit
+
+    # Patch the functions and classes used within __main__.py's scope
+    monkeypatch.setattr(cli_main, "serve", mock_serve)
+    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
+    # Patch Path.is_dir globally as __main__ uses Path objects now
+    monkeypatch.setattr(Path, "is_dir", mock_path_is_dir)
+    # Patch Path.resolve globally or where needed if __main__ uses it extensively
+    # Let's assume resolve works, but patch is_dir and is_git_repository
+    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(sys, "exit", mock_exit)
+
+    # Mock sys.argv for this specific run
+    monkeypatch.setattr(sys, "argv", ["script_name"] + args)
+
+    try:
+        cli_main.main()
+    except SystemExit:
+        pass # Capture SystemExit raised by mock_exit or argparse error
+
+    return mock_serve, mock_serve_sse, mock_serve_multi, mock_get_logger, mock_logger_instance, mock_path_is_dir, mock_is_git_repo, mock_exit
+
+
+# --- Test Cases ---
+
+def test_default_stdio_mode(monkeypatch: pytest.MonkeyPatch):
+    """Test default mode is stdio."""
+    # Provide the required CWD argument
+    args = ["--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve() # __main__ resolves the path
+    # Check that Path.is_dir was called on the resolved path
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path # Check the Path object passed
+    # Check that is_git_repository was called with the resolved Path object
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve.assert_called_once()
+    call_args, call_kwargs = mock_serve.call_args
+    assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
+    assert call_kwargs.get("current_working_dir") == str(cwd_path) # __main__ passes string path
+    mock_serve_sse.assert_not_called()
+    mock_serve_multi.assert_not_called()
+    mock_exit.assert_not_called()
+
+def test_explicit_stdio_mode(monkeypatch: pytest.MonkeyPatch):
+    """Test explicit stdio mode selection."""
+    args = ["--server-mode", "stdio", "--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve.assert_called_once()
+    mock_serve_sse.assert_not_called()
+    mock_serve_multi.assert_not_called()
+    mock_exit.assert_not_called()
+
+def test_sse_mode_default_host_port(monkeypatch: pytest.MonkeyPatch):
+    """Test SSE mode with default host and port."""
+    args = ["--server-mode", "sse", "--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_sse.assert_called_once()
+    call_args, call_kwargs = mock_serve_sse.call_args
+    assert call_kwargs.get("host") == DEFAULT_WS_HOST
+    assert call_kwargs.get("port") == DEFAULT_WS_PORT
+    assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
+    assert call_kwargs.get("current_working_dir") == str(cwd_path) # Passes string path
+    mock_serve.assert_not_called()
+    mock_serve_multi.assert_not_called()
+    mock_exit.assert_not_called()
+
+def test_sse_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
+    """Test SSE mode with custom host and port."""
+    custom_host = "192.168.1.100"
+    custom_port = 9999
+    args = ["--server-mode", "sse", "--host", custom_host, "--port", str(custom_port), "--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_sse.assert_called_once()
+    call_args, call_kwargs = mock_serve_sse.call_args
+    assert call_kwargs.get("host") == custom_host
+    assert call_kwargs.get("port") == custom_port
+    mock_serve.assert_not_called()
+    mock_serve_multi.assert_not_called()
+    mock_exit.assert_not_called()
+
+def test_multi_mode_default_host_port(monkeypatch: pytest.MonkeyPatch):
+    """Test multi mode with default host and port."""
+    args = ["--server-mode", "multi", "--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_multi.assert_called_once()
+    call_args, call_kwargs = mock_serve_multi.call_args
+    assert call_kwargs.get("host") == DEFAULT_WS_HOST
+    assert call_kwargs.get("port") == DEFAULT_WS_PORT
+    assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
+    assert call_kwargs.get("current_working_dir") == str(cwd_path) # Passes string path
+    mock_serve.assert_not_called()
+    mock_serve_sse.assert_not_called()
+    mock_exit.assert_not_called()
+
+def test_multi_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
+    """Test multi mode with custom host and port."""
+    custom_host = "0.0.0.0"
+    custom_port = 8080
+    args = ["--server-mode", "multi", "--host", custom_host, "--port", str(custom_port), "--current-working-dir", "."]
+    mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_multi.assert_called_once()
+    call_args, call_kwargs = mock_serve_multi.call_args
+    assert call_kwargs.get("host") == custom_host
+    assert call_kwargs.get("port") == custom_port
+    mock_serve.assert_not_called()
+    mock_serve_sse.assert_not_called()
+    mock_exit.assert_not_called()
+
+@pytest.mark.parametrize("mode_args", [["--server-mode", "stdio"], ["--server-mode", "stdio"]]) # Default is stdio, test explicit too
+@pytest.mark.parametrize("extra_args", [["--host", "1.1.1.1"], ["--port", "1234"]])
+def test_stdio_mode_host_port_warning(monkeypatch: pytest.MonkeyPatch, mode_args: List[str], extra_args: List[str]):
+    """Test warning when host/port are used with stdio mode."""
+    args = mode_args + extra_args + ["--current-working-dir", "."]
+    mock_serve, _, _, _, mock_logger_instance, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve.assert_called_once()
+    mock_logger_instance.warning.assert_called_once_with(
+        "Warning: --host and --port arguments are ignored in 'stdio' mode."
+    )
+    mock_exit.assert_not_called()
+
+
+def test_custom_editor_model_stdio(monkeypatch: pytest.MonkeyPatch):
+    """Test custom editor model parameter with stdio mode."""
+    model = "test-editor-model"
+    args = ["--editor-model", model, "--current-working-dir", "."]
+    mock_serve, _, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve.assert_called_once()
+    call_args, call_kwargs = mock_serve.call_args
+    assert call_kwargs.get("editor_model") == model
+    mock_exit.assert_not_called()
+
+def test_custom_editor_model_sse(monkeypatch: pytest.MonkeyPatch):
+    """Test custom editor model parameter with sse mode."""
+    model = "test-editor-model-sse"
+    args = ["--server-mode", "sse", "--editor-model", model, "--current-working-dir", "."]
+    _, mock_serve_sse, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_sse.assert_called_once()
+    call_args, call_kwargs = mock_serve_sse.call_args
+    assert call_kwargs.get("editor_model") == model
+    mock_exit.assert_not_called()
+
+def test_custom_editor_model_multi(monkeypatch: pytest.MonkeyPatch):
+    """Test custom editor model parameter with multi mode."""
+    model = "test-editor-model-multi"
+    args = ["--server-mode", "multi", "--editor-model", model, "--current-working-dir", "."]
+    _, _, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    cwd_path = Path(".").resolve()
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == cwd_path
+    mock_is_git_repo.assert_called_once_with(cwd_path)
+    mock_serve_multi.assert_called_once()
+    call_args, call_kwargs = mock_serve_multi.call_args
+    assert call_kwargs.get("editor_model") == model
+    mock_exit.assert_not_called()
+
+def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
+    """Test validation failure if working directory does not exist."""
+    non_existent_dir_str = "/path/to/non/existent/dir"
+    args = ["--current-working-dir", non_existent_dir_str]
+
+    # Mock Path.resolve to raise FileNotFoundError for the specific path
+    original_resolve = Path.resolve
+    def mock_resolve(self, strict=False):
+        if str(self) == non_existent_dir_str and strict:
+            raise FileNotFoundError(f"No such file or directory: '{non_existent_dir_str}'")
+        # Call original resolve for other paths (like '.') if needed,
+        # but for this test, only the non-existent path matters.
+        # Be cautious with patching built-ins globally.
+        # A more targeted patch might be better if possible.
+        # Let's assume the exception is sufficient.
+        # return original_resolve(self, strict) # This might cause issues if self is not a real path
+        # For simplicity, just raise for the target path
+        if str(self) == non_existent_dir_str and strict:
+             raise FileNotFoundError(f"No such file or directory: '{non_existent_dir_str}'")
+        # Return a mock path object for other cases if necessary
+        return mock.MagicMock(spec=Path)
+
+
+    monkeypatch.setattr(Path, "resolve", mock_resolve)
+    # No need to mock is_dir or is_git_repo as resolve(strict=True) fails first
+
+    # Set up other mocks needed by run_main
+    mock_serve = mock.MagicMock()
+    mock_serve_sse = mock.MagicMock()
+    mock_serve_multi = mock.MagicMock()
+    mock_logger_instance = mock.MagicMock(spec=Logger)
+    mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
+    mock_is_git_repo = mock.MagicMock() # Won't be called
+    mock_exit = mock.MagicMock(side_effect=SystemExit)
+
+    monkeypatch.setattr(cli_main, "serve", mock_serve)
+    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
+    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(sys, "exit", mock_exit)
+    monkeypatch.setattr(sys, "argv", ["script_name"] + args)
+
+    # Run main, expecting it to exit
+    with pytest.raises(SystemExit):
+        cli_main.main()
+
+    # Assertions
+    mock_logger_instance.critical.assert_called_once()
+    error_message = mock_logger_instance.critical.call_args[0][0]
+    assert f"Specified working directory does not exist: {non_existent_dir_str}" in error_message
+    mock_exit.assert_called_once_with(1)
+    mock_serve.assert_not_called()
+    mock_serve_sse.assert_not_called()
+    mock_serve_multi.assert_not_called()
+
+
+def test_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Test validation failure if working directory is not a git repository."""
+    not_git_dir = tmp_path / "not_a_repo"
+    not_git_dir.mkdir()
+    not_git_dir_resolved = not_git_dir.resolve()
+    git_error_message = "fatal: not a git repository"
+    args = ["--current-working-dir", str(not_git_dir)]
+
+    # Set up mocks *before* running main
+    mock_serve = mock.MagicMock()
+    mock_serve_sse = mock.MagicMock()
+    mock_serve_multi = mock.MagicMock()
+    mock_logger_instance = mock.MagicMock(spec=Logger)
+    mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
+    # Mock Path.is_dir to return True for this path
+    monkeypatch.setattr(Path, "is_dir", mock.MagicMock(return_value=True))
+    # Mock is_git_repository to return False
+    mock_is_git_repo = mock.MagicMock(return_value=(False, git_error_message))
+    mock_exit = mock.MagicMock(side_effect=SystemExit)
+
+    monkeypatch.setattr(cli_main, "serve", mock_serve)
+    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
+    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(sys, "exit", mock_exit)
+    monkeypatch.setattr(sys, "argv", ["script_name"] + args)
+
+    # Run main, expecting it to exit
+    with pytest.raises(SystemExit):
+        cli_main.main()
+
+    # Assertions
+    mock_is_git_repo.assert_called_once_with(not_git_dir_resolved) # Check Path object passed
+    mock_logger_instance.critical.assert_called_once()
+    error_message = mock_logger_instance.critical.call_args[0][0]
+    assert f"Specified working directory is not a valid git repository: {not_git_dir_resolved}" in error_message
+    assert git_error_message in error_message
+    mock_exit.assert_called_once_with(1)
+    mock_serve.assert_not_called()
+    mock_serve_sse.assert_not_called()
+    mock_serve_multi.assert_not_called()
+
+
+def test_working_dir_valid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Test successful validation with a valid working directory."""
+    valid_dir = tmp_path / "valid_repo"
+    valid_dir.mkdir()
+    valid_dir_resolved = valid_dir.resolve()
+    args = ["--current-working-dir", str(valid_dir)]
+
+    # Use run_main which sets default mocks for success
+    mock_serve, _, _, _, mock_logger_instance, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+
+    # Check validation calls happened correctly
+    mock_path_is_dir.assert_called_once()
+    assert mock_path_is_dir.call_args[0][0] == valid_dir_resolved # Check Path object passed
+    mock_is_git_repo.assert_called_once_with(valid_dir_resolved) # Check Path object passed
+
+    # Check that the correct serve function (default stdio) was called
+    mock_serve.assert_called_once()
+    call_args, call_kwargs = mock_serve.call_args
+    assert call_kwargs.get("current_working_dir") == str(valid_dir_resolved) # Passes string path
+    assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
+    mock_logger_instance.critical.assert_not_called() # Check critical log not called
+    mock_exit.assert_not_called()
