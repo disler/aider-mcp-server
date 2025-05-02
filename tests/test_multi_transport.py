@@ -84,7 +84,8 @@ async def mock_simple_handler(request_id: str, transport_id: str, parameters: Di
 async def mock_progress_handler(request_id: str, transport_id: str, parameters: Dict[str, Any], security_context: SecurityContext) -> Dict[str, Any]:
     coordinator = await ApplicationCoordinator.getInstance() # Use await for getInstance
     # Use get_progress_reporter for context management
-    async with coordinator.get_progress_reporter(request_id, "progress_op") as reporter:
+    # Pass parameters to get_progress_reporter
+    async with coordinator.get_progress_reporter(request_id, "progress_op", parameters=parameters) as reporter:
         await reporter.update("Step 1/3: Processing...")
         await asyncio.sleep(0.01)
         await reporter.update("Step 2/3: Working...", details={"progress": 0.5})
@@ -105,7 +106,8 @@ async def mock_long_running_handler(request_id: str, transport_id: str, paramete
 async def mock_progress_reporter_handler(request_id: str, transport_id: str, parameters: Dict[str, Any], security_context: SecurityContext) -> Dict[str, Any]:
     coordinator = await ApplicationCoordinator.getInstance() # Use await for getInstance
     # Use get_progress_reporter for context management
-    async with coordinator.get_progress_reporter(request_id, "mock_progress_reporter_handler") as reporter:
+    # Pass parameters to get_progress_reporter
+    async with coordinator.get_progress_reporter(request_id, "reporter_op", parameters=parameters) as reporter:
         await reporter.update("Using reporter: Step 1...")
         await asyncio.sleep(0.01)
         await reporter.update("Using reporter: Step 2...", details={"stage": 2})
@@ -129,20 +131,57 @@ async def coordinator():
     coordinator_instance.register_handler = MagicMock() # Sync
     coordinator_instance.subscribe_to_event_type = AsyncMock() # Now async
     coordinator_instance.start_request = AsyncMock()
+    coordinator_instance.update_request = AsyncMock() # Mock update_request here
     coordinator_instance.fail_request = AsyncMock()
     coordinator_instance.shutdown = AsyncMock()
     coordinator_instance.wait_for_initialization = AsyncMock()
     coordinator_instance.is_shutting_down = MagicMock(return_value=False)
-    coordinator_instance.get_progress_reporter = MagicMock(return_value=AsyncMock(spec=ProgressReporter)) # Mock reporter context manager
+    # Mock get_progress_reporter to return another mock that behaves like the context manager
+    mock_reporter_context = AsyncMock(spec=ProgressReporter)
+    coordinator_instance.get_progress_reporter = MagicMock(return_value=mock_reporter_context)
     coordinator_instance.__aenter__ = AsyncMock(return_value=coordinator_instance)
     coordinator_instance.__aexit__ = AsyncMock()
 
     # Configure the mock reporter context manager methods
-    mock_reporter = coordinator_instance.get_progress_reporter.return_value
-    mock_reporter.__aenter__ = AsyncMock(return_value=mock_reporter)
-    mock_reporter.__aexit__ = AsyncMock()
-    mock_reporter.update = AsyncMock()
-    mock_reporter.error = AsyncMock()
+    mock_reporter_context.__aenter__ = AsyncMock(return_value=mock_reporter_context)
+    mock_reporter_context.__aexit__ = AsyncMock()
+    mock_reporter_context.update = AsyncMock()
+    mock_reporter_context.error = AsyncMock()
+    # Store parameters passed to get_progress_reporter
+    reporter_params_store = {}
+    def save_reporter_params(request_id, operation_name, parameters=None, **kwargs): # Added **kwargs for flexibility
+        nonlocal reporter_params_store
+        reporter_params_store[request_id] = parameters if parameters is not None else {}
+        # Need to return the mock reporter context manager itself
+        return mock_reporter_context
+    coordinator_instance.get_progress_reporter.side_effect = save_reporter_params
+
+    # Link reporter updates back to coordinator.update_request
+    # This side effect needs access to the request_id and stored params
+    async def reporter_update_side_effect(message, status="in_progress", details=None):
+        # Find the request_id associated with this reporter instance
+        # This is tricky because the reporter instance doesn't inherently know its request_id
+        # We rely on the test structure where only one reporter is active at a time
+        # Or we need to enhance the mock reporter to store its request_id
+        # For now, assume we can get it from the call context or a known variable in the test
+        # Let's modify the test functions to handle this linkage explicitly.
+        pass # Will be defined within the test function
+
+    # Link reporter __aenter__/__aexit__ back to coordinator.update_request
+    async def reporter_aenter_side_effect():
+        # This needs request_id, operation_name, and params from the get_progress_reporter call
+        # We'll handle this linkage explicitly in the test functions
+        return mock_reporter_context # Return self for context management
+
+    async def reporter_aexit_side_effect(exc_type, exc_val, exc_tb):
+        # This needs request_id, operation_name, and params
+        # We'll handle this linkage explicitly in the test functions
+        pass
+
+    # Assign the side effects later in the test functions where context is available
+    mock_reporter_context.update.side_effect = reporter_update_side_effect
+    mock_reporter_context.__aenter__.side_effect = reporter_aenter_side_effect
+    mock_reporter_context.__aexit__.side_effect = reporter_aexit_side_effect
 
 
     # Patch getInstance where it's used (transport_coordinator, test_multi_transport)
@@ -173,6 +212,8 @@ async def coordinator():
     with patch('aider_mcp_server.transport_coordinator.logger', coord_logger_mock):
         # Ensure coordinator initialization is awaited (using the mock)
         await coord.wait_for_initialization()
+        # Store the reporter_params_store on the coordinator mock for access in tests
+        coord.reporter_params_store = reporter_params_store
         yield coord # Yield the mocked instance
         # Clean up by calling the coordinator's shutdown method (on the mock)
         if not coord.is_shutting_down(): # Use mock method
@@ -333,13 +374,15 @@ async def test_simple_request_routing(coordinator, registered_transports, regist
     """Test routing a simple request to the correct handler and getting a result (using mocks)."""
     sse_transport = registered_transports["sse"]
     stdio_transport = registered_transports["stdio"]
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "simple_op"
-    params = {"data": 123}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "simple_op"
+    params_val = {"data": 123}
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token"}
 
     # Mock the behavior of start_request on the coordinator mock
     # It should eventually call the handler and send events via send_event_to_subscribers
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
         # Simulate security validation (using the transport's mock method)
         originating_transport = coordinator.register_transport.await_args_list[0][0][1] # Get transport from register call
@@ -356,12 +399,13 @@ async def test_simple_request_routing(coordinator, registered_transports, regist
         # Simulate sending 'starting' status
         await coordinator.send_event_to_subscribers(
             EventTypes.STATUS,
-            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}},
+            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": request_data.get("parameters", {})}}, # Use params from request_data
             originating_transport_id=transport_id # Send only to origin initially
         )
 
         # Simulate running handler
-        result = await handler(request_id, transport_id, params, security_context)
+        handler_params = request_data.get("parameters", {}) # Extract params for handler
+        result = await handler(request_id, transport_id, handler_params, security_context)
 
         # Simulate sending result
         await coordinator.send_event_to_subscribers(
@@ -390,29 +434,29 @@ async def test_simple_request_routing(coordinator, registered_transports, regist
 
     # Start request via SSE transport (calls the mocked start_request)
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert start_request was awaited
     coordinator.start_request.assert_awaited_once_with(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert events sent to SSE transport (origin)
     assert_events_sent(sse_transport, [
-        (EventTypes.STATUS, {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}}),
-        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": True, "message": "Operation completed", "params_received": params, "request_id": request_id, "context_user": f"mock_user_{sse_transport.transport_id}"}}),
+        (EventTypes.STATUS, {"type": "status", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": ANY, "details": {"parameters": params_val}}),
+        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id_val, "tool_name": operation_name_val, "result": {"success": True, "message": "Operation completed", "params_received": params_val, "request_id": request_id_val, "context_user": f"mock_user_{sse_transport.transport_id}"}}),
     ])
 
     # Assert TOOL_RESULT event also sent to Stdio transport (subscribed)
     assert_events_sent(stdio_transport, [
-        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": True, "message": "Operation completed", "params_received": params, "request_id": request_id, "context_user": f"mock_user_{sse_transport.transport_id}"}}),
+        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id_val, "tool_name": operation_name_val, "result": {"success": True, "message": "Operation completed", "params_received": params_val, "request_id": request_id_val, "context_user": f"mock_user_{sse_transport.transport_id}"}}),
     ])
 
     # We don't check internal state (_active_requests) on the mock
@@ -423,10 +467,11 @@ async def test_progress_request_routing(coordinator, registered_transports, regi
     """Test routing a request that reports progress using ProgressReporter (using mocks)."""
     stdio_transport = registered_transports["stdio"]
     sse_transport = registered_transports["sse"]
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "progress_op"
-    params = {"input": "abc"}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "progress_op"
+    params_val = {"input": "abc"}
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token"}
 
     # Mock send_event_to_subscribers to route events to the correct mock transport's send_event
     async def mock_send_to_subscribers(event_type, data, originating_transport_id=None):
@@ -448,63 +493,84 @@ async def test_progress_request_routing(coordinator, registered_transports, regi
     coordinator.send_event_to_subscribers = AsyncMock(side_effect=mock_send_to_subscribers)
 
     # Mock update_request to simulate progress updates calling send_event_to_subscribers
-    async def mock_update_request(request_id, status, message=None, details=None):
+    # Define INSIDE test to access 'params_val' and 'operation_name_val'
+    async def mock_update_request(req_id, status, message=None, details=None):
         # Find the operation name associated with the request_id (might need storing in mock)
         # For simplicity, assume we know the operation name here
-        op_name = operation_name # Cheating slightly for the mock
+        op_name = operation_name_val # Use correct op_name
+
+        # Simulate ProgressReporter._send_progress behavior: merge params into details
+        request_params = coordinator.reporter_params_store.get(req_id, {}) # Get params stored by get_progress_reporter mock
+        structured_details = {"parameters": request_params}
+        if details:
+            # Avoid overwriting 'parameters' key if present in 'details'
+            new_details_filtered = {k: v for k, v in details.items() if k != "parameters"}
+            structured_details.update(new_details_filtered)
+
+
         progress_data = {
             "type": "progress",
-            "request_id": request_id,
+            "request_id": req_id,
             "operation": op_name,
             "status": status,
             "message": message,
-            "details": details or {}, # Ensure details is a dict
+            "details": structured_details, # Use structured details
         }
         await coordinator.send_event_to_subscribers(EventTypes.PROGRESS, progress_data)
 
-    coordinator.update_request = AsyncMock(side_effect=mock_update_request)
+    coordinator.update_request.side_effect = mock_update_request # Use the side effect defined above
 
-    # Mock the ProgressReporter context manager provided by the coordinator mock
-    mock_reporter = MagicMock(spec=ProgressReporter)
-    mock_reporter.__aenter__ = AsyncMock(return_value=mock_reporter)
-    mock_reporter.__aexit__ = AsyncMock()
-    mock_reporter.update = AsyncMock()
-    mock_reporter.error = AsyncMock()
-    # Link reporter updates back to coordinator.update_request
+    # Configure the mock reporter context manager returned by coordinator.get_progress_reporter
+    mock_reporter_context = coordinator.get_progress_reporter.return_value
+
+    # Define side effect for reporter's update method INSIDE test
     async def reporter_update_side_effect(message, status="in_progress", details=None):
-        # Assume reporter knows its request_id and operation_name
-        await coordinator.update_request(request_id, status, message, details)
-    mock_reporter.update.side_effect = reporter_update_side_effect
-    # Simulate the 'starting' and 'completed' messages sent by the real reporter context manager
-    async def reporter_aenter_side_effect():
-        await coordinator.update_request(request_id, "starting", f"Operation '{operation_name}' started.", {"parameters": params})
-        return mock_reporter
-    async def reporter_aexit_side_effect(exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            await coordinator.update_request(request_id, "completed", "Operation completed successfully.", {"parameters": params})
-        else:
-            # Handle error case if needed
-            pass
-    mock_reporter.__aenter__.side_effect = reporter_aenter_side_effect
-    mock_reporter.__aexit__.side_effect = reporter_aexit_side_effect
+        # Call the coordinator's (mocked) update_request
+        await coordinator.update_request(request_id_val, status, message, details)
+    mock_reporter_context.update.side_effect = reporter_update_side_effect
 
-    coordinator.get_progress_reporter.return_value = mock_reporter # Make coordinator return this configured mock
+    # Define side effect for reporter's __aenter__ INSIDE test
+    async def reporter_aenter_side_effect():
+        # Simulate the 'starting' message sent by the real reporter context manager
+        # It calls coordinator.update_request internally
+        await coordinator.update_request(request_id_val, "starting", f"Operation '{operation_name_val}' started.", details=None) # Details will be added by mock_update_request
+        return mock_reporter_context # Return self for context management
+    mock_reporter_context.__aenter__.side_effect = reporter_aenter_side_effect
+
+    # Define side effect for reporter's __aexit__ INSIDE test
+    async def reporter_aexit_side_effect(exc_type, exc_val, exc_tb):
+        # Simulate the 'completed' or 'error' message
+        if exc_type is None:
+            await coordinator.update_request(request_id_val, "completed", "Operation completed successfully.", details=None) # Details added by mock_update_request
+        else:
+            # Handle error case if needed (similar structure)
+            error_msg = f"Operation '{operation_name_val}' failed due to unhandled exception: {exc_val}"
+            await coordinator.update_request(request_id_val, "error", error_msg, details={"exception_type": str(exc_type.__name__)})
+    mock_reporter_context.__aexit__.side_effect = reporter_aexit_side_effect
 
 
     # Mock the behavior of start_request
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
         originating_transport = stdio_transport # Originating transport for this test
         security_context = originating_transport.validate_request_security(request_data)
         handler = coordinator.register_handler.call_args_list[1][0][1] # progress_op handler
+        handler_params = request_data.get("parameters", {}) # Extract params for handler
 
+        # Simulate sending initial status (distinct from reporter's 'starting' progress)
+        # Note: The real coordinator might send this, or rely on the reporter's first message.
+        # Let's assume coordinator sends an initial status.
         await coordinator.send_event_to_subscribers(
             EventTypes.STATUS,
-            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}},
+            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": handler_params}},
             originating_transport_id=transport_id
         )
         # Handler execution will trigger reporter updates via mocked methods
-        result = await handler(request_id, transport_id, params, security_context)
+        # The handler calls coordinator.get_progress_reporter(request_id, operation_name, parameters=params)
+        # This call is intercepted by the mock setup in the coordinator fixture, storing params.
+        result = await handler(request_id, transport_id, handler_params, security_context)
 
+        # Simulate sending final result
         await coordinator.send_event_to_subscribers(
             EventTypes.TOOL_RESULT,
             {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": result}
@@ -514,34 +580,36 @@ async def test_progress_request_routing(coordinator, registered_transports, regi
 
     # Start request via Stdio transport
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=stdio_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert start_request was awaited
     coordinator.start_request.assert_awaited_once()
 
     # Assert events sent to Stdio transport (origin)
+    # Note: The order includes the initial STATUS, then the reporter's PROGRESS messages, then the final TOOL_RESULT
     assert_events_sent(stdio_transport, [
-        (EventTypes.STATUS, {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "starting", "message": f"Operation '{operation_name}' started.", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 1/3: Processing...", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 2/3: Working...", "details": {"parameters": params, "progress": 0.5}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 3/3: Finalizing...", "details": {"parameters": params, "progress": 1.0}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params}}),
-        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": True, "message": "Progress operation completed", "request_id": request_id}}),
+        (EventTypes.STATUS, {"type": "status", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": ANY, "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": f"Operation '{operation_name_val}' started.", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 1/3: Processing...", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 2/3: Working...", "details": {"parameters": params_val, "progress": 0.5}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 3/3: Finalizing...", "details": {"parameters": params_val, "progress": 1.0}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params_val}}),
+        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id_val, "tool_name": operation_name_val, "result": {"success": True, "message": "Progress operation completed", "request_id": request_id_val}}),
     ])
 
     # Assert PROGRESS and TOOL_RESULT events also sent to SSE transport (subscribed)
+    # Note: Does not include the initial STATUS event sent only to origin.
     assert_events_sent(sse_transport, [
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "starting", "message": f"Operation '{operation_name}' started.", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 1/3: Processing...", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 2/3: Working...", "details": {"parameters": params, "progress": 0.5}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Step 3/3: Finalizing...", "details": {"parameters": params, "progress": 1.0}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params}}),
-        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": True, "message": "Progress operation completed", "request_id": request_id}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": f"Operation '{operation_name_val}' started.", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 1/3: Processing...", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 2/3: Working...", "details": {"parameters": params_val, "progress": 0.5}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Step 3/3: Finalizing...", "details": {"parameters": params_val, "progress": 1.0}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params_val}}),
+        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id_val, "tool_name": operation_name_val, "result": {"success": True, "message": "Progress operation completed", "request_id": request_id_val}}),
     ])
 
 
@@ -550,16 +618,18 @@ async def test_error_request_routing(coordinator, registered_transports, registe
     """Test routing a request that results in an error (using mocks)."""
     sse_transport = registered_transports["sse"]
     stdio_transport = registered_transports["stdio"]
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "error_op"
-    params = {}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "error_op"
+    params_val = {}
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token"}
 
     # Mock send_event_to_subscribers
     async def mock_send_to_subscribers(event_type, data, originating_transport_id=None):
         if event_type == EventTypes.STATUS and originating_transport_id == sse_transport.transport_id:
              await sse_transport.send_event(event_type, data)
         elif event_type == EventTypes.TOOL_RESULT:
+             # Errors resulting from handler execution failure are typically broadcast
              if EventTypes.TOOL_RESULT in sse_transport.get_capabilities():
                  await sse_transport.send_event(event_type, data)
              if EventTypes.TOOL_RESULT in stdio_transport.get_capabilities():
@@ -568,47 +638,69 @@ async def test_error_request_routing(coordinator, registered_transports, registe
 
     # Mock fail_request to simulate error reporting calling send_event_to_subscribers
     async def mock_fail_request(request_id, operation_name, error, error_details=None, originating_transport_id=None, request_details=None):
+        # Include parameters in the error details if available
+        request_params = coordinator.reporter_params_store.get(request_id, request_details or {}) # Use stored or passed params
+        structured_error_details = {"parameters": request_params}
+        # Add original error details if they exist
+        if isinstance(error_details, dict):
+            # Avoid overwriting 'parameters' key if present in 'error_details'
+            details_to_merge = {k: v for k, v in error_details.items() if k != "parameters"}
+            structured_error_details.update(details_to_merge)
+        elif error_details is not None:
+             # If error_details is not a dict (e.g., an exception object), convert to string
+             structured_error_details["original_error"] = str(error_details)
+
         error_data = {
             "type": "tool_result",
             "request_id": request_id,
             "tool_name": operation_name,
-            "result": {"success": False, "error": error, "details": str(error_details)}
+            "result": {"success": False, "error": error, "details": structured_error_details} # Send structured details
         }
+        # Broadcast the error result
         await coordinator.send_event_to_subscribers(EventTypes.TOOL_RESULT, error_data)
-    coordinator.fail_request = AsyncMock(side_effect=mock_fail_request)
+    coordinator.fail_request.side_effect = mock_fail_request
 
 
     # Mock the behavior of start_request to simulate the error path
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
         originating_transport = sse_transport
         security_context = originating_transport.validate_request_security(request_data)
         handler = coordinator.register_handler.call_args_list[2][0][1] # error_op handler
+        handler_params = request_data.get("parameters", {}) # Extract params for handler
 
+        # Simulate sending initial status
         await coordinator.send_event_to_subscribers(
             EventTypes.STATUS,
-            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}},
+            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": handler_params}},
             originating_transport_id=transport_id
         )
         try:
-            await handler(request_id, transport_id, params, security_context)
+            # Store params before calling handler (in case fail_request needs them)
+            coordinator.reporter_params_store[request_id] = handler_params
+            await handler(request_id, transport_id, handler_params, security_context)
         except Exception as e:
             # Simulate coordinator catching error and calling fail_request
             await coordinator.fail_request(
                 request_id=request_id,
                 operation_name=operation_name,
                 error=f"Operation failed: {type(e).__name__}",
-                error_details=e,
+                error_details=e, # Pass the exception object
                 originating_transport_id=transport_id,
-                request_details=params
+                request_details=handler_params # Pass original params
             )
+        finally:
+             # Clean up stored params for this request_id
+             coordinator.reporter_params_store.pop(request_id, None)
+
 
     coordinator.start_request.side_effect = mock_start_request_side_effect
 
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert start_request was awaited
@@ -616,11 +708,26 @@ async def test_error_request_routing(coordinator, registered_transports, registe
     # Assert fail_request was awaited (called internally by the mocked start_request)
     coordinator.fail_request.assert_awaited_once()
 
-    expected_error_result = (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": False, "error": "Operation failed: ValueError", "details": "Something went wrong in the handler"}})
+    # Expected error result includes parameters and original error string
+    expected_error_result_data = {
+        "type": "tool_result",
+        "request_id": request_id_val,
+        "tool_name": operation_name_val,
+        "result": {
+            "success": False,
+            "error": "Operation failed: ValueError",
+            "details": {
+                "parameters": params_val, # Should be {}
+                "original_error": "Something went wrong in the handler"
+            }
+        }
+    }
+    expected_error_result = (EventTypes.TOOL_RESULT, expected_error_result_data)
+
 
     # Assert events sent to originating transport (SSE)
     assert_events_sent(sse_transport, [
-        (EventTypes.STATUS, {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}}),
+        (EventTypes.STATUS, {"type": "status", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": ANY, "details": {"parameters": params_val}}),
         expected_error_result,
     ])
 
@@ -635,10 +742,11 @@ async def test_unknown_operation(coordinator, registered_transports, mock_uuid4)
     """Test requesting an operation without a registered handler (using mocks)."""
     sse_transport = registered_transports["sse"]
     stdio_transport = registered_transports["stdio"]
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "non_existent_op"
-    params = {}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "non_existent_op"
+    params_val = {}
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token"}
 
     # Mock send_event_to_subscribers
     async def mock_send_to_subscribers(event_type, data, originating_transport_id=None):
@@ -652,22 +760,37 @@ async def test_unknown_operation(coordinator, registered_transports, mock_uuid4)
 
     # Mock fail_request
     async def mock_fail_request(request_id, operation_name, error, error_details=None, originating_transport_id=None, request_details=None):
+        # Include parameters in the error details
+        request_params = request_details or {}
+        structured_error_details = {"parameters": request_params}
+        if error_details:
+             # Ensure message key is used for string details
+             if isinstance(error_details, dict):
+                 # Avoid overwriting 'parameters' key if present in 'error_details'
+                 details_to_merge = {k: v for k, v in error_details.items() if k != "parameters"}
+                 structured_error_details.update(details_to_merge)
+             else:
+                 structured_error_details["message"] = str(error_details)
+
+
         error_data = {
             "type": "tool_result",
             "request_id": request_id,
             "tool_name": operation_name,
-            "result": {"success": False, "error": error, "details": str(error_details)}
+            "result": {"success": False, "error": error, "details": structured_error_details} # Send structured details
         }
         # Send error *only* to originating transport when handler not found
         await coordinator.send_event_to_subscribers(EventTypes.TOOL_RESULT, error_data, originating_transport_id=originating_transport_id)
-    coordinator.fail_request = AsyncMock(side_effect=mock_fail_request)
+    coordinator.fail_request.side_effect = mock_fail_request
 
     # Mock start_request to simulate handler not found
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
+        handler_params = request_data.get("parameters", {}) # Extract params
         # Simulate sending 'starting' status
         await coordinator.send_event_to_subscribers(
             EventTypes.STATUS,
-            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}},
+            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": handler_params}},
             originating_transport_id=transport_id
         )
         # Simulate handler lookup failure
@@ -677,26 +800,41 @@ async def test_unknown_operation(coordinator, registered_transports, mock_uuid4)
             error="Operation not supported",
             error_details=f"No handler registered for operation '{operation_name}'.",
             originating_transport_id=transport_id,
-            request_details=params
+            request_details=handler_params # Pass original params
         )
     coordinator.start_request.side_effect = mock_start_request_side_effect
 
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert start_request and fail_request were awaited
     coordinator.start_request.assert_awaited_once()
     coordinator.fail_request.assert_awaited_once()
 
-    expected_error_result = (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": False, "error": "Operation not supported", "details": f"No handler registered for operation '{operation_name}'."}})
+    # Expected error result includes parameters and message
+    expected_error_result_data = {
+        "type": "tool_result",
+        "request_id": request_id_val,
+        "tool_name": operation_name_val,
+        "result": {
+            "success": False,
+            "error": "Operation not supported",
+            "details": {
+                "parameters": params_val, # Should be {}
+                "message": f"No handler registered for operation '{operation_name_val}'."
+            }
+        }
+    }
+    expected_error_result = (EventTypes.TOOL_RESULT, expected_error_result_data)
+
 
     # Assert events sent ONLY to originating transport (SSE)
     assert_events_sent(sse_transport, [
-         (EventTypes.STATUS, {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}}),
+         (EventTypes.STATUS, {"type": "status", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": ANY, "details": {"parameters": params_val}}),
          expected_error_result,
     ])
 
@@ -717,47 +855,80 @@ async def test_permission_denied(coordinator, registered_transports, registered_
     # Register a handler that requires execute_aider permission (on the mock coordinator)
     async def protected_op_handler(request_id: str, transport_id: str, parameters: Dict[str, Any], security_context: SecurityContext) -> Dict[str, Any]:
         pytest.fail("Protected handler should not be executed") # pragma: no cover
-    coordinator.register_handler("protected_op", protected_op_handler, required_permission=Permissions.EXECUTE_AIDER)
+    # Store the required permission alongside the handler mock if possible, or retrieve later
+    required_perm = Permissions.EXECUTE_AIDER
+    coordinator.register_handler("protected_op", protected_op_handler, required_permission=required_perm)
 
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "protected_op"
-    params = {}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token_limited"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "protected_op"
+    params_val = {}
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token_limited"}
 
     # Mock send_event_to_subscribers
     async def mock_send_to_subscribers(event_type, data, originating_transport_id=None):
         # Only the originating transport should receive the error here
+        # Note: STATUS is not sent if permission is denied early
         if event_type == EventTypes.TOOL_RESULT and originating_transport_id == sse_transport.transport_id:
              await sse_transport.send_event(event_type, data)
     coordinator.send_event_to_subscribers = AsyncMock(side_effect=mock_send_to_subscribers)
 
     # Mock fail_request
     async def mock_fail_request(request_id, operation_name, error, error_details=None, originating_transport_id=None, request_details=None):
+        # Include parameters in the error details
+        request_params = request_details or {}
+        structured_error_details = {"parameters": request_params}
+        if error_details:
+             # Ensure message key is used for string details
+             if isinstance(error_details, dict):
+                 # Avoid overwriting 'parameters' key if present in 'error_details'
+                 details_to_merge = {k: v for k, v in error_details.items() if k != "parameters"}
+                 structured_error_details.update(details_to_merge)
+             else:
+                 structured_error_details["message"] = str(error_details)
+
         error_data = {
             "type": "tool_result",
             "request_id": request_id,
             "tool_name": operation_name,
-            "result": {"success": False, "error": error, "details": str(error_details)}
+            "result": {"success": False, "error": error, "details": structured_error_details} # Send structured details
         }
         # Send error *only* to originating transport for permission denied
         await coordinator.send_event_to_subscribers(EventTypes.TOOL_RESULT, error_data, originating_transport_id=originating_transport_id)
-    coordinator.fail_request = AsyncMock(side_effect=mock_fail_request)
+    coordinator.fail_request.side_effect = mock_fail_request
 
     # Mock start_request to simulate permission check failure
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
         originating_transport = sse_transport
+        handler_params = request_data.get("parameters", {}) # Extract params
         # Simulate security validation (returns limited context)
         security_context = originating_transport.validate_request_security(request_data)
+
+        # Simulate finding handler and checking permission
+        handler_info = None
+        for call in coordinator.register_handler.call_args_list:
+            if call[0][0] == operation_name:
+                 # Assuming register_handler mock stores args=(name, handler) kwargs={'required_permission': perm}
+                 handler_info = {"handler": call[0][1], "required_permission": call[1].get('required_permission')}
+                 break
+
+        if not handler_info:
+             # Handle case where handler isn't even registered (though test setup does register it)
+             await coordinator.fail_request(request_id, operation_name, "Operation not supported", ...) # pragma: no cover
+             return
+
+        required_permission = handler_info["required_permission"]
+
         # Simulate permission check failure
-        required_permission = Permissions.EXECUTE_AIDER # Get required permission from handler registration mock
-        if required_permission not in security_context.permissions:
+        if required_permission and required_permission not in security_context.permissions:
             await coordinator.fail_request(
                 request_id=request_id,
                 operation_name=operation_name,
                 error="Permission denied",
                 error_details=f"User does not have the required permission '{required_permission.name}' for operation '{operation_name}'.",
                 originating_transport_id=transport_id,
-                request_details=params
+                request_details=handler_params # Pass original params
             )
             return # Stop processing
 
@@ -768,19 +939,35 @@ async def test_permission_denied(coordinator, registered_transports, registered_
 
 
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # Assert start_request and fail_request were awaited
     coordinator.start_request.assert_awaited_once()
     coordinator.fail_request.assert_awaited_once()
 
-    expected_error_result = (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": False, "error": "Permission denied", "details": f"User does not have the required permission '{Permissions.EXECUTE_AIDER.name}' for operation '{operation_name}'."}})
+    # Expected error result includes parameters and message
+    expected_error_result_data = {
+        "type": "tool_result",
+        "request_id": request_id_val,
+        "tool_name": operation_name_val,
+        "result": {
+            "success": False,
+            "error": "Permission denied",
+            "details": {
+                "parameters": params_val, # Should be {}
+                "message": f"User does not have the required permission '{required_perm.name}' for operation '{operation_name_val}'."
+            }
+        }
+    }
+    expected_error_result = (EventTypes.TOOL_RESULT, expected_error_result_data)
+
 
     # Assert error event sent ONLY to originating transport (SSE)
+    # No initial STATUS event should be sent in this case
     assert_events_sent(sse_transport, [
         expected_error_result,
     ])
@@ -793,19 +980,21 @@ async def test_permission_denied(coordinator, registered_transports, registered_
 async def test_reporter_handler_routing(coordinator, registered_transports, registered_handlers, mock_uuid4):
     """Test routing a request that uses ProgressReporter (using mocks)."""
     # This test is very similar to test_progress_request_routing
-    # We can reuse much of the mocking setup from there.
+    # We reuse the mocking setup logic, applying the parameter injection fixes.
 
     sse_transport = registered_transports["sse"]
     stdio_transport = registered_transports["stdio"]
-    request_id = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
-    operation_name = "reporter_op" # Use the specific handler name
-    params = {}
-    request_data = {"request_id": request_id, "name": operation_name, "parameters": params, "auth_token": "mock_token"}
+    # Use the actual request_id, operation_name, params from the call below
+    request_id_val = str(uuid.UUID("12345678-1234-5678-1234-000000000001"))
+    operation_name_val = "reporter_op" # Use the specific handler name
+    params_val = {} # Params for this specific handler
+    request_data_val = {"request_id": request_id_val, "name": operation_name_val, "parameters": params_val, "auth_token": "mock_token"}
 
     # --- Mocking Setup (similar to test_progress_request_routing) ---
 
     # Mock send_event_to_subscribers
     async def mock_send_to_subscribers(event_type, data, originating_transport_id=None):
+        # STATUS only to origin, PROGRESS/TOOL_RESULT broadcast based on capabilities
         if event_type == EventTypes.STATUS and originating_transport_id == sse_transport.transport_id:
              await sse_transport.send_event(event_type, data)
         elif event_type == EventTypes.PROGRESS:
@@ -820,40 +1009,50 @@ async def test_reporter_handler_routing(coordinator, registered_transports, regi
                  await stdio_transport.send_event(event_type, data)
     coordinator.send_event_to_subscribers = AsyncMock(side_effect=mock_send_to_subscribers)
 
-    # Mock update_request
-    async def mock_update_request(request_id, status, message=None, details=None):
-        op_name = operation_name
+    # Mock update_request INSIDE test to access 'params_val' and 'operation_name_val'
+    async def mock_update_request(req_id, status, message=None, details=None):
+        op_name = operation_name_val # Use correct op_name for this test
+        request_params = coordinator.reporter_params_store.get(req_id, {})
+        structured_details = {"parameters": request_params}
+        if details:
+            # Avoid overwriting 'parameters' key if present in 'details'
+            new_details_filtered = {k: v for k, v in details.items() if k != "parameters"}
+            structured_details.update(new_details_filtered)
+
         progress_data = {
-            "type": "progress", "request_id": request_id, "operation": op_name,
-            "status": status, "message": message, "details": details or {},
+            "type": "progress", "request_id": req_id, "operation": op_name,
+            "status": status, "message": message, "details": structured_details,
         }
         await coordinator.send_event_to_subscribers(EventTypes.PROGRESS, progress_data)
-    coordinator.update_request = AsyncMock(side_effect=mock_update_request)
+    coordinator.update_request.side_effect = mock_update_request
 
-    # Mock ProgressReporter context manager
-    mock_reporter = MagicMock(spec=ProgressReporter)
-    mock_reporter.__aenter__ = AsyncMock(return_value=mock_reporter)
-    mock_reporter.__aexit__ = AsyncMock()
-    mock_reporter.update = AsyncMock()
-    mock_reporter.error = AsyncMock()
+    # Configure the mock reporter context manager
+    mock_reporter_context = coordinator.get_progress_reporter.return_value
+
+    # Define reporter side effects INSIDE test
     async def reporter_update_side_effect(message, status="in_progress", details=None):
-        await coordinator.update_request(request_id, status, message, details)
-    mock_reporter.update.side_effect = reporter_update_side_effect
+        await coordinator.update_request(request_id_val, status, message, details)
+    mock_reporter_context.update.side_effect = reporter_update_side_effect
+
     async def reporter_aenter_side_effect():
-        # Use the correct operation name for the message
-        await coordinator.update_request(request_id, "starting", f"Operation '{operation_name}' started.", {"parameters": params})
-        return mock_reporter
+        await coordinator.update_request(request_id_val, "starting", f"Operation '{operation_name_val}' started.", details=None)
+        return mock_reporter_context
+    mock_reporter_context.__aenter__.side_effect = reporter_aenter_side_effect
+
     async def reporter_aexit_side_effect(exc_type, exc_val, exc_tb):
         if exc_type is None:
-            await coordinator.update_request(request_id, "completed", "Operation completed successfully.", {"parameters": params})
-    mock_reporter.__aenter__.side_effect = reporter_aenter_side_effect
-    mock_reporter.__aexit__.side_effect = reporter_aexit_side_effect
-    coordinator.get_progress_reporter.return_value = mock_reporter
+            await coordinator.update_request(request_id_val, "completed", "Operation completed successfully.", details=None)
+        else:
+            error_msg = f"Operation '{operation_name_val}' failed due to unhandled exception: {exc_val}"
+            await coordinator.update_request(request_id_val, "error", error_msg, details={"exception_type": str(exc_type.__name__)})
+    mock_reporter_context.__aexit__.side_effect = reporter_aexit_side_effect
 
     # Mock start_request behavior
+    # FIX: Update signature to accept keyword arguments
     async def mock_start_request_side_effect(request_id, transport_id, operation_name, request_data):
         originating_transport = sse_transport # Originating transport for this test
         security_context = originating_transport.validate_request_security(request_data)
+        handler_params = request_data.get("parameters", {}) # Extract params for handler
         # Get the correct handler based on operation_name
         handler = None
         for call in coordinator.register_handler.call_args_list:
@@ -862,12 +1061,15 @@ async def test_reporter_handler_routing(coordinator, registered_transports, regi
                 break
         assert handler is not None, f"Handler for {operation_name} not found in mock registrations"
 
+        # Send initial status
         await coordinator.send_event_to_subscribers(
             EventTypes.STATUS,
-            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}},
+            {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": handler_params}},
             originating_transport_id=transport_id
         )
-        result = await handler(request_id, transport_id, params, security_context)
+        # Handler calls get_progress_reporter(req_id, op_name, parameters=params)
+        result = await handler(request_id, transport_id, handler_params, security_context)
+        # Send final result
         await coordinator.send_event_to_subscribers(
             EventTypes.TOOL_RESULT,
             {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": result}
@@ -876,10 +1078,10 @@ async def test_reporter_handler_routing(coordinator, registered_transports, regi
 
     # --- Execution ---
     await coordinator.start_request(
-        request_id=request_id,
+        request_id=request_id_val,
         transport_id=sse_transport.transport_id,
-        operation_name=operation_name,
-        request_data=request_data,
+        operation_name=operation_name_val,
+        request_data=request_data_val,
     )
 
     # --- Assertions ---
@@ -887,16 +1089,16 @@ async def test_reporter_handler_routing(coordinator, registered_transports, regi
 
     # Define expected broadcast events (PROGRESS, TOOL_RESULT)
     expected_broadcast_events = [
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "starting", "message": f"Operation '{operation_name}' started.", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Using reporter: Step 1...", "details": {"parameters": params}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "in_progress", "message": "Using reporter: Step 2...", "details": {"parameters": params, "stage": 2}}),
-        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id, "operation": operation_name, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params}}),
-        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id, "tool_name": operation_name, "result": {"success": True, "message": "ProgressReporter operation completed", "request_id": request_id}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": f"Operation '{operation_name_val}' started.", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Using reporter: Step 1...", "details": {"parameters": params_val}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "in_progress", "message": "Using reporter: Step 2...", "details": {"parameters": params_val, "stage": 2}}),
+        (EventTypes.PROGRESS, {"type": "progress", "request_id": request_id_val, "operation": operation_name_val, "status": "completed", "message": "Operation completed successfully.", "details": {"parameters": params_val}}),
+        (EventTypes.TOOL_RESULT, {"type": "tool_result", "request_id": request_id_val, "tool_name": operation_name_val, "result": {"success": True, "message": "ProgressReporter operation completed", "request_id": request_id_val}}),
     ]
 
     # Assert events sent to originating transport (SSE) - includes initial STATUS
     assert_events_sent(sse_transport, [
-         (EventTypes.STATUS, {"type": "status", "request_id": request_id, "operation": operation_name, "status": "starting", "message": ANY, "details": {"parameters": params}}),
+         (EventTypes.STATUS, {"type": "status", "request_id": request_id_val, "operation": operation_name_val, "status": "starting", "message": ANY, "details": {"parameters": params_val}}),
          *expected_broadcast_events
     ])
 

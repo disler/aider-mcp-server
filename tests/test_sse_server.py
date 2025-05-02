@@ -20,6 +20,8 @@ from aider_mcp_server.security import SecurityContext, Permissions, create_conte
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 # Import the specific functions/classes being tested or mocked
+# Import the module itself to allow patching its global variable
+import aider_mcp_server.sse_server as sse_server_module
 from aider_mcp_server.sse_server import serve_sse, handle_shutdown_signal, _create_shutdown_task_wrapper, is_git_repository # Import is_git_repository
 # Import Logger for spec - use LoggerProtocol as defined elsewhere if Logger is concrete
 # Assuming LoggerProtocol is the intended type hint standard
@@ -506,12 +508,12 @@ async def test_sse_adapter_handle_message_request_coordinator_unavailable(sse_ad
 @patch('aider_mcp_server.sse_server.signal.getsignal')
 @patch('aider_mcp_server.sse_server._create_shutdown_task_wrapper')
 @patch('aider_mcp_server.sse_server.is_git_repository')
-# Patch the actual async function handle_shutdown_signal with AsyncMock
-@patch('aider_mcp_server.sse_server.handle_shutdown_signal', new_callable=AsyncMock)
+# REMOVED: Patch for handle_shutdown_signal - we will mock via global variable now
+# @patch('aider_mcp_server.sse_server.handle_shutdown_signal', new_callable=AsyncMock)
 @patch('aider_mcp_server.sse_server.asyncio.Event') # Patches the Event class
 async def test_serve_sse_startup_and_run(
     mock_asyncio_event_cls, # Mock for asyncio.Event CLASS
-    mock_handle_shutdown_signal_func, # Mock for the async handler func
+    # REMOVED: mock_handle_shutdown_signal_func parameter
     mock_is_git_repo,
     mock_create_shutdown_wrapper,
     mock_getsignal,
@@ -645,10 +647,15 @@ async def test_serve_sse_startup_and_run(
 
     mock_is_git_repo.return_value = (True, None)
 
+    # --- Create mock for handle_shutdown_signal and patch global ---
+    mock_handle_shutdown_signal_func = AsyncMock(name="mock_handle_shutdown_signal")
+
     # --- Call the function ---
     host, port, editor_model, cwd, heartbeat = "127.0.0.1", 8888, "test_model", "/test/repo", 20.0
-    # serve_sse is async
-    await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat)
+    # Patch the global variable in the sse_server module for the duration of the call
+    with patch.object(sse_server_module, '_test_handle_shutdown_signal', mock_handle_shutdown_signal_func):
+        # serve_sse is async
+        await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat)
 
     # --- Assertions ---
     mock_is_git_repo.assert_called_once_with(Path(cwd))
@@ -703,9 +710,9 @@ async def test_serve_sse_startup_and_run(
     # Signal handling setup
     mock_get_loop.assert_called_once()
     assert mock_create_shutdown_wrapper.call_count == 2
-    # Check it was called with the signal, the *actual* async handler function, and the event instance returned by the patch
-    mock_create_shutdown_wrapper.assert_any_call(signal.SIGINT, handle_shutdown_signal, mock_event_instance_returned)
-    mock_create_shutdown_wrapper.assert_any_call(signal.SIGTERM, handle_shutdown_signal, mock_event_instance_returned)
+    # Check it was called with the signal, the *mock* async handler function, and the event instance
+    mock_create_shutdown_wrapper.assert_any_call(signal.SIGINT, mock_handle_shutdown_signal_func, mock_event_instance_returned)
+    mock_create_shutdown_wrapper.assert_any_call(signal.SIGTERM, mock_handle_shutdown_signal_func, mock_event_instance_returned)
     # Check signal handlers were added using the *results* of the wrapper (the sync mocks)
     if hasattr(mock_loop, 'add_signal_handler') and mock_loop.add_signal_handler.called:
         mock_loop.add_signal_handler.assert_any_call(signal.SIGINT, mock_sync_sigint_handler)
@@ -742,7 +749,7 @@ async def test_serve_sse_startup_and_run(
         mock_signal_signal.assert_any_call(signal.SIGTERM, signal.SIG_DFL)
 
 
-    # Check that the actual handle_shutdown_signal function (mocked) was NOT called directly
+    # Check that the mock handle_shutdown_signal function was NOT called directly
     # because the signal mechanism calls the *wrapper* created by _create_shutdown_task_wrapper
     mock_handle_shutdown_signal_func.assert_not_awaited()
 
