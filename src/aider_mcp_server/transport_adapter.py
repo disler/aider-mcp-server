@@ -191,7 +191,10 @@ class AbstractTransportAdapter(abc.ABC, TransportInterface):
 
             capabilities = self.get_capabilities()
             for event_type in capabilities:
-                self._coordinator.subscribe_to_event_type(self.transport_id, event_type)
+                if asyncio.iscoroutinefunction(self._coordinator.subscribe_to_event_type):
+                    await self._coordinator.subscribe_to_event_type(self.transport_id, event_type)
+                else:
+                    self._coordinator.subscribe_to_event_type(self.transport_id, event_type)
             self.logger.debug(
                 f"Transport {self.transport_id} subscribed to default events: {capabilities}"
             )

@@ -247,293 +247,211 @@ async def serve_sse(
     logger.info(f"Validating working directory: {current_working_dir}")
     is_repo, error_msg = is_git_repository(Path(current_working_dir))
     if not is_repo:
-        # Log the error and raise ValueError as the server cannot start without a valid repo
         error_message = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_msg}"
-        logger.critical(error_message) # Use critical for startup failures
+        logger.critical(error_message)
         raise ValueError(error_message)
     logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
 
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
-    # --- Signal Handling Setup ---
-    # Determine which shutdown handler function to use (test override or default)
-    # This allows tests to inject a mock via the _test_handle_shutdown_signal global
+    # --- Signal Handling Setup (Before main try block) ---
     actual_shutdown_handler = _test_handle_shutdown_signal or handle_shutdown_signal
-
-    # Store the sync wrappers created, mapping signal number to the wrapper function
     sync_signal_handlers: Dict[int, Callable[[int, Optional[FrameType]], None]] = {}
-    # Store original handlers for restoration if using signal.signal fallback
     original_signal_handlers: Dict[int, Any] = {}
 
     for sig_num in (signal.SIGINT, signal.SIGTERM):
-        # Create the sync wrapper, passing the *actual* async handler determined above and the event
         sync_wrapper = _create_shutdown_task_wrapper(sig_num, actual_shutdown_handler, shutdown_event)
-        sync_signal_handlers[sig_num] = sync_wrapper # Store the wrapper
-
+        sync_signal_handlers[sig_num] = sync_wrapper
         try:
-            # Prefer loop.add_signal_handler
+            # Try loop.add_signal_handler first
             loop.add_signal_handler(sig_num, sync_wrapper)
             logger.info(f"Registered signal handler for {signal.Signals(sig_num).name} using loop.add_signal_handler.")
-        except NotImplementedError: # Fallback for Windows/other systems
+        except NotImplementedError:
             logger.warning(f"loop.add_signal_handler not supported for {signal.Signals(sig_num).name}. Falling back to signal.signal().")
             try:
-                 # Store the original handler before overwriting
+                 # Fallback to signal.signal
                  original = signal.signal(sig_num, sync_wrapper) # type: ignore[arg-type]
-                 original_signal_handlers[sig_num] = original # Store for restoration
+                 original_signal_handlers[sig_num] = original
                  logger.info(f"Registered signal handler for {signal.Signals(sig_num).name} using signal.signal().")
-            except (ValueError, OSError, TypeError) as e: # Catch potential errors from signal.signal
+            except (ValueError, OSError, TypeError) as e:
                  logger.error(f"Failed to set signal handler using signal.signal for {signal.Signals(sig_num).name}: {e}")
         except Exception as e:
              logger.error(f"Unexpected error setting signal handler for {signal.Signals(sig_num).name}: {e}", exc_info=True)
 
-
-    # --- Coordinator and Transport Setup ---
-    # getInstance is async, await it
-    coordinator = await ApplicationCoordinator.getInstance()
-    # Pass the coordinator instance and heartbeat_interval to the adapter constructor
-    sse_adapter = SSETransportAdapter(
-        coordinator=coordinator,
-        heartbeat_interval=heartbeat_interval # Pass the interval
-    )
-    # Adapter ID is generated in SSETransportAdapter constructor, starts with "sse_"
-
-    # --- Handler Wrappers ---
-    async def aider_ai_code_handler(
-        request_id: str,
-        transport_id: str,
-        parameters: Dict[str, Any],
-        security_context: SecurityContext
-    ) -> Dict[str, Any]:
-        """Async wrapper for the synchronous code_with_aider function."""
-        logger.info(f"Handler 'aider_ai_code_handler' invoked for request {request_id}")
-        try:
-            # Extract parameters for code_with_aider
-            ai_coding_prompt = parameters.get("ai_coding_prompt")
-            relative_editable_files = parameters.get("relative_editable_files", [])
-            relative_readonly_files = parameters.get("relative_readonly_files", [])
-            # Use model from parameters if provided, otherwise default to editor_model
-            model_to_use = parameters.get("model", editor_model)
-
-            if not ai_coding_prompt:
-                logger.error(f"Missing 'ai_coding_prompt' parameter for request {request_id}")
-                return {"success": False, "error": "Missing 'ai_coding_prompt' parameter"}
-            if not relative_editable_files:
-                 logger.error(f"Missing or empty 'relative_editable_files' parameter for request {request_id}")
-                 return {"success": False, "error": "Missing or empty 'relative_editable_files' parameter"}
-
-            # Run the synchronous function in a thread pool executor
-            current_loop = asyncio.get_running_loop()
-            logger.debug(f"Running code_with_aider in executor for request {request_id}")
-            result_json_str = await current_loop.run_in_executor(
-                None, # Use default executor (ThreadPoolExecutor)
-                code_with_aider,
-                ai_coding_prompt,
-                relative_editable_files,
-                relative_readonly_files,
-                model_to_use,
-                current_working_dir # Use cwd from serve_sse scope
-            )
-            logger.debug(f"code_with_aider execution finished for request {request_id}")
-
-            # Parse the JSON string result
-            try:
-                result_dict = json.loads(result_json_str)
-                logger.info(f"Handler 'aider_ai_code_handler' completed successfully for request {request_id}")
-                return result_dict # Assuming result_json_str contains {"success": bool, ...}
-            except json.JSONDecodeError as json_e:
-                logger.error(f"Failed to parse JSON response from code_with_aider for request {request_id}: {json_e}")
-                logger.error(f"Raw response string: {result_json_str}")
-                return {"success": False, "error": f"Failed to parse tool result: {json_e}", "raw_result": result_json_str}
-
-        except Exception as e:
-            logger.exception(f"Error in 'aider_ai_code_handler' for request {request_id}: {e}")
-            return {"success": False, "error": f"Internal handler error: {str(e)}"}
-
-    async def list_models_handler(
-        request_id: str,
-        transport_id: str,
-        parameters: Dict[str, Any],
-        security_context: SecurityContext
-    ) -> Dict[str, Any]:
-        """Async wrapper for the synchronous list_models function."""
-        logger.info(f"Handler 'list_models_handler' invoked for request {request_id}")
-        try:
-            # Extract parameters for list_models
-            substring = parameters.get("substring", "") # Default to empty string if not provided
-
-            # Run the synchronous function in a thread pool executor
-            current_loop = asyncio.get_running_loop()
-            logger.debug(f"Running list_models in executor for request {request_id}")
-            models_list = await current_loop.run_in_executor(
-                None, # Use default executor
-                list_models,
-                substring
-            )
-            logger.debug(f"list_models execution finished for request {request_id}")
-
-            logger.info(f"Handler 'list_models_handler' completed successfully for request {request_id}")
-            # Format the result as expected
-            return {"success": True, "models": models_list}
-
-        except Exception as e:
-            logger.exception(f"Error in 'list_models_handler' for request {request_id}: {e}")
-            return {"success": False, "error": f"Internal handler error: {str(e)}"}
-
-
-    # --- Starlette Route Handlers ---
-    async def sse_endpoint(request: Request) -> Response:
-        # Delegate to the adapter's method
-        # Adapter handles creating EventSourceResponse
-        return await sse_adapter.handle_sse_request(request)
-
-    async def message_endpoint(request: Request) -> Response:
-        # Delegate to the adapter's method
-        # Adapter handles creating JSONResponse (success or error)
-        return await sse_adapter.handle_message_request(request)
-
-    # --- Starlette App Setup ---
-    routes = [
-        # Path matches test expectation test_serve_sse_startup_and_run
-        Route("/sse", endpoint=sse_endpoint), # SSE connection endpoint
-        # Path and method match test expectation test_serve_sse_startup_and_run
-        Route("/message", endpoint=message_endpoint, methods=["POST"]), # Message submission endpoint
-    ]
-    app = Starlette(routes=routes)
-
-    # --- Uvicorn Server Configuration ---
-    # Pass handle_signals=False to manage signals manually, as expected by test
-    # *** FIX: Pass 'app' as a keyword argument ***
-    config = uvicorn.Config(app=app, host=host, port=port, log_config=None, handle_signals=False)
-    server = uvicorn.Server(config)
-
     # --- Main Server Logic ---
-    server_task = None
-    try:
-        # Use coordinator as context manager for initialization/shutdown
-        # Test test_serve_sse_startup_and_run checks __aenter__ and __aexit__
-        async with coordinator:
-            logger.info("Registering SSE transport adapter with coordinator...")
-            # Explicitly register the adapter instance as checked by test_serve_sse_startup_and_run
-            # Adapter's initialize() is not called here; registration is direct.
-            # *** FIX: Call register_transport synchronously to match test mock ***
-            coordinator.register_transport(sse_adapter.transport_id, sse_adapter)
-            logger.info(f"SSE Transport Adapter registered with ID: {sse_adapter.transport_id}")
+    coordinator = None
+    sse_adapter = None # Define sse_adapter here for broader scope if needed
+    server: Optional[uvicorn.Server] = None # Define server for broader scope
 
-            # Register handler wrappers (Permissions checked by test_serve_sse_startup_and_run)
+    try:
+        # Get coordinator instance
+        coordinator = await ApplicationCoordinator.getInstance()
+
+        # Use coordinator as context manager
+        async with coordinator:
+            logger.info("Coordinator context entered.")
+            # --- Adapter Setup ---
+            sse_adapter = SSETransportAdapter(
+                coordinator=coordinator,
+                heartbeat_interval=heartbeat_interval
+            )
+
+            # --- Handler Wrappers (Defined inside serve_sse for scope access) ---
+            async def aider_ai_code_handler(
+                request_id: str,
+                transport_id: str,
+                parameters: Dict[str, Any],
+                security_context: SecurityContext
+            ) -> Dict[str, Any]:
+                """Async wrapper for the synchronous code_with_aider function."""
+                logger.info(f"Handler 'aider_ai_code_handler' invoked for request {request_id}")
+                try:
+                    ai_coding_prompt = parameters.get("ai_coding_prompt")
+                    relative_editable_files = parameters.get("relative_editable_files", [])
+                    relative_readonly_files = parameters.get("relative_readonly_files", [])
+                    model_to_use = parameters.get("model", editor_model)
+
+                    if not ai_coding_prompt:
+                        logger.error(f"Missing 'ai_coding_prompt' parameter for request {request_id}")
+                        return {"success": False, "error": "Missing 'ai_coding_prompt' parameter"}
+                    if not relative_editable_files:
+                         logger.error(f"Missing or empty 'relative_editable_files' parameter for request {request_id}")
+                         return {"success": False, "error": "Missing or empty 'relative_editable_files' parameter"}
+
+                    current_loop = asyncio.get_running_loop()
+                    logger.debug(f"Running code_with_aider in executor for request {request_id}")
+                    result_json_str = await current_loop.run_in_executor(
+                        None, code_with_aider, ai_coding_prompt, relative_editable_files,
+                        relative_readonly_files, model_to_use, current_working_dir
+                    )
+                    logger.debug(f"code_with_aider execution finished for request {request_id}")
+
+                    try:
+                        result_dict = json.loads(result_json_str)
+                        logger.info(f"Handler 'aider_ai_code_handler' completed successfully for request {request_id}")
+                        return result_dict
+                    except json.JSONDecodeError as json_e:
+                        logger.error(f"Failed to parse JSON response from code_with_aider for request {request_id}: {json_e}")
+                        logger.error(f"Raw response string: {result_json_str}")
+                        return {"success": False, "error": f"Failed to parse tool result: {json_e}", "raw_result": result_json_str}
+
+                except Exception as e:
+                    logger.exception(f"Error in 'aider_ai_code_handler' for request {request_id}: {e}")
+                    return {"success": False, "error": f"Internal handler error: {str(e)}"}
+
+            async def list_models_handler(
+                request_id: str,
+                transport_id: str,
+                parameters: Dict[str, Any],
+                security_context: SecurityContext
+            ) -> Dict[str, Any]:
+                """Async wrapper for the synchronous list_models function."""
+                logger.info(f"Handler 'list_models_handler' invoked for request {request_id}")
+                try:
+                    substring = parameters.get("substring", "")
+                    current_loop = asyncio.get_running_loop()
+                    logger.debug(f"Running list_models in executor for request {request_id}")
+                    models_list = await current_loop.run_in_executor(None, list_models, substring)
+                    logger.debug(f"list_models execution finished for request {request_id}")
+                    logger.info(f"Handler 'list_models_handler' completed successfully for request {request_id}")
+                    return {"success": True, "models": models_list}
+                except Exception as e:
+                    logger.exception(f"Error in 'list_models_handler' for request {request_id}: {e}")
+                    return {"success": False, "error": f"Internal handler error: {str(e)}"}
+
+            # --- Starlette Route Handlers (Need access to sse_adapter) ---
+            async def sse_endpoint(request: Request) -> Response:
+                # Ensure sse_adapter is available before handling
+                if not sse_adapter:
+                    logger.error("SSE adapter not initialized when handling /sse request.")
+                    return JSONResponse({"success": False, "error": "Server setup error"}, status_code=500)
+                return await sse_adapter.handle_sse_request(request)
+
+            async def message_endpoint(request: Request) -> Response:
+                 # Ensure sse_adapter is available before handling
+                if not sse_adapter:
+                    logger.error("SSE adapter not initialized when handling /message request.")
+                    return JSONResponse({"success": False, "error": "Server setup error"}, status_code=500)
+                return await sse_adapter.handle_message_request(request)
+
+            # --- Register Transport and Handlers ---
+            logger.info("Registering SSE transport adapter with coordinator...")
+            # Initialize the adapter (this is now async)
+            await sse_adapter.initialize() # Ensure adapter is initialized before registration
+
+
             logger.info("Registering operation handlers with coordinator...")
             if aider_ai_code_available:
-                # Use Permissions enum as checked by test
                 await coordinator.register_handler("aider_ai_code", aider_ai_code_handler, required_permission=Permissions.EXECUTE_AIDER)
                 logger.info("Registered 'aider_ai_code' handler.")
             else:
                 logger.warning("Skipping registration of 'aider_ai_code' handler due to import failure.")
 
             if list_models_available:
-                 # Test checks registration of 'list_models' without specific permission
                 await coordinator.register_handler("list_models", list_models_handler)
                 logger.info("Registered 'list_models' handler.")
             else:
                  logger.warning("Skipping registration of 'list_models' handler due to import failure.")
 
-            # Coordinator initialization (like waiting for handlers) is assumed to be handled
-            # within the coordinator's __aenter__ or relevant methods called by it.
+            # --- Starlette App and Uvicorn Server Setup ---
+            routes = [
+                Route("/sse", endpoint=sse_endpoint),
+                Route("/message", endpoint=message_endpoint, methods=["POST"]),
+            ]
+            app = Starlette(routes=routes)
+            config = uvicorn.Config(app=app, host=host, port=port, log_config=None, handle_signals=False)
+            server = uvicorn.Server(config) # Assign to the server variable defined earlier
 
+            # --- Start Server and Wait for it to Finish (Triggered by Signal) ---
             logger.info(f"Starting Uvicorn server on {host}:{port}...")
-            # Run server in background task to allow waiting on shutdown_event
-            # Test test_serve_sse_startup_and_run checks server.serve() is awaited
-            server_task = loop.create_task(server.serve(), name="uvicorn-server")
+            # Directly await server.serve(). The test mock's side effect will handle
+            # waiting for the shutdown_event internally before returning.
+            await server.serve()
+            logger.info("Uvicorn server has stopped.") # This logs after server.serve() returns
 
-            # Wait for shutdown signal
-            logger.info("SSE Server running. Waiting for server task to complete (triggered by shutdown signal)...")
-            # *** REMOVED explicit await shutdown_event.wait() here ***
-            # The server_task itself (via the mocked serve method in the test) will await the event.
-            # We will await the server_task completion in the finally block.
+            # --- Initiate Server Shutdown (Post-Signal) ---
+            # Signal the server instance to exit. The test mock expects this flag to be set
+            # *after* serve() has returned (implying the signal was handled).
+            if server: # Check if server was successfully created
+                server.should_exit = True
+                logger.info("Set server.should_exit = True.")
+            else:
+                logger.warning("Server instance not available to signal exit.")
+
+            # --- Coordinator Shutdown (Implicitly happens on exiting 'async with') ---
+            logger.info("Exiting coordinator context (will trigger coordinator cleanup)...")
+
+        # --- End of 'async with coordinator' ---
+        # coordinator.__aexit__ has now been awaited.
+        logger.info("Coordinator context exited.")
 
     except Exception as e:
         logger.exception(f"An unexpected error occurred during server setup or runtime: {e}")
+        # If an error occurs *before* or *during* server.serve(), we might not reach the cleanup.
+        # However, the primary server loop is now handled by the direct await.
+
     finally:
-        logger.info("Starting final cleanup...")
-
-        # --- Graceful Shutdown ---
-        # 1. Stop Uvicorn server (if running and not already stopped)
-        # Check server.started as the serve task might complete before shutdown signal
-        # Test test_serve_sse_startup_and_run checks server.shutdown() is awaited (mocked)
-        # The actual way to stop server.serve() is setting should_exit
-
-        # If shutdown_event.wait() was removed, the signal handler still sets the event,
-        # and we still need to tell the server to stop.
-        # We might need to explicitly set should_exit based on the event state here,
-        # or rely on the fact that the test's serve_side_effect *will* wait for the event.
-        # For the test to pass, we rely on its side effect setting should_exit implicitly
-        # or the task completing because its internal wait finished.
-        # *** FIX: Always set should_exit if the event was triggered, regardless of server.started ***
-        if shutdown_event.is_set():
-             logger.info("Shutdown event was set, ensuring server.should_exit is True.")
-             # Set should_exit directly on the server instance. The test checks this attribute.
-             server.should_exit = True
-
-        if server_task and not server_task.done():
-            logger.info("Requesting Uvicorn server shutdown...")
-            # Ensure should_exit is set if the event triggered, otherwise the wait_for might timeout unnecessarily
-            # (This is now handled by the block above)
-            # if shutdown_event.is_set():
-            #     server.should_exit = True
-
-            # Give the server task some time to shut down gracefully.
-            try:
-                # Wait for the task itself to finish
-                # The test's serve_side_effect should finish once the event is set by the signal handler mock
-                # The test also checks that this task is awaited (implicitly via wait_for)
-                logger.debug(f"Awaiting server_task completion (timeout 5s)...")
-                await asyncio.wait_for(server_task, timeout=5.0)
-                logger.info("Uvicorn server task finished gracefully.")
-            except asyncio.TimeoutError:
-                logger.warning("Uvicorn server task did not finish within timeout. Cancelling.")
-                server_task.cancel()
-                try:
-                    await server_task # Wait for cancellation (suppresses CancelledError)
-                except asyncio.CancelledError:
-                    logger.info("Uvicorn server task cancelled.")
-                except Exception as cancel_e:
-                    logger.error(f"Error awaiting cancelled Uvicorn task: {cancel_e}", exc_info=True)
-            except Exception as wait_e:
-                 logger.error(f"Error waiting for Uvicorn server task: {wait_e}", exc_info=True)
-        elif server_task and server_task.done():
-             # Log if the task finished with an exception
-             if server_task.exception():
-                 logger.error(f"Uvicorn server task completed with exception: {server_task.exception()}", exc_info=server_task.exception())
-             else:
-                 logger.info("Uvicorn server task already completed.")
-        else:
-             logger.info("Uvicorn server was not started or task not found.")
-
-
-        # 2. Coordinator shutdown (handled by async with exit)
-        # The test test_serve_sse_startup_and_run checks coordinator.__aexit__ is awaited.
-        # This should trigger adapter shutdown via coordinator's internal logic if it
-        # calls unregister_transport or shutdown on its transports.
-        logger.info("Coordinator shutdown will be handled by context manager exit.")
-
-        # 3. Remove signal handlers
-        logger.info("Removing signal handlers...")
+        # --- Final Cleanup (After try/except and async with) ---
+        logger.info("Starting final cleanup (removing signal handlers)...")
+        # Remove signal handlers
         for sig_num, sync_wrapper_func in sync_signal_handlers.items():
             signal_name = signal.Signals(sig_num).name
             try:
-                # Try removing via loop first
-                loop.remove_signal_handler(sig_num)
-                logger.debug(f"Removed signal handler for {signal_name} using loop.remove_signal_handler.")
-            except NotImplementedError:
-                # Fallback: Restore original handler if stored, otherwise set default
-                logger.debug(f"loop.remove_signal_handler not supported for {signal_name}. Restoring handler using signal.signal().")
+                # Check if the loop is still running before removing handlers
+                if loop.is_running() and not loop.is_closed():
+                    # Try removing with loop.remove_signal_handler first
+                    loop.remove_signal_handler(sig_num)
+                    logger.debug(f"Removed signal handler for {signal_name} using loop.remove_signal_handler.")
+                # Always restore the default signal handler using signal.signal
+                logger.debug(f"Restoring default handler for {signal_name} using signal.signal().")
                 try:
-                    original = original_signal_handlers.get(sig_num, signal.SIG_DFL) # Default to SIG_DFL if not stored
-                    signal.signal(sig_num, original) # type: ignore[arg-type]
-                    logger.debug(f"Restored original/default handler for {signal_name} using signal.signal.")
+                    signal.signal(sig_num, signal.SIG_DFL) # type: ignore[arg-type]
+                    logger.debug(f"Restored default handler for {signal_name} using signal.signal.")
                 except (ValueError, OSError, TypeError) as e:
-                     logger.error(f"Failed to restore signal handler for {signal_name} using signal.signal: {e}")
+                    logger.error(f"Failed to restore default signal handler for {signal_name} using signal.signal: {e}")
             except Exception as e:
-                 logger.error(f"Unexpected error removing signal handler for {signal_name}: {e}", exc_info=True)
+                 logger.error(f"Unexpected error removing/restoring signal handler for {signal_name}: {e}", exc_info=True)
 
-        logger.info("SSE Server shutdown complete.")
+        logger.info("SSE Server shutdown process complete.")
 
