@@ -333,6 +333,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         request_id = None # Initialize request_id
         operation_name = None # Initialize operation_name
+        request_params = {} # Initialize request_params
 
         # 1. Parse JSON payload
         try:
@@ -353,6 +354,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 status_code=400
             )
 
+        # Extract parameters early for potential use in fail_request
+        request_params = request_data.get("parameters", {})
+
         # Generate request_id if not provided, needed for logging and potential fail_request calls
         request_id = request_data.get("request_id")
         if not request_id or not isinstance(request_id, str):
@@ -366,20 +370,23 @@ class SSETransportAdapter(AbstractTransportAdapter):
             # Match test expectation for error message
             error_msg = f"Missing or invalid 'name' field (operation name) in request {request_id}."
             self.logger.error(error_msg)
-            error_details = {"success": False, "error": "Invalid request", "details": error_msg}
             # Call fail_request as expected by test_sse_adapter_handle_message_request_missing_name
             if self._coordinator:
                 try:
                     await self._coordinator.fail_request(
                         request_id=request_id,
-                        error_details=error_details,
-                        transport_id_override=self.transport_id,
-                        operation_name_override=None, # Explicitly None as name is missing/invalid
+                        operation_name=operation_name or "unknown", # Use placeholder if None
+                        error="Invalid request", # Main error message
+                        error_details=error_msg, # Specific details
+                        originating_transport_id=self.transport_id,
+                        request_details=request_params,
                     )
                 except Exception as fail_e:
                      self.logger.error(f"Failed to report failure to coordinator for request {request_id}: {fail_e}")
+            # Return the specific error message AND the generated request_id
+            # This is the fix for test_sse_adapter_handle_message_request_missing_name
             return JSONResponse(
-                {"success": False, "error": error_msg}, # Return the specific error message
+                {"success": False, "error": error_msg, "request_id": request_id},
                 status_code=400
             )
 
@@ -411,47 +418,65 @@ class SSETransportAdapter(AbstractTransportAdapter):
             # Catch ValueError raised by start_request (simulating security/validation failure)
             # As per test `test_sse_adapter_handle_message_request_security_fail`
             self.logger.error(f"Security validation failed for request {request_id} during start_request: {e}")
-            error_details = {"success": False, "error": "Security validation failed", "details": str(e)}
+            error_msg = "Security validation failed"
+            error_details_str = str(e)
             # Call fail_request as expected by the test
             try:
                 await self._coordinator.fail_request(
                     request_id=request_id,
-                    error_details=error_details,
-                    transport_id_override=self.transport_id,
-                    operation_name_override=operation_name,
+                    operation_name=operation_name,
+                    error=error_msg,
+                    error_details=error_details_str,
+                    originating_transport_id=self.transport_id,
+                    request_details=request_params,
                 )
             except Exception as fail_e:
                 self.logger.error(f"Failed to report security failure to coordinator for request {request_id}: {fail_e}")
             # Return 401 Unauthorized as expected by the test for this specific case
-            return JSONResponse(error_details, status_code=401)
+            return JSONResponse(
+                {"success": False, "error": error_msg, "details": error_details_str},
+                status_code=401
+            )
         except PermissionError as e:
              # Catch PermissionError if start_request raises it explicitly
             self.logger.warning(f"Permission denied for request {request_id} operation '{operation_name}': {e}")
-            error_details = {"success": False, "error": "Permission denied", "details": str(e)}
+            error_msg = "Permission denied"
+            error_details_str = str(e)
             try:
                 await self._coordinator.fail_request(
                     request_id=request_id,
-                    error_details=error_details,
-                    transport_id_override=self.transport_id,
-                    operation_name_override=operation_name,
+                    operation_name=operation_name,
+                    error=error_msg,
+                    error_details=error_details_str,
+                    originating_transport_id=self.transport_id,
+                    request_details=request_params,
                 )
             except Exception as fail_e:
                 self.logger.error(f"Failed to report permission failure to coordinator for request {request_id}: {fail_e}")
-            return JSONResponse(error_details, status_code=403) # Forbidden
+            return JSONResponse(
+                {"success": False, "error": error_msg, "details": error_details_str},
+                status_code=403 # Forbidden
+            )
         except Exception as e:
             # Catch other unexpected errors during start_request
             self.logger.exception(f"Unexpected error starting request {request_id} for operation '{operation_name}': {e}")
-            error_details = {"success": False, "error": "Internal server error during request start", "details": str(e)}
+            error_msg = "Internal server error during request start"
+            error_details_str = str(e)
             try:
                 await self._coordinator.fail_request(
                     request_id=request_id,
-                    error_details=error_details,
-                    transport_id_override=self.transport_id,
-                    operation_name_override=operation_name,
+                    operation_name=operation_name,
+                    error=error_msg,
+                    error_details=error_details_str,
+                    originating_transport_id=self.transport_id,
+                    request_details=request_params,
                 )
             except Exception as fail_e:
                 self.logger.error(f"Failed to report start failure to coordinator for request {request_id}: {fail_e}")
-            return JSONResponse(error_details, status_code=500)
+            return JSONResponse(
+                {"success": False, "error": error_msg, "details": error_details_str},
+                status_code=500
+            )
 
 
         # 6. Return success acknowledgment (202 Accepted)
