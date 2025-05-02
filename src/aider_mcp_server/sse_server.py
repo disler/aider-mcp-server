@@ -228,7 +228,7 @@ async def serve_sse(
     port: int,
     editor_model: str, # Passed to the aider_ai_code handler wrapper
     current_working_dir: str, # Passed to the aider_ai_code handler wrapper
-    heartbeat_interval: float, # Added heartbeat interval parameter
+    heartbeat_interval: float = 15.0, # Added heartbeat interval parameter with default
 ) -> None:
     """
     Sets up and runs the SSE server using Starlette and Uvicorn.
@@ -238,7 +238,7 @@ async def serve_sse(
         port: The port number to bind the server to.
         editor_model: The primary AI model to be used by handlers (e.g., aider_ai_code).
         current_working_dir: The working directory context for handlers. Must be a git repo.
-        heartbeat_interval: Interval in seconds for adapter heartbeats.
+        heartbeat_interval: Interval in seconds for adapter heartbeats (default: 15.0).
 
     Raises:
         ValueError: If current_working_dir is not a valid git repository.
