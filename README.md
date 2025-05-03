@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/disler-aider-mcp-server-badge.png)](https://mseep.ai/app/disler-aider-mcp-server)
+
 # Aider MCP Server - Experimental
 > Model context protocol server for offloading AI coding work to Aider, enhancing development efficiency and flexibility.
 
