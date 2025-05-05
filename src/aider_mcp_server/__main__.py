@@ -112,17 +112,15 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
 
     # Signal handling setup (conditional)
     if args.server_mode != "multi":
-        loop = asyncio.get_event_loop()
         try:
-            loop.add_signal_handler(
-                signal.SIGTERM,
-                lambda: asyncio.create_task(handle_sigterm(loop, log)),
-            )
-            log.info(f"SIGTERM handler registered for {args.server_mode} mode.")
+            # Use get_running_loop() to avoid "no running event loop" error
+            # This will only work inside an async function, so we'll set up the signal handlers
+            # inside the async server functions instead
+            log.info(f"SIGTERM handler registration will be done in server function for {args.server_mode} mode.")
         except NotImplementedError:
             log.warning("Signal handlers (SIGTERM) not supported on this platform.")
         except Exception as e:
-            log.error(f"Error setting up SIGTERM handler: {e}")
+            log.error(f"Error preparing SIGTERM handler: {e}")
     else:
         log.info("Signal handling delegated to multi_transport_server for 'multi' mode.")
 

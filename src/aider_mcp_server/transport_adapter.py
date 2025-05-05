@@ -272,13 +272,16 @@ class AbstractTransportAdapter(abc.ABC, TransportInterface):
             while True:
                 await asyncio.sleep(self._heartbeat_interval)
                 if self._coordinator:
+                    # Use time.time() instead of asyncio.get_event_loop().time() to avoid 
+                    # "no running event loop" errors
+                    import time
                     await self._coordinator.broadcast_event(
                         event_type=EventTypes.HEARTBEAT,
                         data={
                             "transport_id": self.transport_id,
-                            "timestamp": asyncio.get_event_loop().time(),
+                            "timestamp": time.time(),
                         },
-                        request_id=None,
+                        exclude_transport_id=None,
                     )
                 else:
                     self.logger.warning(

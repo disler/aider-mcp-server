@@ -311,6 +311,8 @@ async def serve_sse(
                     relative_editable_files = parameters.get("relative_editable_files", [])
                     relative_readonly_files = parameters.get("relative_readonly_files", [])
                     model_to_use = parameters.get("model", editor_model)
+                    use_diff_cache = parameters.get("use_diff_cache", True)
+                    clear_cached_for_unchanged = parameters.get("clear_cached_for_unchanged", True)
 
                     if not ai_coding_prompt:
                         logger.error(f"Missing 'ai_coding_prompt' parameter for request {request_id}")
@@ -323,7 +325,8 @@ async def serve_sse(
                     logger.debug(f"Running code_with_aider in executor for request {request_id}")
                     result_json_str = await current_loop.run_in_executor(
                         None, code_with_aider, ai_coding_prompt, relative_editable_files,
-                        relative_readonly_files, model_to_use, current_working_dir
+                        relative_readonly_files, model_to_use, current_working_dir,
+                        use_diff_cache, clear_cached_for_unchanged
                     )
                     logger.debug(f"code_with_aider execution finished for request {request_id}")
 

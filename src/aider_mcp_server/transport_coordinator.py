@@ -116,10 +116,9 @@ class ApplicationCoordinator:
         except RuntimeError:
             # This should generally not happen if initialized within an async context
             logger.error("No running event loop found during ApplicationCoordinator initialization!")
-            # Depending on the application, this might be a fatal error.
-            # For robustness, we might try creating one, but it's a sign of misuse.
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
+            # We'll try to get the current event loop or create one, but we won't set it globally
+            # as that can cause issues in tests and other environments
+            self._loop = asyncio.get_event_loop_policy().get_event_loop()
 
         self._initialized_event = asyncio.Event() # Event to signal initialization completion
         self._shutdown_event = asyncio.Event() # Event to signal shutdown
@@ -360,6 +359,10 @@ class ApplicationCoordinator:
             # Cannot send error back as transport is gone.
             return
 
+        # Extract diff cache settings from request data
+        use_diff_cache = request_data.get("use_diff_cache", True)
+        clear_cached_for_unchanged = request_data.get("clear_cached_for_unchanged", True)
+
         # 1. Validate Security Context (outside locks)
         try:
             # Assuming validate_request_security is synchronous or handled by transport
@@ -437,7 +440,7 @@ class ApplicationCoordinator:
 
             # Create the task first
             task = self._loop.create_task(
-                self._run_handler(request_id, transport_id, operation_name, handler, request_params, security_context),
+                self._run_handler(request_id, transport_id, operation_name, handler, request_params, security_context, use_diff_cache, clear_cached_for_unchanged),
                 name=f"handler-{operation_name}-{request_id}"
             )
 
@@ -472,17 +475,23 @@ class ApplicationCoordinator:
         handler: HandlerFunc,
         parameters: Dict[str, Any],
         security_context: SecurityContext,
+        use_diff_cache: bool,
+        clear_cached_for_unchanged: bool,
     ) -> None:
         """Wrapper to run the handler, process result/errors, and clean up."""
         result_data: Optional[Dict[str, Any]] = None
         handler_completed_normally = False
         try:
             # Execute the actual handler coroutine
-            result_data = await handler(request_id, transport_id, parameters, security_context)
+            result_data = await handler(request_id, transport_id, parameters, security_context, use_diff_cache, clear_cached_for_unchanged)
             handler_completed_normally = True # Mark success before potential result processing issues
             logger.info(f"Handler for '{operation_name}' (request {request_id}) completed successfully.")
 
-            # Result data validation/wrapping
+            # Log whether the diff was cached
+            if result_data.get("is_cached_diff", False):
+                logger.info(f"Received cached diff for request {request_id}.")
+            else:
+                logger.info(f"Received full diff for request {request_id}.")
             if not isinstance(result_data, dict):
                  logger.warning(f"Handler for '{operation_name}' (request {request_id}) returned non-dict result: {type(result_data)}. Wrapping.")
                  result_data = {"success": True, "result": result_data} # Basic wrapping
