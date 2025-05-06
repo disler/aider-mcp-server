@@ -1,12 +1,7 @@
 import asyncio
-import signal
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
-from aider_mcp_server.sse_server import Starlette, uvicorn
-from starlette.routing import Route  # Added import for Route
-
-import tests.monkey_patch_sse  # Apply monkey patches for SSE tests
 
 import aider_mcp_server.sse_server as sse_server_module
 from aider_mcp_server.security import Permissions

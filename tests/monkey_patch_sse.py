@@ -1,9 +1,7 @@
-import pytest
-from unittest.mock import MagicMock
-from pathlib import Path
 
 # Import the module containing the function to be patched
 import aider_mcp_server.server
+
 
 # Define the patched version of is_git_repository
 def patched_is_git_repository(directory):
