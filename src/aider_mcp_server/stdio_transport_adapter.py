@@ -10,12 +10,12 @@ import json
 import sys
 import uuid
 from asyncio import Task
-from typing import Any, Dict, Optional, Set, TextIO, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, TextIO
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
-from aider_mcp_server.security import SecurityContext, ANONYMOUS_SECURITY_CONTEXT
 
 if TYPE_CHECKING:
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator
@@ -307,6 +307,6 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Returns:
             The ANONYMOUS_SECURITY_CONTEXT instance.
         """
-        self.logger.debug(f"Using anonymous security context for stdio request.")
+        self.logger.debug("Using anonymous security context for stdio request.")
         # Stdio runs locally, assume anonymous/full permissions via this context
         return ANONYMOUS_SECURITY_CONTEXT

@@ -1,12 +1,13 @@
 import asyncio
-import pickle
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
+from unittest.mock import patch
+
 import pytest
 import pytest_asyncio
-from unittest.mock import patch, MagicMock
 
 from aider_mcp_server.atoms.diff_cache import DiffCache, get_object_size
+
 
 @pytest_asyncio.fixture
 async def diff_cache():
@@ -113,7 +114,7 @@ async def test_object_size_estimation():
         def __getstate__(self):
             raise TypeError("Cannot pickle")
     
-    with patch('pickle.dumps', side_effect=TypeError("Cannot pickle")):
+    with patch("pickle.dumps", side_effect=TypeError("Cannot pickle")):
         size = get_object_size(Unpicklable())
         assert size == sys.getsizeof(Unpicklable())
 

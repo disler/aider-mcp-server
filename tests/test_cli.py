@@ -1,18 +1,24 @@
-import sys
+import asyncio  # Import asyncio
 import os
-import pytest
-import asyncio # Import asyncio
-from unittest import mock
+import sys
 from pathlib import Path
-from typing import List, Tuple, Any, Generator
+from typing import List, Tuple
+from unittest import mock
+
+import pytest
 
 # Use absolute imports from the package root
 from aider_mcp_server import __main__ as cli_main
-from aider_mcp_server.atoms.atoms_utils import DEFAULT_EDITOR_MODEL, DEFAULT_WS_HOST, DEFAULT_WS_PORT
-# Import is_git_repository from server, as __main__ imports it from there
-from aider_mcp_server.server import is_git_repository
+from aider_mcp_server.atoms.atoms_utils import (
+    DEFAULT_EDITOR_MODEL,
+    DEFAULT_WS_HOST,
+    DEFAULT_WS_PORT,
+)
+
 # Import get_logger from atoms.logging, as __main__ imports it from there
-from aider_mcp_server.atoms.logging import get_logger, Logger
+from aider_mcp_server.atoms.logging import Logger
+
+# Import is_git_repository from server, as __main__ imports it from there
 
 
 # Helper function to run the main function with specific args

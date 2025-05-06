@@ -7,7 +7,7 @@ creating security contexts based on credentials.
 
 import enum
 import logging
-from typing import Any, Dict, Optional, Set, Union, TypeGuard
+from typing import Any, Dict, Optional, Set, Union
 
 # Use standard logging
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class Permissions(enum.Enum):
     # Add other relevant permissions as needed
 
     @classmethod
-    def from_string(cls, value: str) -> Optional['Permissions']:
+    def from_string(cls, value: str) -> Optional["Permissions"]:
         """Convert a string value to a Permissions enum member."""
         for member in cls:
             if member.value == value:
@@ -109,7 +109,7 @@ class SecurityContext:
         return permission_to_check in self.permissions
 
     def __repr__(self) -> str:
-        perm_str = ', '.join(p.value for p in sorted(self.permissions, key=lambda x: x.value))
+        perm_str = ", ".join(p.value for p in sorted(self.permissions, key=lambda x: x.value))
         context_type = "Anonymous" if self.is_anonymous else f"User='{self.user_id}'"
         transport_info = f", Transport='{self.transport_id}'" if self.transport_id else ""
         return f"SecurityContext({context_type}, Permissions={{{perm_str}}}{transport_info})"

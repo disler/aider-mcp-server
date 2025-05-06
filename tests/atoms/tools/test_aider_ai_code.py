@@ -1,11 +1,10 @@
-import contextlib
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import tempfile
-import pathlib
-from typing import Generator, Any
+from typing import Any, Generator
 
 import pytest
 
@@ -168,6 +167,7 @@ def temp_dir() -> Generator[str, None, None]:
 def test_addition(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that adds two numbers."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
 
     # Create the test file
@@ -216,6 +216,7 @@ def test_addition(temp_dir: str) -> None:
 def test_subtraction(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that subtracts two numbers."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
 
     # Create the test file
@@ -264,6 +265,7 @@ def test_subtraction(temp_dir: str) -> None:
 def test_multiplication(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that multiplies two numbers."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
     
     # Create the test file
@@ -312,6 +314,7 @@ def test_multiplication(temp_dir: str) -> None:
 def test_division(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that divides two numbers."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
     
     # Create the test file
@@ -360,6 +363,7 @@ def test_division(temp_dir: str) -> None:
 def test_failure_case(temp_dir: str) -> None:
     """Test that code_with_aider returns error information for a failure scenario."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
     
     # Save the original directory before changing it
@@ -416,6 +420,7 @@ def test_failure_case(temp_dir: str) -> None:
 def test_complex_tasks(temp_dir: str) -> None:
     """Test that code_with_aider correctly implements more complex tasks."""
     import asyncio
+
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
     
     # Create the test file for a calculator class

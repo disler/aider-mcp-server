@@ -1,8 +1,7 @@
 import asyncio
-import json
 import logging
 from contextlib import AbstractAsyncContextManager
-from typing import Optional, Any, Dict, TYPE_CHECKING, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 # Use absolute imports from the package root
 # No internal imports needed here currently

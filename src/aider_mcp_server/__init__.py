@@ -10,7 +10,7 @@ import logging
 # Use absolute imports from the package root
 from .__main__ import main as main
 from .multi_transport_server import serve_multi_transport
-from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL # Expose tool definitions
+from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
 from .sse_server import serve_sse
 from .sse_transport_adapter import SSETransportAdapter
 from .stdio_transport_adapter import StdioTransportAdapter

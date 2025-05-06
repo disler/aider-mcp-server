@@ -9,7 +9,6 @@ from __future__ import annotations  # Ensure forward references work
 
 import asyncio
 import json
-import logging # Use standard logging if custom logger fails during init
 import typing
 import uuid
 from typing import (
@@ -18,24 +17,24 @@ from typing import (
     Dict,
     Optional,
     Set,
-    Union, # Import Union
-    cast,
-)
+    Union,  # Import Union
+    )
+
+from sse_starlette.sse import EventSourceResponse
 
 # Use absolute imports from the package root
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
-from sse_starlette.sse import EventSourceResponse
+from starlette.responses import JSONResponse, Response
 
+from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.security import (
     SecurityContext,
     create_context_from_credentials,
 )
-from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.transport_adapter import (
     AbstractTransportAdapter,
     LoggerProtocol,
-    get_logger_func, # Import get_logger_func
+    get_logger_func,  # Import get_logger_func
 )
 
 if TYPE_CHECKING:
@@ -200,7 +199,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         Overrides base method to add specific SSE logging.
         """
         # Ensure logger is initialized if it wasn't in __init__ (e.g., if super().__init__ failed)
-        if not hasattr(self, 'logger'):
+        if not hasattr(self, "logger"):
              # Fallback logger setup (should ideally not be needed)
             self.logger = get_logger_func(
                 f"{__name__}.{self.__class__.__name__}.{self.transport_id}"
@@ -361,7 +360,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         request_id = request_data.get("request_id")
         if not request_id or not isinstance(request_id, str):
             request_id = str(uuid.uuid4())
-            request_data['request_id'] = request_id # Add generated ID back for consistency
+            request_data["request_id"] = request_id # Add generated ID back for consistency
             self.logger.debug(f"No valid request_id provided, generated: {request_id}")
 
         # 3. Check for operation name

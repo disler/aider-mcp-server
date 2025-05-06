@@ -1,9 +1,10 @@
 import asyncio
-from datetime import datetime, timedelta
 import collections
-import sys
 import pickle
-from typing import Dict, Any, Optional, Union, Set, Callable
+import sys
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Union
+
 
 # Helper function for size estimation
 def get_object_size(obj: Any) -> int:
@@ -47,11 +48,11 @@ class DiffCache:
         self._current_size: int = 0
 
         self._stats: Dict[str, Union[int, float]] = {
-            'hits': 0,
-            'misses': 0,
-            'total_accesses': 0,
-            'current_size': 0, # This will mirror _current_size
-            'max_size': max_size # Include max_size in stats
+            "hits": 0,
+            "misses": 0,
+            "total_accesses": 0,
+            "current_size": 0, # This will mirror _current_size
+            "max_size": max_size # Include max_size in stats
         }
 
         self._lock = asyncio.Lock()
@@ -84,15 +85,15 @@ class DiffCache:
             keys_to_remove = []
             # Iterate over a copy to allow deletion during iteration
             for key, entry in list(self._cache.items()):
-                if entry['expiry'] < now:
+                if entry["expiry"] < now:
                     keys_to_remove.append(key)
 
             for key in keys_to_remove:
                 # Check existence again in case it was removed by another operation (e.g., eviction)
                 if key in self._cache:
                     entry = self._cache.pop(key)
-                    self._current_size -= entry['size']
-            self._stats['current_size'] = self._current_size # Update stats
+                    self._current_size -= entry["size"]
+            self._stats["current_size"] = self._current_size # Update stats
 
     def _recursive_diff(self, old_data: Any, new_data: Any) -> Any:
         """
@@ -140,19 +141,19 @@ class DiffCache:
             # If the key already exists, remove its old size before adding the new one
             if key in self._cache:
                  old_entry = self._cache.pop(key) # Remove to update LRU position later
-                 self._current_size -= old_entry['size']
+                 self._current_size -= old_entry["size"]
 
             # Ensure space for the new item
             # Evict LRU items if adding this one exceeds max_size
             while self._current_size + item_size > self._max_size and len(self._cache) > 0:
                 # Pop the oldest item (least recently used)
                 _key, _entry = self._cache.popitem(last=False)
-                self._current_size -= _entry['size']
+                self._current_size -= _entry["size"]
 
             # Add the new item
-            self._cache[key] = {'data': diff, 'size': item_size, 'expiry': expiry}
+            self._cache[key] = {"data": diff, "size": item_size, "expiry": expiry}
             self._current_size += item_size
-            self._stats['current_size'] = self._current_size # Update stats
+            self._stats["current_size"] = self._current_size # Update stats
 
             # Move the newly set item to the end (most recently used)
             # This is automatically handled by OrderedDict when setting a key,
@@ -164,22 +165,22 @@ class DiffCache:
     async def get(self, key: str) -> Optional[Dict[str, Any]]:
         """Retrieves a diff from the cache if not expired."""
         async with self._lock:
-            self._stats['total_accesses'] += 1
+            self._stats["total_accesses"] += 1
             entry = self._cache.get(key)
             now = datetime.now()
 
-            if entry and entry['expiry'] > now:
-                self._stats['hits'] += 1
+            if entry and entry["expiry"] > now:
+                self._stats["hits"] += 1
                 # Move the accessed item to the end (most recently used)
                 self._cache.move_to_end(key)
-                return entry['data']
+                return entry["data"]
             else:
-                self._stats['misses'] += 1
+                self._stats["misses"] += 1
                 # Remove expired or non-existent entry
                 if key in self._cache:
                     entry = self._cache.pop(key)
-                    self._current_size -= entry['size']
-                    self._stats['current_size'] = self._current_size # Update stats
+                    self._current_size -= entry["size"]
+                    self._stats["current_size"] = self._current_size # Update stats
                 return None
 
     async def compare_and_cache(
@@ -204,23 +205,23 @@ class DiffCache:
             and the new_diff. Returns {} if there are no changes.
         """
         async with self._lock:
-            self._stats['total_accesses'] += 1
+            self._stats["total_accesses"] += 1
             old_entry = self._cache.get(key)
             now = datetime.now()
 
             old_diff = None
-            if old_entry and old_entry['expiry'] > now:
-                self._stats['hits'] += 1
-                old_diff = old_entry['data']
+            if old_entry and old_entry["expiry"] > now:
+                self._stats["hits"] += 1
+                old_diff = old_entry["data"]
                 # Move the accessed item to the end (most recently used)
                 self._cache.move_to_end(key)
             else:
-                self._stats['misses'] += 1
+                self._stats["misses"] += 1
                 # Remove expired or non-existent entry
                 if key in self._cache:
                     entry = self._cache.pop(key)
-                    self._current_size -= entry['size']
-                    self._stats['current_size'] = self._current_size # Update stats
+                    self._current_size -= entry["size"]
+                    self._stats["current_size"] = self._current_size # Update stats
 
 
             # Calculate changes
@@ -252,7 +253,7 @@ class DiffCache:
             # but not removed because it wasn't expired.
             if key in self._cache:
                  old_entry_for_removal = self._cache.pop(key) # Remove before adding new version
-                 self._current_size -= old_entry_for_removal['size']
+                 self._current_size -= old_entry_for_removal["size"]
 
             if should_cache:
                 item_size = get_object_size(data_to_cache)
@@ -263,16 +264,16 @@ class DiffCache:
                 while self._current_size + item_size > self._max_size and len(self._cache) > 0:
                     # Pop the oldest item (least recently used)
                     _key, _entry = self._cache.popitem(last=False)
-                    self._current_size -= _entry['size']
+                    self._current_size -= _entry["size"]
 
                 # Add the new item
-                self._cache[key] = {'data': data_to_cache, 'size': item_size, 'expiry': expiry}
+                self._cache[key] = {"data": data_to_cache, "size": item_size, "expiry": expiry}
                 self._current_size += item_size
                 # Move the newly set item to the end (most recently used)
                 self._cache.move_to_end(key)
             # else: should_cache is False, item was already removed if it existed.
 
-            self._stats['current_size'] = self._current_size # Update stats
+            self._stats["current_size"] = self._current_size # Update stats
 
             return changes
 
@@ -287,12 +288,12 @@ class DiffCache:
             if key is not None:
                 if key in self._cache:
                     entry = self._cache.pop(key)
-                    self._current_size -= entry['size']
-                    self._stats['current_size'] = self._current_size
+                    self._current_size -= entry["size"]
+                    self._stats["current_size"] = self._current_size
             else:
                 self._cache.clear()
                 self._current_size = 0
-                self._stats['current_size'] = 0
+                self._stats["current_size"] = 0
     
     def get_stats(self) -> Dict[str, Union[int, float]]:
         """
@@ -339,9 +340,9 @@ class DiffCache:
         # Alternative: Return a copy without lock. Stats might be slightly stale but won't block.
         # This is often acceptable for monitoring stats.
         stats_copy = self._stats.copy()
-        total = stats_copy.get('total_accesses', 0)
-        hits = stats_copy.get('hits', 0)
-        stats_copy['hit_rate'] = (hits / total) if total > 0 else 0.0
+        total = stats_copy.get("total_accesses", 0)
+        hits = stats_copy.get("hits", 0)
+        stats_copy["hit_rate"] = (hits / total) if total > 0 else 0.0
         return stats_copy
 
 

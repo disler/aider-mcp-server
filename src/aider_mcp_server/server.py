@@ -2,10 +2,9 @@ import json
 import os
 import shutil
 import subprocess
-import sys # Import sys for stderr
-import uuid # Import uuid
-from pathlib import Path # Import Path
-from typing import Any, Dict, List, Tuple, Union, Optional # Add Optional
+import sys  # Import sys for stderr
+from pathlib import Path  # Import Path
+from typing import Any, Dict, List, Optional, Tuple, Union  # Add Optional
 
 # Use absolute imports from the package root
 from mcp.server import Server
@@ -14,7 +13,10 @@ from mcp.types import TextContent, Tool
 
 from aider_mcp_server.atoms.atoms_utils import DEFAULT_EDITOR_MODEL
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.handlers import process_aider_ai_code_request, process_list_models_request
+from aider_mcp_server.handlers import (
+    process_aider_ai_code_request,
+    process_list_models_request,
+)
 from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT
 
 # Configure logging

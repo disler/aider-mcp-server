@@ -1,12 +1,12 @@
 import json
-import uuid # Import uuid for request_id generation if needed
 from typing import Any, Dict
 
-# Use absolute imports from the package root
-from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
+
+# Use absolute imports from the package root
+from aider_mcp_server.security import SecurityContext
 
 # Configure logging for this module
 logger = get_logger(__name__)
@@ -107,9 +107,9 @@ async def process_aider_ai_code_request(
             return {"success": False, "error": "Failed to process AI coding result", "details": str(e)}
 
         # Ensure 'success' field exists in the final dictionary
-        if 'success' not in result_dict:
+        if "success" not in result_dict:
             logger.warning(f"Request {request_id}: 'success' field missing in code_with_aider result. Assuming failure.")
-            result_dict['success'] = False
+            result_dict["success"] = False
 
         logger.info(f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}")
         return result_dict

@@ -5,12 +5,22 @@ import signal
 import sys
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, Optional, Protocol, Set, Union, TypeVar, Coroutine
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Optional,
+    Protocol,
+    Set,
+    TypeVar,
+    Union,
+)
 
 # Define a generic type variable for Task
-T = TypeVar('T')
+T = TypeVar("T")
 
 import uvicorn
+
 # Use absolute imports from the package root
 from fastapi import FastAPI, Request, Response
 
@@ -19,18 +29,18 @@ from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.stdio_transport_adapter import StdioTransportAdapter
-from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 from aider_mcp_server.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
+from aider_mcp_server.security import SecurityContext
+
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
 from aider_mcp_server.server import is_git_repository
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.stdio_transport_adapter import StdioTransportAdapter
+from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 # Default values
 DEFAULT_LOG_DIR = Path("./.aider_mcp_logs")

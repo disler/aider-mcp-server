@@ -1,10 +1,10 @@
 import argparse
 import asyncio
 import os
-import signal
 import sys
-from pathlib import Path # Import Path
+from pathlib import Path  # Import Path
 from typing import Any, Callable, Optional, Protocol
+
 
 class LoggerProtocol(Protocol):
     def debug(self, message: str, **kwargs: Any) -> None: ...
@@ -21,11 +21,13 @@ from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_WS_PORT,
 )
 from aider_mcp_server.atoms.logging import Logger, get_logger
-from aider_mcp_server.server import serve, is_git_repository # stdio mode and validation
-from aider_mcp_server.sse_server import serve_sse # sse mode
-from aider_mcp_server.multi_transport_server import serve_multi_transport # multi mode
+from aider_mcp_server.multi_transport_server import serve_multi_transport  # multi mode
+from aider_mcp_server.server import (  # stdio mode and validation
+    is_git_repository,
+    serve,
+)
+from aider_mcp_server.sse_server import serve_sse  # sse mode
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
-
 
 # Configure logging early
 log_dir_path: Optional[Path] = None

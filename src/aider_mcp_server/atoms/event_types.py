@@ -1,5 +1,6 @@
 import enum
 
+
 class EventTypes(enum.Enum):
     """
     Defines the types of events that can be sent between the server and clients.

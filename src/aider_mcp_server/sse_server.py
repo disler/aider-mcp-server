@@ -2,25 +2,25 @@ import asyncio
 import json
 import signal
 import sys
-from functools import partial
-from types import FrameType
-from typing import Any, Callable, Coroutine, Optional, Dict, List
 from pathlib import Path
+from types import FrameType
+from typing import Any, Callable, Coroutine, Dict, List, Optional
+
+# Import uvicorn for server setup
+import uvicorn
 
 # Starlette imports
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
+
+from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.server import is_git_repository
+from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 
 # MCP Server imports
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.security import Permissions, SecurityContext
-from aider_mcp_server.server import is_git_repository
-
-# Import uvicorn for server setup
-import uvicorn
 
 # Import the actual tool functions
 try:
@@ -45,7 +45,7 @@ except ImportError:
 
 
 try:
-    from .atoms.logging import get_logger_func, LoggerProtocol
+    from .atoms.logging import LoggerProtocol, get_logger_func
 except ImportError:
     import logging
     from typing import Protocol
@@ -61,7 +61,7 @@ except ImportError:
         _logger = logging.getLogger(name)
         if not _logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             _logger.addHandler(handler)
             _logger.setLevel(logging.INFO)

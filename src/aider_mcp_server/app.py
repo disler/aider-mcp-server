@@ -1,7 +1,6 @@
-import logging
 from typing import Optional
 
-from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from .sse_transport_adapter import SSETransportAdapter

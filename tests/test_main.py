@@ -1,9 +1,6 @@
 import sys
-import logging
-import os
-import signal # Import signal
-from pathlib import Path # Import Path
-from typing import Generator, List, Optional, Tuple
+from pathlib import Path  # Import Path
+from typing import Generator, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,10 +10,8 @@ from _pytest.tmpdir import TempPathFactory
 from aider_mcp_server.__main__ import main
 from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
-    DEFAULT_WS_HOST,
-    DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.logging import Logger # Import Logger for spec
+from aider_mcp_server.atoms.logging import Logger  # Import Logger for spec
 
 
 @pytest.fixture
@@ -180,7 +175,7 @@ def test_invalid_cwd_not_git_repo(
                 mock_logger_instance.critical = MagicMock()
 
                 # Set sys.argv directly
-                with patch.object(sys, 'argv', ["prog", "--server-mode", "stdio", "--current-working-dir", abs_test_dir]):
+                with patch.object(sys, "argv", ["prog", "--server-mode", "stdio", "--current-working-dir", abs_test_dir]):
                     with pytest.raises(SystemExit) as excinfo:
                         main()
 

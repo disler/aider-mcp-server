@@ -1,34 +1,33 @@
 import asyncio
+import contextlib  # Import contextlib for suppress
 import logging
 import typing
-import uuid # Import uuid
+import uuid  # Import uuid
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Coroutine,
     Dict,
     List,
-    NoReturn,
     Optional,
     Protocol,
     Set,
     Tuple,
-    Type, # Import Type for __aexit__ type hints
+    Type,  # Import Type for __aexit__ type hints
     Union,
-    TYPE_CHECKING,
 )
-import contextlib # Import contextlib for suppress
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.security import SecurityContext, Permissions # Import Permissions
+from aider_mcp_server.security import Permissions, SecurityContext  # Import Permissions
 
 # Import TransportInterface only during type checking
 if TYPE_CHECKING:
     # Use absolute import path
-    from aider_mcp_server.transport_adapter import TransportInterface
     # Import ProgressReporter for type hint in get_progress_reporter
     from aider_mcp_server.progress_reporter import ProgressReporter
+    from aider_mcp_server.transport_adapter import TransportInterface
 
 
 # Define the LoggerProtocol and get_logger_func setup locally
@@ -52,7 +51,7 @@ except ImportError:
         # Ensure logger has handlers if none are configured (basic setup)
         if not logger.hasHandlers():
              handler = logging.StreamHandler()
-             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+             formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
              handler.setFormatter(formatter)
              logger.addHandler(handler)
              # Set a default level if not configured
@@ -853,7 +852,7 @@ class ApplicationCoordinator:
             if is_subscribed and should_send_based_on_origin:
                 # Check transport-specific filtering (assuming sync method or handled internally)
                 should_receive = True
-                if hasattr(transport, 'should_receive_event') and callable(transport.should_receive_event):
+                if hasattr(transport, "should_receive_event") and callable(transport.should_receive_event):
                      # This call should ideally be quick and non-blocking
                      try:
                           # Pass original request parameters (request_details) if available
@@ -901,8 +900,8 @@ class ApplicationCoordinator:
                     task_name = tasks[i].get_name()
                     log_transport_id = "unknown"
                     try: # Best effort parsing of transport ID from task name
-                        parts = task_name.split('-')
-                        if len(parts) >= 4 and parts[0] == 'send': log_transport_id = parts[2]
+                        parts = task_name.split("-")
+                        if len(parts) >= 4 and parts[0] == "send": log_transport_id = parts[2]
                     except Exception: pass
                     # Avoid logging CancelledError stack traces unless debugging needed
                     log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None

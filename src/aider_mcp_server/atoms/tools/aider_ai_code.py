@@ -4,7 +4,6 @@ import os
 import os.path
 import pathlib
 import subprocess
-import time
 from typing import Any, Dict, List, Optional, Union, cast
 
 # Add type ignores to imports that don't have type stubs
@@ -12,12 +11,12 @@ from aider.coders import Coder  # type: ignore
 from aider.io import InputOutput  # type: ignore
 from aider.models import Model  # type: ignore
 
+from aider_mcp_server.atoms.diff_cache import DiffCache
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
 )
-from aider_mcp_server.atoms.diff_cache import DiffCache
 
 # Try to import dotenv for environment variable loading
 try:
@@ -363,15 +362,15 @@ def _normalize_model_name(model: str) -> str:
         Normalized model name
     """
     # If the model already has a provider prefix, return it as is
-    if '/' in model:
+    if "/" in model:
         return model
         
     # Based on model name, add appropriate provider prefix
-    if model.startswith('gemini-') or model.startswith('gemini:'):
+    if model.startswith("gemini-") or model.startswith("gemini:"):
         return f"gemini/{model.replace(':', '-')}"
-    elif model.startswith('gpt-') or model.startswith('openai:'):
+    elif model.startswith("gpt-") or model.startswith("openai:"):
         return f"openai/{model.replace(':', '-')}"
-    elif model.startswith('claude-') or model.startswith('anthropic:'):
+    elif model.startswith("claude-") or model.startswith("anthropic:"):
         return f"anthropic/{model.replace(':', '-')}"
     else:
         # Default to gemini if provider can't be determined
@@ -388,20 +387,20 @@ def _determine_provider(model: str) -> str:
     Returns:
         Provider name
     """
-    if '/' in model:
-        provider, _ = model.split('/', 1)
+    if "/" in model:
+        provider, _ = model.split("/", 1)
         return provider
     
     # Fallback for unnormalized model names
-    if model.startswith('gemini-'):
-        return 'gemini'
-    elif model.startswith('gpt-'):
-        return 'openai'
-    elif model.startswith('claude-'):
-        return 'anthropic'
+    if model.startswith("gemini-"):
+        return "gemini"
+    elif model.startswith("gpt-"):
+        return "openai"
+    elif model.startswith("claude-"):
+        return "anthropic"
     else:
         # Default to gemini if provider can't be determined
-        return 'gemini'
+        return "gemini"
 
 
 def _configure_model(model: str) -> Model:
@@ -421,8 +420,8 @@ def _configure_model(model: str) -> Model:
         logger.info(f"Using deliberately non-existent model for testing: {model}")
         return Model(model)
     
-    if '/' in model:
-        provider, model_name = model.split('/', 1)
+    if "/" in model:
+        provider, model_name = model.split("/", 1)
     else:
         # If no provider prefix, use the model name as is
         provider = _determine_provider(model)
