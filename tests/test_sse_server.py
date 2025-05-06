@@ -490,6 +490,57 @@ async def test_sse_adapter_handle_message_request_coordinator_unavailable(sse_ad
     sse_adapter.logger.error.assert_called_once_with(expected_error)
 
 
+# --- Test process_aider_ai_code_request ---
+
+@pytest.mark.asyncio
+async def test_process_aider_ai_code_request():
+    """Test that process_aider_ai_code_request properly awaits the async code_with_aider function."""
+    from aider_mcp_server.handlers import process_aider_ai_code_request
+    from aider_mcp_server.security import SecurityContext, Permissions
+    
+    # Create a mock for the async code_with_aider function
+    with patch('aider_mcp_server.handlers.code_with_aider', new_callable=AsyncMock) as mock_code_with_aider:
+        # Configure the mock to return a valid JSON string when awaited
+        mock_code_with_aider.return_value = json.dumps({
+            "success": True,
+            "diff": "Sample diff content"
+        })
+        
+        # Create test parameters
+        request_id = "test_req_123"
+        transport_id = "test_transport"
+        params = {
+            "ai_coding_prompt": "Test prompt",
+            "relative_editable_files": ["test.py"],
+            "relative_readonly_files": []
+        }
+        security_context = SecurityContext(user_id="test_user", permissions={Permissions.EXECUTE_AIDER})
+        editor_model = "test-model"
+        current_working_dir = "/test/dir"
+        
+        # Call the function under test
+        result = await process_aider_ai_code_request(
+            request_id=request_id,
+            transport_id=transport_id,
+            params=params,
+            security_context=security_context,
+            editor_model=editor_model,
+            current_working_dir=current_working_dir
+        )
+        
+        # Verify code_with_aider was awaited (AsyncMock tracks this automatically)
+        mock_code_with_aider.assert_awaited_once_with(
+            ai_coding_prompt="Test prompt",
+            relative_editable_files=["test.py"],
+            relative_readonly_files=[],
+            model=editor_model,
+            working_dir=current_working_dir,
+        )
+        
+        # Verify result was properly processed
+        assert result["success"] is True
+        assert result["diff"] == "Sample diff content"
+
 # --- Test serve_sse ---
 
 @pytest.mark.asyncio

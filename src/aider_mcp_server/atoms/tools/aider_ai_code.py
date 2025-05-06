@@ -950,7 +950,7 @@ async def code_with_aider(
 
     try:
         # Execute with retry logic
-        response = await _execute_with_retry( # Await the async function
+        response = await _execute_with_retry(
             ai_coding_prompt,
             relative_editable_files,
             abs_editable_files,
@@ -974,6 +974,7 @@ async def code_with_aider(
             "is_cached_diff": False, # Ensure this is False on error
         }
 
+    # Convert the response to a proper JSON string
     formatted_response = json.dumps(response, indent=4)
     logger.info(f"code_with_aider process completed. Success: {response['success']}")
     return formatted_response

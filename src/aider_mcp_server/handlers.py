@@ -81,8 +81,8 @@ async def process_aider_ai_code_request(
 
     # --- Execute Tool ---
     try:
-        # Call the underlying tool function
-        result_json_str = code_with_aider(
+        # Call the underlying tool function - properly await the async function
+        result_json_str = await code_with_aider(
             ai_coding_prompt=ai_coding_prompt,
             relative_editable_files=relative_editable_files,
             relative_readonly_files=relative_readonly_files,
@@ -92,6 +92,11 @@ async def process_aider_ai_code_request(
 
         # Parse the JSON string result from the tool
         try:
+            # Ensure result_json_str is actually a string
+            if not isinstance(result_json_str, str):
+                logger.error(f"Request {request_id}: Expected string from code_with_aider, got {type(result_json_str)}")
+                return {"success": False, "error": "Unexpected response type from code_with_aider", "details": f"Expected string, got {type(result_json_str)}"}
+                
             result_dict = json.loads(result_json_str)
             # Ensure the result is a dictionary
             if not isinstance(result_dict, dict):

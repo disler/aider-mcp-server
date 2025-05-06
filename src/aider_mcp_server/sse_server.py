@@ -19,6 +19,9 @@ from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.security import Permissions, SecurityContext
 from aider_mcp_server.server import is_git_repository
 
+# Import uvicorn for server setup
+import uvicorn
+
 # Import the actual tool functions
 try:
     from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
@@ -248,7 +251,7 @@ async def serve_sse(
                  if not sse_adapter:
                     logger.error("SSE adapter not initialized when handling /message request.")
                     return JSONResponse({"success": False, "error": "Server setup error"}, status_code=500)
-                return await sse_adapter.handle_message_request(request)
+                 return await sse_adapter.handle_message_request(request)
 
             logger.info("Registering SSE transport adapter with coordinator...")
             await sse_adapter.initialize()
