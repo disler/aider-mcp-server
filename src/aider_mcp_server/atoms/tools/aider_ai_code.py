@@ -424,9 +424,8 @@ def _configure_model(model: str) -> Model:
         provider, model_name = model.split("/", 1)
     else:
         # If no provider prefix, use the model name as is
-        provider = _determine_provider(model)
-        model_name = model
-    
+        _determine_provider(model)
+
     # Use a model that we know is supported by the installed version of Aider
     # For tests to pass, we can just use a standard OpenAI model which should work
     # with most Aider installations

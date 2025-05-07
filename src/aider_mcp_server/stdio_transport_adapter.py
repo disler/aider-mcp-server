@@ -269,8 +269,6 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 )
                 return
                 
-            parameters: Dict[str, Any] = parameters_raw
-
             # Start the request with the coordinator.
             # The coordinator handles security validation via validate_request_security.
             await self._coordinator.start_request(

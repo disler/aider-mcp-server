@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
@@ -10,6 +10,106 @@ from aider_mcp_server.security import SecurityContext
 
 # Configure logging for this module
 logger = get_logger(__name__)
+
+
+def _validate_ai_coding_prompt(request_id: str, params: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Validate the AI coding prompt parameter."""
+    ai_coding_prompt = params.get("ai_coding_prompt")
+    if not ai_coding_prompt or not isinstance(ai_coding_prompt, str):
+        logger.error(f"Request {request_id}: Missing or invalid 'ai_coding_prompt'.")
+        return None, {"success": False, "error": "Missing or invalid 'ai_coding_prompt' parameter."}
+    return ai_coding_prompt, None
+
+
+def _validate_editable_files(request_id: str, params: Dict[str, Any]) -> Tuple[Optional[List[str]], Optional[Dict[str, Any]]]:
+    """Validate the editable files parameter."""
+    relative_editable_files_raw = params.get("relative_editable_files")
+    if not relative_editable_files_raw or not isinstance(relative_editable_files_raw, list):
+        logger.error(f"Request {request_id}: Missing or invalid 'relative_editable_files'. Expected list.")
+        return None, {"success": False, "error": "Missing or invalid 'relative_editable_files' parameter. Expected list."}
+
+    # Ensure all items in the list are strings
+    if not all(isinstance(f, str) for f in relative_editable_files_raw):
+        logger.error(f"Request {request_id}: 'relative_editable_files' must contain only strings.")
+        return None, {"success": False, "error": "'relative_editable_files' must contain only strings."}
+
+    return relative_editable_files_raw, None
+
+
+def _process_readonly_files(request_id: str, params: Dict[str, Any]) -> List[str]:
+    """Process and validate the readonly files parameter."""
+    relative_readonly_files_raw = params.get("relative_readonly_files", [])
+
+    if not isinstance(relative_readonly_files_raw, list):
+        logger.warning(f"Request {request_id}: Invalid 'relative_readonly_files' format (expected list, got {type(relative_readonly_files_raw)}). Using empty list.")
+        return []
+
+    if not all(isinstance(f, str) for f in relative_readonly_files_raw):
+        logger.warning(f"Request {request_id}: 'relative_readonly_files' contained non-string elements. Filtering them out.")
+        return [f for f in relative_readonly_files_raw if isinstance(f, str)]
+
+    return relative_readonly_files_raw
+
+
+def _determine_model(request_id: str, params: Dict[str, Any], editor_model: str) -> str:
+    """Determine which model to use based on request parameters and defaults."""
+    request_model = params.get("model")
+
+    if request_model and not isinstance(request_model, str):
+        logger.warning(f"Request {request_id}: Invalid 'model' parameter type (expected string, got {type(request_model)}). Ignoring.")
+        request_model = None
+
+    return request_model if request_model else editor_model
+
+
+async def _execute_aider_code(request_id: str, ai_coding_prompt: str, relative_editable_files: List[str],
+                             relative_readonly_files: List[str], model_to_use: str,
+                             current_working_dir: str) -> Dict[str, Any]:
+    """Execute the Aider code generation and process the results."""
+    try:
+        # Call the underlying tool function
+        result_json_str = await code_with_aider(
+            ai_coding_prompt=ai_coding_prompt,
+            relative_editable_files=relative_editable_files,
+            relative_readonly_files=relative_readonly_files,
+            model=model_to_use,
+            working_dir=current_working_dir,
+        )
+
+        # Ensure result_json_str is actually a string
+        if not isinstance(result_json_str, str):
+            logger.error(f"Request {request_id}: Expected string from code_with_aider, got {type(result_json_str)}")
+            return {"success": False, "error": "Unexpected response type from code_with_aider",
+                    "details": f"Expected string, got {type(result_json_str)}"}
+
+        return _parse_aider_result(request_id, result_json_str)
+
+    except Exception as e:
+        logger.exception(f"Request {request_id}: Unhandled exception during code_with_aider execution: {e}")
+        return {"success": False, "error": "An unexpected error occurred during AI coding", "details": str(e)}
+
+
+def _parse_aider_result(request_id: str, result_json_str: str) -> Dict[str, Any]:
+    """Parse the JSON result from the Aider code generation."""
+    try:
+        result_dict = json.loads(result_json_str)
+
+        # Ensure the result is a dictionary
+        if not isinstance(result_dict, dict):
+            raise json.JSONDecodeError("Result is not a JSON object", result_json_str, 0)
+
+        # Ensure 'success' field exists in the final dictionary
+        if "success" not in result_dict:
+            logger.warning(f"Request {request_id}: 'success' field missing in code_with_aider result. Assuming failure.")
+            result_dict["success"] = False
+
+        logger.info(f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}")
+        return result_dict
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Request {request_id}: Failed to parse JSON response from code_with_aider: {e}")
+        logger.error(f"Request {request_id}: Received raw response: {result_json_str}")
+        return {"success": False, "error": "Failed to process AI coding result", "details": str(e)}
 
 
 async def process_aider_ai_code_request(
@@ -37,86 +137,38 @@ async def process_aider_ai_code_request(
     logger.info(f"Handler 'process_aider_ai_code_request' invoked for request_id: {request_id}, transport_id: {transport_id}")
     logger.debug(f"Security Context: {security_context}") # Log context at debug
 
-    # --- Parameter Extraction and Validation ---
-    ai_coding_prompt = params.get("ai_coding_prompt")
-    if not ai_coding_prompt or not isinstance(ai_coding_prompt, str):
-        logger.error(f"Request {request_id}: Missing or invalid 'ai_coding_prompt'.")
-        return {"success": False, "error": "Missing or invalid 'ai_coding_prompt' parameter."}
+    # Validate AI coding prompt
+    ai_coding_prompt, error = _validate_ai_coding_prompt(request_id, params)
+    if error:
+        return error
 
-    relative_editable_files_raw = params.get("relative_editable_files")
-    if not relative_editable_files_raw or not isinstance(relative_editable_files_raw, list):
-        logger.error(f"Request {request_id}: Missing or invalid 'relative_editable_files'. Expected list.")
-        return {"success": False, "error": "Missing or invalid 'relative_editable_files' parameter. Expected list."}
-    # Ensure all items in the list are strings
-    if not all(isinstance(f, str) for f in relative_editable_files_raw):
-        logger.error(f"Request {request_id}: 'relative_editable_files' must contain only strings.")
-        return {"success": False, "error": "'relative_editable_files' must contain only strings."}
-    relative_editable_files = relative_editable_files_raw
+    # Validate editable files
+    relative_editable_files, error = _validate_editable_files(request_id, params)
+    if error:
+        return error
 
-    # Readonly files are optional, default to empty list
-    relative_readonly_files_raw = params.get("relative_readonly_files", [])
-    if not isinstance(relative_readonly_files_raw, list):
-        logger.warning(f"Request {request_id}: Invalid 'relative_readonly_files' format (expected list, got {type(relative_readonly_files_raw)}). Using empty list.")
-        relative_readonly_files = []
-    elif not all(isinstance(f, str) for f in relative_readonly_files_raw):
-         logger.warning(f"Request {request_id}: 'relative_readonly_files' contained non-string elements. Filtering them out.")
-         relative_readonly_files = [f for f in relative_readonly_files_raw if isinstance(f, str)]
-    else:
-        relative_readonly_files = relative_readonly_files_raw
+    # Process readonly files
+    relative_readonly_files = _process_readonly_files(request_id, params)
 
-    # Model is optional, use editor_model if not provided
-    request_model = params.get("model")
-    if request_model and not isinstance(request_model, str):
-        logger.warning(f"Request {request_id}: Invalid 'model' parameter type (expected string, got {type(request_model)}). Ignoring.")
-        request_model = None
+    # Determine which model to use
+    model_to_use = _determine_model(request_id, params, editor_model)
 
-    model_to_use = request_model if request_model else editor_model
-
-    # --- Logging ---
+    # Log request details
     logger.info(f"Request {request_id}: AI Coding Request: Prompt='{ai_coding_prompt[:50]}...'")
     logger.info(f"Request {request_id}: Editable files: {relative_editable_files}")
     logger.info(f"Request {request_id}: Readonly files: {relative_readonly_files}")
     logger.info(f"Request {request_id}: Model to use: {model_to_use} (Editor default: {editor_model})")
     logger.info(f"Request {request_id}: Working directory: {current_working_dir}")
 
-    # --- Execute Tool ---
-    try:
-        # Call the underlying tool function - properly await the async function
-        result_json_str = await code_with_aider(
-            ai_coding_prompt=ai_coding_prompt,
-            relative_editable_files=relative_editable_files,
-            relative_readonly_files=relative_readonly_files,
-            model=model_to_use,
-            working_dir=current_working_dir,
-        )
-
-        # Parse the JSON string result from the tool
-        try:
-            # Ensure result_json_str is actually a string
-            if not isinstance(result_json_str, str):
-                logger.error(f"Request {request_id}: Expected string from code_with_aider, got {type(result_json_str)}")
-                return {"success": False, "error": "Unexpected response type from code_with_aider", "details": f"Expected string, got {type(result_json_str)}"}
-                
-            result_dict = json.loads(result_json_str)
-            # Ensure the result is a dictionary
-            if not isinstance(result_dict, dict):
-                 raise json.JSONDecodeError("Result is not a JSON object", result_json_str, 0)
-        except json.JSONDecodeError as e:
-            logger.error(f"Request {request_id}: Failed to parse JSON response from code_with_aider: {e}")
-            logger.error(f"Request {request_id}: Received raw response: {result_json_str}")
-            return {"success": False, "error": "Failed to process AI coding result", "details": str(e)}
-
-        # Ensure 'success' field exists in the final dictionary
-        if "success" not in result_dict:
-            logger.warning(f"Request {request_id}: 'success' field missing in code_with_aider result. Assuming failure.")
-            result_dict["success"] = False
-
-        logger.info(f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}")
-        return result_dict
-
-    except Exception as e:
-        logger.exception(f"Request {request_id}: Unhandled exception during code_with_aider execution: {e}")
-        return {"success": False, "error": "An unexpected error occurred during AI coding", "details": str(e)}
+    # Execute the Aider code generation
+    return await _execute_aider_code(
+        request_id,
+        ai_coding_prompt,
+        relative_editable_files,
+        relative_readonly_files,
+        model_to_use,
+        current_working_dir
+    )
 
 
 async def process_list_models_request(

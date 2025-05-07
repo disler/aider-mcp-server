@@ -264,36 +264,6 @@ class ApplicationCoordinator:
 
     # --- Handler Management ---
 
-    # Changed to sync (def) to match test mocks
-    def register_handler(
-        self,
-        operation_name: str,
-        handler: HandlerFunc,
-        required_permission: Optional[Permissions] = None,
-    ) -> None:
-        """Registers a handler function for a specific operation."""
-        # Note: Using a sync lock here as registration itself is sync
-        # If registration needed async ops, this lock would need to be asyncio.Lock
-        # and the method would be async def.
-        # For now, assume registration is CPU-bound or quick.
-        # async with self._handlers_lock: # Original async lock usage
-        # Using sync lock for sync method:
-        # with self._handlers_lock: # Requires self._handlers_lock to be threading.Lock
-        # Let's keep asyncio.Lock but acquire it synchronously if possible,
-        # or stick to async def if sync acquisition isn't straightforward/safe.
-        # Reverting to async def and async lock acquisition for simplicity and safety,
-        # but acknowledging the mismatch with the test mock. The test mock should
-        # ideally be an AsyncMock if the actual method is async.
-        # Let's try making it sync again, assuming the lock is asyncio.Lock
-        # and we manage its acquisition carefully or accept potential minor blocking.
-        # *** Correction: Let's make the methods sync and use a standard threading.Lock ***
-        # *** Re-Correction: Sticking to async def as changing lock type is complex. ***
-        # *** Final Decision: Make methods sync as requested, but keep asyncio.Lock ***
-        # *** and acquire it in a blocking way (not ideal, but simple for now). ***
-        # *** Re-Re-Final Decision: Keep methods async as originally intended, ***
-        # *** the test mock should be updated to AsyncMock. Let's revert the change ***
-        # *** back to async def, as this seems the most consistent approach. ***
-
     async def register_handler(
         self,
         operation_name: str,
@@ -571,7 +541,8 @@ class ApplicationCoordinator:
         Sends a progress or status update for an ongoing request.
         Ensures original request parameters are included in the 'details' field.
         """
-        if self.is_shutting_down(): return # Don't send updates during shutdown
+        if self.is_shutting_down():
+            return # Don't send updates during shutdown
 
         await self.wait_for_initialization()
 
@@ -680,7 +651,8 @@ class ApplicationCoordinator:
         Marks a request as failed, sends an error result event (TOOL_RESULT),
         and cleans up state. Includes original parameters in the result details.
         """
-        if self.is_shutting_down(): return # Avoid sending failures during shutdown chaos
+        if self.is_shutting_down():
+            return # Avoid sending failures during shutdown chaos
 
         await self.wait_for_initialization()
         logger.error(f"Failing request {request_id} (Operation: {operation_name}): {error} - {error_details}")
@@ -759,7 +731,8 @@ class ApplicationCoordinator:
         """
         Broadcasts an event to all subscribed transports, optionally excluding one.
         """
-        if self.is_shutting_down(): return
+        if self.is_shutting_down():
+            return
         await self.wait_for_initialization()
         logger.debug(f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}")
         # Extract potential request details (parameters) if available in data for filtering
@@ -781,7 +754,8 @@ class ApplicationCoordinator:
         Sends a single event directly to a specific transport, if it exists.
         Does not check subscriptions. Primarily used for direct responses like errors.
         """
-        if self.is_shutting_down(): return
+        if self.is_shutting_down():
+            return
         await self.wait_for_initialization()
 
         transport = await self._get_transport(transport_id)
@@ -801,6 +775,106 @@ class ApplicationCoordinator:
             logger.warning(f"Attempted to send direct event {event_type.value} to non-existent transport {transport_id}")
 
 
+    async def _should_send_to_transport(
+        self,
+        transport_id: str,
+        transport: "TransportInterface",
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        originating_transport_id: Optional[str],
+        subscriptions: Dict[str, Set[EventTypes]],
+        request_details: Optional[Dict[str, Any]],
+    ) -> bool:
+        """
+        Determine if an event should be sent to a specific transport based on
+        subscription status, origin rules, and transport-specific filtering.
+        """
+        # Check subscription
+        is_subscribed = event_type in subscriptions.get(transport_id, set())
+        if not is_subscribed:
+            return False
+
+        # Special handling for STATUS events
+        if event_type == EventTypes.STATUS and originating_transport_id is not None:
+            if transport_id != originating_transport_id:
+                return False
+
+        # Check transport-specific filtering
+        if hasattr(transport, "should_receive_event") and callable(transport.should_receive_event):
+            try:
+                # Pass original request parameters if available
+                if not transport.should_receive_event(event_type, data, request_details):
+                    logger.debug(f"Transport {transport_id} filtered out event {event_type.value} for request {data.get('request_id', 'N/A')}")
+                    return False
+            except Exception as e:
+                logger.error(f"Error calling should_receive_event for transport {transport_id}: {e}", exc_info=True)
+                return False
+
+        return True
+
+    def _create_send_event_task(
+        self,
+        transport: "TransportInterface",
+        transport_id: str,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+    ) -> asyncio.Task:
+        """
+        Create a task to send an event to a transport.
+        """
+        request_id = data.get("request_id", uuid.uuid4())
+        logger.debug(f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})")
+        return self._loop.create_task(
+            transport.send_event(event_type, data),
+            name=f"send-{event_type.value}-{transport_id}-{request_id}"
+        )
+
+    async def _log_originating_transport_status(
+        self,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        originating_transport_id: str,
+        sent_to: Set[str],
+        transports_to_notify: List[Tuple[str, "TransportInterface"]],
+        subscriptions: Dict[str, Set[EventTypes]],
+    ) -> None:
+        """
+        Log warnings if the originating transport didn't receive an event it might have expected.
+        """
+        request_id = data.get("request_id", "N/A")
+        origin_subscribed = event_type in subscriptions.get(originating_transport_id, set())
+        origin_exists = any(t_id == originating_transport_id for t_id, _ in transports_to_notify)
+
+        if origin_exists and not origin_subscribed:
+            logger.warning(f"Event {event_type.value} for request {request_id} was not sent to originating transport {originating_transport_id} because it was not subscribed.")
+        elif not origin_exists:
+            logger.warning(f"Event {event_type.value} for request {request_id} could not be sent to originating transport {originating_transport_id} because it was not found (likely unregistered).")
+
+    async def _handle_task_results(
+        self,
+        tasks: List[asyncio.Task],
+        results: List[Any],
+    ) -> None:
+        """
+        Process the results of event sending tasks and log any errors.
+        """
+        for i, result in enumerate(results):
+            if not isinstance(result, Exception):
+                continue
+
+            task_name = tasks[i].get_name()
+            log_transport_id = "unknown"
+            try:
+                parts = task_name.split("-")
+                if len(parts) >= 4 and parts[0] == "send":
+                    log_transport_id = parts[2]
+            except Exception:
+                logger.warning(f"Failed to parse transport ID from task name {task_name}")
+
+            # Avoid logging CancelledError stack traces unless debugging needed
+            log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
+            logger.error(f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}", exc_info=log_exc_info)
+
     async def _send_event_to_transports(
         self,
         event_type: EventTypes,
@@ -813,13 +887,12 @@ class ApplicationCoordinator:
         Internal helper to send an event to relevant transports based on subscriptions.
         Includes logic to check transport's should_receive_event method if available.
         """
-        if self.is_shutting_down(): return
+        if self.is_shutting_down():
+            return
         await self.wait_for_initialization()
 
         tasks = []
         sent_to = set()
-        transports_to_notify: List[Tuple[str, "TransportInterface"]] = []
-        subscriptions_copy: Dict[str, Set[EventTypes]] = {}
 
         # Acquire locks briefly to get copies of state
         async with self._transports_lock:
@@ -832,80 +905,34 @@ class ApplicationCoordinator:
             if transport_id == exclude_transport_id:
                 continue
 
-            # Check subscription using the copied state
-            is_subscribed = event_type in subscriptions_copy.get(transport_id, set())
+            # Check if we should send to this transport
+            should_send = await self._should_send_to_transport(
+                transport_id, transport, event_type, data,
+                originating_transport_id, subscriptions_copy, request_details
+            )
 
-            # Special handling for TOOL_RESULT:
-            # - Always send to originating transport if it exists, regardless of subscription? No, tests imply subscription matters.
-            # - Broadcast to all *subscribed* transports.
-            # Special handling for STATUS:
-            # - Often sent only to originating transport. Let's check originating_transport_id.
-            # - If event is STATUS and originating_transport_id is set, only send if transport_id matches.
-            # - Exception: If originating_transport_id is None (e.g., system broadcast), send to all subscribed.
-
-            should_send_based_on_origin = True
-            if event_type == EventTypes.STATUS and originating_transport_id is not None:
-                 if transport_id != originating_transport_id:
-                      should_send_based_on_origin = False
-
-            # Only proceed if subscribed AND passes origin check (if applicable)
-            if is_subscribed and should_send_based_on_origin:
-                # Check transport-specific filtering (assuming sync method or handled internally)
-                should_receive = True
-                if hasattr(transport, "should_receive_event") and callable(transport.should_receive_event):
-                     # This call should ideally be quick and non-blocking
-                     try:
-                          # Pass original request parameters (request_details) if available
-                          should_receive = transport.should_receive_event(event_type, data, request_details)
-                     except Exception as e:
-                          logger.error(f"Error calling should_receive_event for transport {transport_id}: {e}", exc_info=True)
-                          should_receive = False # Don't send if filter fails
-
-                if not should_receive:
-                     logger.debug(f"Transport {transport_id} filtered out event {event_type.value} for request {data.get('request_id', 'N/A')}")
-                     continue # Skip sending
-
-                logger.debug(f"Queueing event {event_type.value} for transport {transport_id} (Request: {data.get('request_id', 'N/A')})")
-                tasks.append(
-                    self._loop.create_task(
-                        transport.send_event(event_type, data),
-                        name=f"send-{event_type.value}-{transport_id}-{data.get('request_id', uuid.uuid4())}"
-                    )
-                )
+            if should_send:
+                tasks.append(self._create_send_event_task(transport, transport_id, event_type, data))
                 sent_to.add(transport_id)
 
         # Check if the originating transport should have received it but didn't
         if originating_transport_id and originating_transport_id not in sent_to and originating_transport_id != exclude_transport_id:
-             origin_subscribed = event_type in subscriptions_copy.get(originating_transport_id, set())
-             origin_exists = any(t_id == originating_transport_id for t_id, _ in transports_to_notify)
-             if origin_exists and not origin_subscribed:
-                  logger.warning(f"Event {event_type.value} for request {data.get('request_id', 'N/A')} was not sent to originating transport {originating_transport_id} because it was not subscribed.")
-             elif not origin_exists:
-                  logger.warning(f"Event {event_type.value} for request {data.get('request_id', 'N/A')} could not be sent to originating transport {originating_transport_id} because it was not found (likely unregistered).")
-             # Add check if it was filtered out by should_receive_event if needed
+            await self._log_originating_transport_status(
+                event_type, data, originating_transport_id, sent_to,
+                transports_to_notify, subscriptions_copy
+            )
 
+        # Log if no transports received the event
         if not sent_to:
-             # Avoid logging warning if it was a STATUS event only meant for origin and origin wasn't subscribed/found
-             is_status_for_origin_only = event_type == EventTypes.STATUS and originating_transport_id is not None
-             if not is_status_for_origin_only:
-                  logger.debug(f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})")
+            # Avoid logging warning if it was a STATUS event only meant for origin and origin wasn't subscribed/found
+            is_status_for_origin_only = event_type == EventTypes.STATUS and originating_transport_id is not None
+            if not is_status_for_origin_only:
+                logger.debug(f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})")
 
-
-        # Wait for all send tasks to complete (optional, consider fire-and-forget)
+        # Wait for all send tasks to complete
         if tasks:
-            # Use return_exceptions=True to handle errors without stopping gather
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    task_name = tasks[i].get_name()
-                    log_transport_id = "unknown"
-                    try: # Best effort parsing of transport ID from task name
-                        parts = task_name.split("-")
-                        if len(parts) >= 4 and parts[0] == "send": log_transport_id = parts[2]
-                    except Exception: pass
-                    # Avoid logging CancelledError stack traces unless debugging needed
-                    log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
-                    logger.error(f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}", exc_info=log_exc_info)
+            await self._handle_task_results(tasks, results)
 
 
     # --- Utility Methods ---
@@ -935,18 +962,12 @@ class ApplicationCoordinator:
 
     # --- Shutdown ---
 
-    async def shutdown(self) -> None:
-        """Gracefully shuts down the coordinator and all transports."""
-        if self._shutdown_event.is_set():
-            logger.info("Shutdown already in progress or completed.")
-            return
-
-        logger.warning("Initiating ApplicationCoordinator shutdown...") # Changed to warning
-        self._shutdown_event.set() # Signal shutdown early
-
-        # 1. Cancel all active request handlers
+    async def _cancel_active_request_handlers(self) -> None:
+        """Cancel all active request handlers during shutdown."""
         logger.info(f"Cancelling active request handlers (timeout: {SHUTDOWN_TIMEOUT}s)...")
         tasks_to_cancel: List[asyncio.Task] = []
+
+        # Get tasks to cancel
         async with self._active_requests_lock:
             active_request_ids = list(self._active_requests.keys())
             for request_id in active_request_ids:
@@ -957,6 +978,7 @@ class ApplicationCoordinator:
                     logger.debug(f"Marking task for request {request_id} for cancellation.")
             self._active_requests.clear() # Clear requests immediately
 
+        # Cancel tasks and track results
         cancelled_count = 0
         error_count = 0
         if tasks_to_cancel:
@@ -964,8 +986,6 @@ class ApplicationCoordinator:
                 task.cancel()
             # Wait for cancellations with timeout
             results = await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
-            # Allow a very short time for cancellation exceptions to propagate if needed
-            # await asyncio.sleep(0.01) # Removed, gather should be sufficient
 
             for i, result in enumerate(results):
                 if isinstance(result, asyncio.CancelledError):
@@ -980,57 +1000,81 @@ class ApplicationCoordinator:
         else:
             logger.info("No active handlers to cancel.")
 
-
-        # 2. Shutdown all registered transports
+    async def _shutdown_transports(self) -> None:
+        """Shutdown all registered transports during coordinator shutdown."""
         logger.info(f"Shutting down registered transports (timeout: {SHUTDOWN_TIMEOUT}s)...")
         transport_shutdown_tasks = []
         transports_to_shutdown: List["TransportInterface"] = []
+
+        # Get transports to shutdown
         async with self._transports_lock:
             transports_to_shutdown = list(self._transports.values())
             self._transports.clear() # Clear transports immediately
 
-        if transports_to_shutdown:
-            for transport in transports_to_shutdown:
-                logger.debug(f"Initiating shutdown for transport {transport.transport_id}...")
-                transport_shutdown_tasks.append(
-                    self._loop.create_task(transport.shutdown(), name=f"shutdown-{transport.transport_id}")
-                )
+        if not transports_to_shutdown:
+            logger.info("No transports registered to shut down.")
+            return
 
-            # Wait for all transport shutdowns to complete with timeout
-            # Use asyncio.wait to handle timeouts more gracefully than gather timeout
-            done, pending = await asyncio.wait(transport_shutdown_tasks, timeout=SHUTDOWN_TIMEOUT, return_when=asyncio.ALL_COMPLETED)
+        # Create shutdown tasks
+        for transport in transports_to_shutdown:
+            logger.debug(f"Initiating shutdown for transport {transport.transport_id}...")
+            transport_shutdown_tasks.append(
+                self._loop.create_task(transport.shutdown(), name=f"shutdown-{transport.transport_id}")
+            )
 
-            for task in pending:
-                 # Extract transport ID from task name for logging
-                 task_name = task.get_name()
-                 transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
-                 logger.warning(f"Transport {transport_id} shutdown timed out after {SHUTDOWN_TIMEOUT}s. Cancelling task.")
-                 task.cancel()
-                 # Await cancellation briefly
-                 with contextlib.suppress(asyncio.CancelledError):
-                      await task
+        # Wait for all transport shutdowns to complete with timeout
+        done, pending = await asyncio.wait(transport_shutdown_tasks, timeout=SHUTDOWN_TIMEOUT, return_when=asyncio.ALL_COMPLETED)
 
-            exceptions = []
-            for task in done:
-                 try:
-                      result = task.result() # Check for exceptions in completed tasks
-                 except Exception as e:
-                      # Extract transport ID from task name
-                      task_name = task.get_name()
-                      transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
-                      logger.error(f"Error shutting down transport {transport_id}: {e}", exc_info=e)
-                      exceptions.append(e)
+        # Handle pending (timed out) tasks
+        for task in pending:
+            task_name = task.get_name()
+            transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
+            logger.warning(f"Transport {transport_id} shutdown timed out after {SHUTDOWN_TIMEOUT}s. Cancelling task.")
+            task.cancel()
+            # Await cancellation briefly
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
-            logger.info(f"Finished shutting down {len(transports_to_shutdown)} transports ({len(pending)} timed out, {len(exceptions)} errors).")
+        # Check for exceptions in completed tasks
+        exceptions = []
+        for task in done:
+            try:
+                task.result()
+            except Exception as e:
+                task_name = task.get_name()
+                transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
+                logger.error(f"Error shutting down transport {transport_id}: {e}", exc_info=e)
+                exceptions.append(e)
 
-        else:
-             logger.info("No transports registered to shut down.")
+        logger.info(f"Finished shutting down {len(transports_to_shutdown)} transports ({len(pending)} timed out, {len(exceptions)} errors).")
 
+    async def _clear_coordinator_state(self) -> None:
+        """Clear all internal state during shutdown."""
+        # Clear handlers and other state
+        async with self._handlers_lock:
+            self._handlers.clear()
+        async with self._transport_capabilities_lock:
+            self._transport_capabilities.clear()
+        async with self._transport_subscriptions_lock:
+            self._transport_subscriptions.clear()
+
+    async def shutdown(self) -> None:
+        """Gracefully shuts down the coordinator and all transports."""
+        if self._shutdown_event.is_set():
+            logger.info("Shutdown already in progress or completed.")
+            return
+
+        logger.warning("Initiating ApplicationCoordinator shutdown...") # Changed to warning
+        self._shutdown_event.set() # Signal shutdown early
+
+        # 1. Cancel all active request handlers
+        await self._cancel_active_request_handlers()
+
+        # 2. Shutdown all registered transports
+        await self._shutdown_transports()
 
         # 3. Clear handlers and other state
-        async with self._handlers_lock: self._handlers.clear()
-        async with self._transport_capabilities_lock: self._transport_capabilities.clear()
-        async with self._transport_subscriptions_lock: self._transport_subscriptions.clear()
+        await self._clear_coordinator_state()
 
         # Reset singleton state ONLY if necessary (e.g., for tests)
         # Avoid doing this in production unless specifically required.

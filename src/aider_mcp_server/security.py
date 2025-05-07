@@ -138,7 +138,7 @@ def create_context_from_credentials(credentials: Dict[str, Any], transport_id: O
 
     if auth_token and isinstance(auth_token, str):
         # --- Simple Hardcoded Token Check (Replace with real validation) ---
-        if auth_token == "VALID_TEST_TOKEN":
+        if auth_token == "VALID_TEST_TOKEN":  # noqa: S105
             user_id = "test_user"
             # Grant specific permissions - explicitly type to satisfy mypy with Union
             granted_permissions: Set[Union[Permissions, str]] = {
@@ -146,7 +146,7 @@ def create_context_from_credentials(credentials: Dict[str, Any], transport_id: O
             }
             logger.info(f"Successfully created authenticated context for user '{user_id}' from transport '{transport_id}'")
             return SecurityContext(user_id=user_id, permissions=granted_permissions, transport_id=transport_id)
-        elif auth_token == "ADMIN_TOKEN": # Example admin token
+        elif auth_token == "ADMIN_TOKEN":  # noqa: S105
              user_id = "admin_user"
              # Grant all permissions using wildcard - explicitly type to satisfy mypy with Union
              granted_permissions = {"*"} # Use wildcard string

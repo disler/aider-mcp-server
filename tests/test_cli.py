@@ -54,7 +54,6 @@ def run_main(monkeypatch: pytest.MonkeyPatch, args: List[str]) -> Tuple[mock.Mag
     monkeypatch.setattr(Path, "is_dir", mock_path_is_dir)
     # Patch Path.resolve globally - assume it works unless specifically testing failure
     # Let's mock resolve to return a predictable object based on input
-    original_resolve = Path.resolve
     def simple_resolve(self, strict=False):
         # Return a new Path object based on the input string for consistency
         # In a real scenario, this might need more sophisticated mocking if paths matter
@@ -174,7 +173,7 @@ def test_multi_mode_default_host_port(monkeypatch: pytest.MonkeyPatch):
 
 def test_multi_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
     """Test multi mode with custom host and port."""
-    custom_host = "0.0.0.0"
+    custom_host = "127.0.0.1"  # Use loopback instead of all interfaces
     custom_port = 8080
     args = ["--server-mode", "multi", "--host", custom_host, "--port", str(custom_port), "--current-working-dir", "."]
     mock_serve, mock_serve_sse, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
@@ -260,7 +259,6 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     args = ["--current-working-dir", non_existent_dir_str]
 
     # Mock Path.resolve to raise FileNotFoundError for the specific path
-    original_resolve = Path.resolve
     def mock_resolve(self, strict=False):
         # Use os.path.abspath for basic resolution simulation
         abs_path_str = os.path.abspath(str(self))

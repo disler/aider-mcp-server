@@ -3,16 +3,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path  # Import Path
-from typing import Any, Callable, Optional, Protocol
-
-
-class LoggerProtocol(Protocol):
-    def debug(self, message: str, **kwargs: Any) -> None: ...
-    def info(self, message: str, **kwargs: Any) -> None: ...
-    def warning(self, message: str, **kwargs: Any) -> None: ...
-    def error(self, message: str, **kwargs: Any) -> None: ...
-    def critical(self, message: str, **kwargs: Any) -> None: ...
-    def exception(self, message: str, **kwargs: Any) -> None: ...
+from typing import Any, Callable, Optional, Protocol, Tuple
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.atoms_utils import (
@@ -28,6 +19,15 @@ from aider_mcp_server.server import (  # stdio mode and validation
 )
 from aider_mcp_server.sse_server import serve_sse  # sse mode
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+
+
+class LoggerProtocol(Protocol):
+    def debug(self, message: str, **kwargs: Any) -> None: ...
+    def info(self, message: str, **kwargs: Any) -> None: ...
+    def warning(self, message: str, **kwargs: Any) -> None: ...
+    def error(self, message: str, **kwargs: Any) -> None: ...
+    def critical(self, message: str, **kwargs: Any) -> None: ...
+    def exception(self, message: str, **kwargs: Any) -> None: ...
 
 # Configure logging early
 log_dir_path: Optional[Path] = None
@@ -52,10 +52,8 @@ async def handle_sigterm(loop: asyncio.AbstractEventLoop, logger_instance: Logge
         logger_instance.error(f"Error during coordinator shutdown via SIGTERM: {e}", exc_info=True)
 
 
-def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None:
-    # Use the provided logger_factory if available, otherwise use the default get_logger
-    get_logger_func = logger_factory or get_logger
-    log = get_logger_func(__name__, log_dir=log_dir_path)
+def _setup_argument_parser() -> argparse.ArgumentParser:
+    """Set up and return the argument parser for command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Aider MCP Server - Offload AI coding tasks to Aider.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -81,44 +79,51 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
         "--port", type=int, default=DEFAULT_WS_PORT,
         help=f"Port number for SSE/Multi server (default: {DEFAULT_WS_PORT})."
     )
-    args: argparse.Namespace = parser.parse_args()
+    return parser
 
-    # Validate CWD early
+
+def _validate_working_directory(log: LoggerProtocol, cwd_path: str) -> Tuple[Path, str]:
+    """Validate that the working directory exists and is a git repository.
+
+    Returns:
+        Tuple containing the absolute Path object and string representation.
+    """
+    # Validate directory exists and is a directory
     try:
-        # Resolve to absolute path and check existence/type
-        abs_cwd_path: Path = Path(args.current_working_dir).resolve(strict=True)
+        abs_cwd_path: Path = Path(cwd_path).resolve(strict=True)
         if not abs_cwd_path.is_dir():
-             # This case should be caught by strict=True, but check explicitly
-             log.critical(f"Error: Specified working directory is not a directory: {abs_cwd_path}")
-             sys.exit(1)
+            log.critical(f"Error: Specified working directory is not a directory: {abs_cwd_path}")
+            sys.exit(1)
     except FileNotFoundError:
-         log.critical(f"Error: Specified working directory does not exist: {args.current_working_dir}")
-         sys.exit(1)
+        log.critical(f"Error: Specified working directory does not exist: {cwd_path}")
+        sys.exit(1)
     except Exception as e:
-         log.critical(f"Error resolving working directory '{args.current_working_dir}': {e}")
-         sys.exit(1)
+        log.critical(f"Error resolving working directory '{cwd_path}': {e}")
+        sys.exit(1)
 
-    # Validate CWD is a git repository
-    is_repo, git_error = is_git_repository(abs_cwd_path) # Pass Path object
+    # Validate it's a git repository
+    is_repo, git_error = is_git_repository(abs_cwd_path)
     if not is_repo:
         log.critical(f"Error: Specified working directory is not a valid git repository: {abs_cwd_path} ({git_error})")
         sys.exit(1)
-    log.info(f"Validated working directory (git repository): {abs_cwd_path}")
-    # Convert Path to string for passing to server functions
-    abs_cwd_str = str(abs_cwd_path)
 
-    # Validate host/port arguments based on server mode
-    if args.server_mode == "stdio":
-        if args.host != DEFAULT_WS_HOST or args.port != DEFAULT_WS_PORT:
+    log.info(f"Validated working directory (git repository): {abs_cwd_path}")
+    return abs_cwd_path, str(abs_cwd_path)
+
+
+def _validate_server_mode_args(log: LoggerProtocol, server_mode: str, host: str, port: int) -> None:
+    """Validate arguments based on server mode."""
+    if server_mode == "stdio":
+        if host != DEFAULT_WS_HOST or port != DEFAULT_WS_PORT:
             log.warning("Warning: --host and --port arguments are ignored in 'stdio' mode.")
 
-    # Signal handling setup (conditional)
-    if args.server_mode != "multi":
+
+def _setup_signal_handling(log: LoggerProtocol, server_mode: str) -> None:
+    """Set up signal handling based on server mode."""
+    if server_mode != "multi":
         try:
-            # Use get_running_loop() to avoid "no running event loop" error
-            # This will only work inside an async function, so we'll set up the signal handlers
-            # inside the async server functions instead
-            log.info(f"SIGTERM handler registration will be done in server function for {args.server_mode} mode.")
+            # Signal handlers will be set up in the server functions
+            log.info(f"SIGTERM handler registration will be done in server function for {server_mode} mode.")
         except NotImplementedError:
             log.warning("Signal handlers (SIGTERM) not supported on this platform.")
         except Exception as e:
@@ -126,21 +131,67 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
     else:
         log.info("Signal handling delegated to multi_transport_server for 'multi' mode.")
 
+
+async def _run_server(server_mode: str, host: str, port: int, editor_model: str, cwd_str: str) -> None:
+    """Run the appropriate server based on the server mode."""
+    if server_mode == "multi":
+        await serve_multi_transport(
+            host=host, port=port, editor_model=editor_model,
+            current_working_dir=cwd_str,
+        )
+    elif server_mode == "sse":
+        await serve_sse(
+            host=host, port=port, editor_model=editor_model,
+            current_working_dir=cwd_str,
+        )
+    elif server_mode == "stdio":
+        await serve(
+            editor_model=editor_model,
+            current_working_dir=cwd_str,
+        )
+    else:
+        raise ValueError(f"Unknown server mode: {server_mode}")
+
+
+def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None:
+    """Main entry point for the Aider MCP Server."""
+    # Set up logging
+    get_logger_func = logger_factory or get_logger
+    log = get_logger_func(__name__, log_dir=log_dir_path)
+
+    # Parse command-line arguments
+    parser = _setup_argument_parser()
+    args: argparse.Namespace = parser.parse_args()
+
+    # Validate working directory
+    abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
+
+    # Validate server mode arguments
+    _validate_server_mode_args(log, args.server_mode, args.host, args.port)
+
+    # Set up signal handling
+    _setup_signal_handling(log, args.server_mode)
+
+    # Run the appropriate server
     try:
         if args.server_mode == "multi":
             log.info(f"Starting in Multi-Transport server mode (SSE on http://{args.host}:{args.port}, plus Stdio)")
             asyncio.run(
                 serve_multi_transport(
-                    host=args.host, port=args.port, editor_model=args.editor_model,
-                    current_working_dir=abs_cwd_str, # Pass validated string path
+                    host=args.host,
+                    port=args.port,
+                    editor_model=args.editor_model,
+                    current_working_dir=abs_cwd_str,
                 )
             )
         elif args.server_mode == "sse":
             log.info(f"Starting in SSE server mode (http://{args.host}:{args.port})")
             asyncio.run(
                 serve_sse(
-                    host=args.host, port=args.port, editor_model=args.editor_model,
-                    current_working_dir=abs_cwd_str, # Pass validated string path
+                    host=args.host,
+                    port=args.port,
+                    editor_model=args.editor_model,
+                    current_working_dir=abs_cwd_str,
                 )
             )
         elif args.server_mode == "stdio":
@@ -148,20 +199,19 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
             asyncio.run(
                 serve(
                     editor_model=args.editor_model,
-                    current_working_dir=abs_cwd_str, # Pass validated string path
+                    current_working_dir=abs_cwd_str,
                 )
             )
         else:
             log.critical(f"Error: Unknown server mode '{args.server_mode}'")
             sys.exit(1)
-
-    except ValueError as e: # Catch validation errors from server functions
+    except ValueError as e:  # Catch validation errors from server functions
         log.critical(f"Server configuration error: {e}")
         sys.exit(1)
     except KeyboardInterrupt:
         log.info(f"Server stopped by user (KeyboardInterrupt) in {args.server_mode} mode.")
     except asyncio.CancelledError:
-         log.info(f"Main server task cancelled, likely during shutdown in {args.server_mode} mode.")
+        log.info(f"Main server task cancelled, likely during shutdown in {args.server_mode} mode.")
     except Exception as e:
         log.exception(f"Critical server error in {args.server_mode} mode: {e}")
         sys.exit(1)

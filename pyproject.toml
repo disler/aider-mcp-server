@@ -13,13 +13,12 @@ authors = [
     {name = "Aider Team"}
 ]
 dependencies = [
-    "aider-chat>=0.81.0",
+    "aider-chat>=0.82.3",
     "boto3>=1.37.27",
     "fastapi>=0.110.0",  # Added for API endpoints
     "httpx>=0.27.0",     # Added for testing SSE
     "mcp>=1.6.0",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
-    "pydantic[mypy]>=2.11.2",  # Added mypy plugin
     "python-dotenv",
     "rich>=14.0.0",
     "sse-starlette>=2.0.0",  # Added for SSE specific functionality

@@ -92,7 +92,7 @@ def is_git_repository(directory: Union[str, Path]) -> Tuple[bool, Optional[str]]
         abs_path = directory_path.resolve()
 
         # Using a list of arguments instead of shell=True prevents command injection
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [git_executable, "-C", str(abs_path), "rev-parse", "--is-inside-work-tree"],
             capture_output=True,
             text=True,
