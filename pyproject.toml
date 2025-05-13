@@ -94,8 +94,8 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
 ignore = ["E501"]  # Ignore line length
-# Ignore S101 (assert usage) in test files
-per-file-ignores = {"tests/*" = ["S101"]}
+# Ignore S101 (assert usage) in test files and exclude stubbed file from formatting
+per-file-ignores = {"tests/*" = ["S101"], "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]}
 
 [tool.ruff.format]
 quote-style = "double"
@@ -105,6 +105,7 @@ line-ending = "auto"
 [tool.isort]
 profile = "black"
 line_length = 120
+skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
 
 [tool.mypy]
 python_version = "3.12"

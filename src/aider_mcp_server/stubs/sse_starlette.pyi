@@ -2,8 +2,9 @@
 Type stubs for the sse_starlette library to be used with mypy.
 """
 
-from typing import Any, AsyncGenerator, Dict, MutableMapping, Optional, Union
+from typing import Any
 from typing import Any as AnyType
+from typing import AsyncGenerator, Dict, MutableMapping, Optional, Union
 
 from starlette.types import Receive, Send
 

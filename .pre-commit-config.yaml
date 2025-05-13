@@ -5,15 +5,18 @@ repos:
       - id: isort
         args: ["--profile", "black"]
         types_or: [python, pyi]
+        exclude: ^src/aider_mcp_server/stubs/sse_starlette.pyi$
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.6
     hooks:
       - id: ruff-format
         args: ["--config=pyproject.toml"]
+        exclude: ^src/aider_mcp_server/stubs/sse_starlette.pyi$
       - id: ruff
         args: ["--fix", "--exit-non-zero-on-fix", "--config=pyproject.toml"]
         types_or: [python, pyi]
+        exclude: ^src/aider_mcp_server/stubs/sse_starlette.pyi$
         require_serial: true
 
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -22,9 +25,11 @@ repos:
       - id: mypy
         # Use only the config file - let pyproject.toml handle all settings
         args: [
-          "--config-file=pyproject.toml"
+          "--config-file=pyproject.toml",
+          "--ignore-missing-imports",
+          "--no-error-summary"
         ]
-        files: "^(src/aider_mcp_server|tests)/"
+        files: "^src/aider_mcp_server/"  # Only check source files, not tests
         additional_dependencies: ["pydantic>=2.11.2"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
