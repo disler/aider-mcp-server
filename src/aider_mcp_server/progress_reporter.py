@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 # Use standard logging; configuration should be handled elsewhere
 logger: logging.Logger = logging.getLogger(__name__)
 
-HEARTBEAT_INTERVAL = 15 # Seconds for WebSocket progress heartbeat (if used directly)
+HEARTBEAT_INTERVAL = 15  # Seconds for WebSocket progress heartbeat (if used directly)
+
 
 # Added type parameter Self (or "ProgressReporter" for <3.11)
 class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
@@ -33,11 +34,15 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
 
     def __init__(
         self,
-        coordinator: "ApplicationCoordinator", # Coordinator is now the first argument and mandatory
+        coordinator: "ApplicationCoordinator",  # Coordinator is now the first argument and mandatory
         request_id: str,
-        operation_name: Optional[str] = None, # Operation name can be optional if fetched later
-        initial_message: Optional[str] = None, # Added initial_message
-        initial_details: Optional[Dict[str, Any]] = None, # Added initial_details (contains parameters)
+        operation_name: Optional[
+            str
+        ] = None,  # Operation name can be optional if fetched later
+        initial_message: Optional[str] = None,  # Added initial_message
+        initial_details: Optional[
+            Dict[str, Any]
+        ] = None,  # Added initial_details (contains parameters)
     ) -> None:
         """
         Initialize the ProgressReporter.
@@ -54,7 +59,9 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         # Coordinator is now mandatory and passed first
         self.coordinator = coordinator
         self.request_id = request_id
-        self.operation_name = operation_name if operation_name else "unknown_operation" # Use a default if None
+        self.operation_name = (
+            operation_name if operation_name else "unknown_operation"
+        )  # Use a default if None
         # Store initial message and details
         self.initial_message = initial_message
         # Ensure initial_details is always a dict, defaulting to empty if None is passed
@@ -70,10 +77,13 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
 
         # Log parameters from initial_details if present
         log_params = self.initial_details.get("parameters", "Not Provided")
-        logger.info(f"ProgressReporter initialized for '{self.operation_name}'. Request ID: {self.request_id}. Mode: {self.mode}. Initial Details (Params): {log_params}")
+        logger.info(
+            f"ProgressReporter initialized for '{self.operation_name}'. Request ID: {self.request_id}. Mode: {self.mode}. Initial Details (Params): {log_params}"
+        )
 
-
-    async def _send_progress(self, status: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def _send_progress(
+        self, status: str, message: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Sends a progress update message via Coordinator."""
         log_level = logging.ERROR if status == "error" else logging.INFO
 
@@ -88,14 +98,20 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
                 request_id=self.request_id,
                 status=status,
                 message=message,
-                details=details, # Pass provided details directly
+                details=details,  # Pass provided details directly
             )
-            logger.debug(f"Sent progress update via Coordinator: {status} - {message} (Req ID: {self.request_id})")
+            logger.debug(
+                f"Sent progress update via Coordinator: {status} - {message} (Req ID: {self.request_id})"
+            )
         except Exception as e:
-            logger.error(f"Error sending progress update via Coordinator for '{self.operation_name}' (Req ID: {self.request_id}): {e}. Update lost.")
+            logger.error(
+                f"Error sending progress update via Coordinator for '{self.operation_name}' (Req ID: {self.request_id}): {e}. Update lost."
+            )
             # Log the original message intended to be sent
-            logger.log(log_level, f"{log_message} [Reporting via Log Only - Coordinator Send Failed]")
-
+            logger.log(
+                log_level,
+                f"{log_message} [Reporting via Log Only - Coordinator Send Failed]",
+            )
 
     async def _heartbeat(self) -> None:
         """Periodically sends 'working_heartbeat' via Coordinator."""
@@ -109,45 +125,70 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
                         request_id=self.request_id,
                         status="working_heartbeat",
                         message="Operation in progress...",
-                        details=self.initial_details # Pass initial details for context
+                        details=self.initial_details,  # Pass initial details for context
                     )
-                    logger.debug(f"Sent 'working_heartbeat' progress via Coordinator for '{self.operation_name}' (Req ID: {self.request_id})")
+                    logger.debug(
+                        f"Sent 'working_heartbeat' progress via Coordinator for '{self.operation_name}' (Req ID: {self.request_id})"
+                    )
                 except Exception as e:
-                     logger.error(f"Error sending Coordinator heartbeat for '{self.operation_name}' (Req ID: {self.request_id}): {e}")
-                     # Decide if coordinator should be considered inactive based on error type
+                    logger.error(
+                        f"Error sending Coordinator heartbeat for '{self.operation_name}' (Req ID: {self.request_id}): {e}"
+                    )
+                    # Decide if coordinator should be considered inactive based on error type
 
             except asyncio.CancelledError:
-                logger.info(f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled.")
+                logger.info(
+                    f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled."
+                )
                 break
             except Exception as e:
-                logger.error(f"Unexpected error in heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}): {e}")
+                logger.error(
+                    f"Unexpected error in heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}): {e}"
+                )
                 # Consider stopping the heartbeat if errors persist
                 break
 
-
     async def start(self) -> None:
         """Signal the start of the operation and start heartbeat."""
-        start_message = self.initial_message if self.initial_message is not None else f"Operation '{self.operation_name}' started."
-        logger.info(f"Operation '{self.operation_name}' starting (Req ID: {self.request_id}). Message: '{start_message}'")
+        start_message = (
+            self.initial_message
+            if self.initial_message is not None
+            else f"Operation '{self.operation_name}' started."
+        )
+        logger.info(
+            f"Operation '{self.operation_name}' starting (Req ID: {self.request_id}). Message: '{start_message}'"
+        )
         # Send initial progress update using initial_details
         await self._send_progress("starting", start_message, self.initial_details)
         # Start coordinator-based heartbeat task
         if self._heartbeat_task is None:
-             self._heartbeat_task = asyncio.create_task(self._heartbeat())
-             logger.info(f"Coordinator heartbeat task started for '{self.operation_name}' (Req ID: {self.request_id}).")
+            self._heartbeat_task = asyncio.create_task(self._heartbeat())
+            logger.info(
+                f"Coordinator heartbeat task started for '{self.operation_name}' (Req ID: {self.request_id})."
+            )
 
-
-    async def update(self, message: str, status: str = "in_progress", details: Optional[Dict[str, Any]] = None) -> None:
+    async def update(
+        self,
+        message: str,
+        status: str = "in_progress",
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Send an intermediate progress update."""
         # Pass details directly; coordinator merges parameters.
         # If these details need to *include* the original parameters, the caller should merge them
         # or we should merge with self.initial_details here. Let's assume coordinator handles it.
         await self._send_progress(status, message, details)
 
-    async def complete(self, message: str = "Operation completed successfully.", details: Optional[Dict[str, Any]] = None) -> None:
+    async def complete(
+        self,
+        message: str = "Operation completed successfully.",
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Signal the successful completion of the operation."""
-        logger.info(f"Operation '{self.operation_name}' completed (Req ID: {self.request_id}).")
-        await self._stop_heartbeat() # Stop heartbeat task
+        logger.info(
+            f"Operation '{self.operation_name}' completed (Req ID: {self.request_id})."
+        )
+        await self._stop_heartbeat()  # Stop heartbeat task
         # Send the final "completed" progress update.
         # Pass details directly; coordinator merges parameters.
         # Merge with initial_details to ensure final status includes original context?
@@ -157,10 +198,14 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
             final_details.update(details)
         await self._send_progress("completed", message, final_details)
 
-    async def error(self, error_message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def error(
+        self, error_message: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Signal that the operation failed."""
-        logger.error(f"Operation '{self.operation_name}' failed: {error_message} (Req ID: {self.request_id})")
-        await self._stop_heartbeat() # Stop heartbeat task
+        logger.error(
+            f"Operation '{self.operation_name}' failed: {error_message} (Req ID: {self.request_id})"
+        )
+        await self._stop_heartbeat()  # Stop heartbeat task
         # Send the final "error" progress update.
         # Pass details directly; coordinator merges parameters.
         # Merge with initial_details to ensure error status includes original context.
@@ -176,9 +221,13 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
             try:
                 await self._heartbeat_task
             except asyncio.CancelledError:
-                logger.info(f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled successfully.")
+                logger.info(
+                    f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled successfully."
+                )
             except Exception as e:
-                 logger.error(f"Error awaiting cancelled heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}): {e}")
+                logger.error(
+                    f"Error awaiting cancelled heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}): {e}"
+                )
         self._heartbeat_task = None
 
     async def __aenter__(self) -> "ProgressReporter":
@@ -191,24 +240,27 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         self,
         exc_type: Optional[Type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[Any], # TracebackType not easily available without types module import
+        exc_tb: Optional[
+            Any
+        ],  # TracebackType not easily available without types module import
     ) -> Optional[bool]:
         """Exit the async context, reporting completion or error."""
-        await self._stop_heartbeat() # Ensure heartbeat is stopped first
+        await self._stop_heartbeat()  # Ensure heartbeat is stopped first
 
         if exc_type:
             # An exception occurred within the 'with' block
             error_msg = f"Operation '{self.operation_name}' failed due to unhandled exception: {exc_val}"
             # Use logger.exception for automatic traceback logging
-            logger.exception(f"Unhandled exception in context manager for '{self.operation_name}' (Req ID: {self.request_id})")
+            logger.exception(
+                f"Unhandled exception in context manager for '{self.operation_name}' (Req ID: {self.request_id})"
+            )
             # Send the final error progress update, including exception type and initial details.
             error_details = {"exception_type": str(exc_type.__name__)}
             # self.error already merges with initial_details
             await self.error(error_msg, details=error_details)
-            return False # Do not suppress the exception
+            return False  # Do not suppress the exception
         else:
             # No exception, operation presumed successful by the context manager.
             # Send the final completion progress update. self.complete already merges with initial_details.
             await self.complete()
-            return True # Suppress exceptions if __aexit__ completes normally (standard behavior)
-
+            return True  # Suppress exceptions if __aexit__ completes normally (standard behavior)

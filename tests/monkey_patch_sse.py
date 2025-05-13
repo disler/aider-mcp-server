@@ -1,4 +1,3 @@
-
 # Import the module containing the function to be patched
 import aider_mcp_server.server
 
@@ -10,6 +9,7 @@ def patched_is_git_repository(directory):
     This allows tests to run without needing a real git repository.
     """
     return True, ""
+
 
 # Apply the patch: Override the original function with our patched version
 aider_mcp_server.server.is_git_repository = patched_is_git_repository

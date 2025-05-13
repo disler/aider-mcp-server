@@ -9,11 +9,15 @@ import asyncio
 import json
 import sys
 import uuid
-from asyncio import Task
-from typing import TYPE_CHECKING, Any, Dict, Optional, Set, TextIO
+from typing import TYPE_CHECKING, Any, Optional, Set, TextIO
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.mcp_types import (
+    AsyncTask,
+    EventData,
+    RequestParameters,
+)
 from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
@@ -22,6 +26,7 @@ if TYPE_CHECKING:
 
 
 # Logger is inherited from AbstractTransportAdapter
+
 
 class StdioTransportAdapter(AbstractTransportAdapter):
     """
@@ -33,7 +38,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     3. Writing JSON responses to stdout
     """
 
-    _read_task: Optional[Task[None]]
+    _read_task: Optional[AsyncTask[None]]
     _input: TextIO
     _output: TextIO
     _stop_reading: bool
@@ -87,7 +92,9 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             self.logger.debug(f"Cancelling stdin read task for {self.transport_id}.")
             self._read_task.cancel()
             try:
-                await asyncio.wait_for(self._read_task, timeout=1.0) # Shorter timeout for stdio
+                await asyncio.wait_for(
+                    self._read_task, timeout=1.0
+                )  # Shorter timeout for stdio
             except asyncio.CancelledError:
                 self.logger.debug(f"Stdin read task for {self.transport_id} cancelled.")
             except asyncio.TimeoutError:
@@ -113,9 +120,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # Exclude HEARTBEAT unless specifically needed/handled
         }
 
-    async def send_event(
-        self, event: EventTypes, data: Dict[str, Any]
-    ) -> None:
+    async def send_event(self, event: EventTypes, data: EventData) -> None:
         """
         Send an event to stdout as JSON.
 
@@ -131,7 +136,9 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             json_str = json.dumps(message)
             # Use async write via executor to avoid blocking
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: print(json_str, file=self._output, flush=True))
+            await loop.run_in_executor(
+                None, lambda: print(json_str, file=self._output, flush=True)
+            )
             # self.logger.debug(f"Sent {event.value} event to stdout")
         except Exception as e:
             self.logger.error(f"Error sending {event.value} event to stdout: {e}")
@@ -174,11 +181,11 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     break
 
                 line = line.strip()
-                if not line: # Skip empty lines after stripping
+                if not line:  # Skip empty lines after stripping
                     continue
 
                 try:
-                    message: Dict[str, Any] = json.loads(line)
+                    message: RequestParameters = json.loads(line)
                     asyncio.create_task(self._handle_stdin_message(message))
                 except json.JSONDecodeError:
                     self.logger.error(
@@ -202,8 +209,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             if current_task and self._read_task is current_task:
                 self._read_task = None
 
-
-    def _read_task_done_callback(self, task: Task[None]) -> None:
+    def _read_task_done_callback(self, task: AsyncTask[None]) -> None:
         """Callback executed when the stdin read task finishes."""
         try:
             task.result()
@@ -231,11 +237,13 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             request_id: str = raw_request_id
         else:
             request_id = str(uuid.uuid4())
-            log_level = self.logger.warning if raw_request_id is not None else self.logger.debug
+            log_level = (
+                self.logger.warning if raw_request_id is not None else self.logger.debug
+            )
             log_level(
                 f"Missing or invalid 'request_id' in stdin message. Using generated ID: {request_id}. Original value: {raw_request_id!r}"
             )
-            message["request_id"] = request_id # Add generated ID back
+            message["request_id"] = request_id  # Add generated ID back
 
         self.logger.info(f"Processing stdin message with ID: {request_id}")
 
@@ -250,8 +258,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             self.logger.error(error_msg)
             await self._coordinator.fail_request(
                 request_id=request_id,
-                error_details={"success": False, "error": "Invalid request", "details": error_msg},
-                transport_id_override=self.transport_id,
+                operation_name="unknown",
+                error="Invalid request",
+                error_details=error_msg,
+                originating_transport_id=self.transport_id
             )
             return
         operation_name: str = raw_operation_name
@@ -260,15 +270,19 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # Handle parameters - the `.get()` might return a non-dict which we need to validate
             parameters_raw = message.get("parameters", {})
             if not isinstance(parameters_raw, dict):
-                error_msg = "Invalid 'parameters' field in stdin message. Expected dictionary."
+                error_msg = (
+                    "Invalid 'parameters' field in stdin message. Expected dictionary."
+                )
                 self.logger.error(error_msg)
                 await self._coordinator.fail_request(
                     request_id=request_id,
-                    error_details={"success": False, "error": "Invalid request", "details": error_msg},
-                    transport_id_override=self.transport_id,
+                    operation_name="unknown",
+                    error="Invalid request",
+                    error_details=error_msg,
+                    originating_transport_id=self.transport_id
                 )
                 return
-                
+
             # Start the request with the coordinator.
             # The coordinator handles security validation via validate_request_security.
             await self._coordinator.start_request(
@@ -284,8 +298,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             if self._coordinator:
                 await self._coordinator.fail_request(
                     request_id=request_id,
-                    error_details={"success": False, "error": "Internal error", "details": error_msg},
-                    transport_id_override=self.transport_id,
+                    operation_name=operation_name,
+                    error="Internal error",
+                    error_details=error_msg,
+                    originating_transport_id=self.transport_id
                 )
             else:
                 self.logger.error(
@@ -293,7 +309,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 )
 
     def validate_request_security(
-        self, request_data: Dict[str, Any]
+        self, request_data: RequestParameters
     ) -> SecurityContext:
         """
         Validates security for stdio requests.

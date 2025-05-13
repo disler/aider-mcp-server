@@ -202,7 +202,7 @@ async def main():
     # Connect to SSE endpoint
     async with httpx.AsyncClient(timeout=None) as client:
         sse_task = asyncio.create_task(listen_for_events(client))
-        
+
         # Send a coding request
         response = await client.post(
             "http://localhost:5005/message",
@@ -217,7 +217,7 @@ async def main():
                 }
             }
         )
-        
+
         print(f"Request response: {response.json()}")
         await sse_task
 
@@ -227,7 +227,7 @@ async def listen_for_events(client):
             if line.startswith("data:"):
                 data = json.loads(line[5:].strip())
                 print(f"Received event: {data}")
-                
+
                 # If it's a tool result, we're done
                 if data.get("type") == "TOOL_RESULT":
                     break

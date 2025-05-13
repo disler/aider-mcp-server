@@ -4,6 +4,7 @@ Aider MCP Server Package
 This package provides the core functionality for the Aider Model Context Protocol (MCP) server,
 supporting multiple transport mechanisms like Standard I/O (stdio) and Server-Sent Events (SSE).
 """
+
 import importlib.metadata
 import logging
 
@@ -18,7 +19,7 @@ from .transport_coordinator import ApplicationCoordinator
 
 # Get the package version dynamically from installed package metadata
 try:
-    __version__ = importlib.metadata.version("aider-mcp-server") # Use package name
+    __version__ = importlib.metadata.version("aider-mcp-server")  # Use package name
 except importlib.metadata.PackageNotFoundError:
     # Handle case where package is not installed (e.g., during development)
     __version__ = "0.0.0-dev"

@@ -157,7 +157,9 @@ async def handle_request(
             os.chdir(current_working_dir)
             logger.info(f"Changed working directory to: {current_working_dir}")
         except Exception as e:
-            error_msg = f"Failed to change working directory to {current_working_dir}: {e}"
+            error_msg = (
+                f"Failed to change working directory to {current_working_dir}: {e}"
+            )
             logger.critical(error_msg)
             return {"success": False, "error": error_msg}
 
@@ -169,7 +171,7 @@ async def handle_request(
                 params=params,  # Using the correct parameter name 'params' instead of 'parameters'
                 security_context=ANONYMOUS_SECURITY_CONTEXT,
                 editor_model=editor_model,
-                current_working_dir=current_working_dir
+                current_working_dir=current_working_dir,
             )
             return result
         elif request_type == "list_models":
@@ -177,7 +179,7 @@ async def handle_request(
                 request_id="stdio",  # Using fixed ID for stdio mode
                 transport_id="stdio",  # Using fixed ID for stdio mode
                 params=params,  # Using the correct parameter name 'params' instead of 'parameters'
-                security_context=ANONYMOUS_SECURITY_CONTEXT
+                security_context=ANONYMOUS_SECURITY_CONTEXT,
             )
             return result
         else:
@@ -195,7 +197,7 @@ async def handle_request(
 
 async def serve(
     editor_model: str = DEFAULT_EDITOR_MODEL,
-    current_working_dir: Optional[str] = None, # Make CWD optional here, but validate
+    current_working_dir: Optional[str] = None,  # Make CWD optional here, but validate
 ) -> None:
     """
     Start the MCP server over stdio.
@@ -230,11 +232,18 @@ async def serve(
                 raise ValueError("current_working_dir must be provided")
             result_dict = await handle_request(
                 {"name": name, "parameters": arguments},
-                current_working_dir, # Use the validated current_working_dir
+                current_working_dir,  # Use the validated current_working_dir
                 editor_model,
             )
             # Ensure result is always a dict
-            result_dict = result_dict if isinstance(result_dict, dict) else {"success": False, "error": f"Internal server error: handle_request did not return a dict for tool '{name}'. Got: {type(result_dict)}"}
+            result_dict = (
+                result_dict
+                if isinstance(result_dict, dict)
+                else {
+                    "success": False,
+                    "error": f"Internal server error: handle_request did not return a dict for tool '{name}'. Got: {type(result_dict)}",
+                }
+            )
 
             return [TextContent(type="text", text=json.dumps(result_dict))]
         except Exception as e:
@@ -243,7 +252,10 @@ async def serve(
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"success": False, "error": f"Error processing tool {name}: {str(e)}"}
+                        {
+                            "success": False,
+                            "error": f"Error processing tool {name}: {str(e)}",
+                        }
                     ),
                 )
             ]
@@ -256,8 +268,10 @@ async def serve(
             logger.info("Server running. Waiting for requests...")
             await server.run(read_stream, write_stream, options, raise_exceptions=True)
     except Exception as e:
-        logger.exception(f"Critical Error: Server stopped due to unhandled exception: {e}")
+        logger.exception(
+            f"Critical Error: Server stopped due to unhandled exception: {e}"
+        )
         # Exit with error code if server crashes
-        sys.exit(1) # Ensure exit on critical error
+        sys.exit(1)  # Ensure exit on critical error
     finally:
         logger.info("Aider MCP Server (stdio mode) shutting down.")

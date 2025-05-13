@@ -3,7 +3,9 @@ import collections
 import pickle
 import sys
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, TypeVar, Union, cast
+
+from aider_mcp_server.mcp_types import AsyncTask
 
 
 # Helper function for size estimation
@@ -16,7 +18,8 @@ def get_object_size(obj: Any) -> int:
         # Fallback for objects that cannot be pickled (should be rare for diffs)
         # This might not be accurate for complex objects and will likely underestimate.
         # print(f"Warning: Could not pickle object for size estimation: {type(obj)}") # Optional warning
-        return sys.getsizeof(obj) # Fallback might underestimate significantly
+        return sys.getsizeof(obj)  # Fallback might underestimate significantly
+
 
 class DiffCache:
     """
@@ -24,11 +27,12 @@ class DiffCache:
 
     Supports tracking cache statistics and periodic cleanup.
     """
+
     def __init__(
         self,
         expiry_duration: timedelta = timedelta(minutes=5),
-        max_size: int = 10 * 1024 * 1024, # Default 10MB
-        cleanup_interval: timedelta = timedelta(minutes=1) # How often cleanup runs
+        max_size: int = 10 * 1024 * 1024,  # Default 10MB
+        cleanup_interval: timedelta = timedelta(minutes=1),  # How often cleanup runs
     ):
         """
         Initializes the DiffCache.
@@ -44,41 +48,46 @@ class DiffCache:
 
         # Cache stores {'key': {'data': ..., 'size': ..., 'expiry': ...}}
         # OrderedDict maintains LRU order (last accessed/set is at the end)
-        self._cache: collections.OrderedDict[str, Dict[str, Any]] = collections.OrderedDict()
+        self._cache: collections.OrderedDict[str, Dict[str, Any]] = (
+            collections.OrderedDict()
+        )
         self._current_size: int = 0
 
         self._stats: Dict[str, Union[int, float]] = {
             "hits": 0,
             "misses": 0,
             "total_accesses": 0,
-            "current_size": 0, # This will mirror _current_size
-            "max_size": max_size # Include max_size in stats
+            "current_size": 0,  # This will mirror _current_size
+            "max_size": max_size,  # Include max_size in stats
         }
 
         self._lock = asyncio.Lock()
         self._shutdown_event = asyncio.Event()
-        self._cleanup_task = None
+        self._cleanup_task: Optional[AsyncTask[None]] = None
 
-    async def start(self):
+    async def start(self) -> None:
         """Starts the background cleanup task."""
-        if self._cleanup_task is None or self._cleanup_task.done():
+        if self._cleanup_task is None or (self._cleanup_task is not None and self._cleanup_task.done()):
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-    
-    async def _cleanup_loop(self):
+
+    async def _cleanup_loop(self) -> None:
         """Periodic task to remove expired items."""
         while not self._shutdown_event.is_set():
             try:
                 # Wait for interval or until shutdown is requested
-                await asyncio.wait_for(self._shutdown_event.wait(), timeout=self._cleanup_interval.total_seconds())
+                await asyncio.wait_for(
+                    self._shutdown_event.wait(),
+                    timeout=self._cleanup_interval.total_seconds(),
+                )
                 if self._shutdown_event.is_set():
-                    break # Exit if shutdown was requested
+                    break  # Exit if shutdown was requested
             except asyncio.TimeoutError:
                 # Timeout occurred, proceed with cleanup
                 pass
 
             await self._perform_cleanup()
 
-    async def _perform_cleanup(self):
+    async def _perform_cleanup(self) -> None:
         """Removes expired items from the cache."""
         async with self._lock:
             now = datetime.now()
@@ -93,7 +102,7 @@ class DiffCache:
                 if key in self._cache:
                     entry = self._cache.pop(key)
                     self._current_size -= entry["size"]
-            self._stats["current_size"] = self._current_size # Update stats
+            self._stats["current_size"] = self._current_size  # Update stats
 
     def _recursive_diff(self, old_data: Any, new_data: Any) -> Any:
         """
@@ -105,7 +114,7 @@ class DiffCache:
             The new_data value if types differ or are not dicts and values differ.
         """
         if old_data == new_data:
-            return None # No change
+            return None  # No change
 
         if isinstance(old_data, dict) and isinstance(new_data, dict):
             changes = {}
@@ -115,13 +124,13 @@ class DiffCache:
                 new_val = new_data.get(key)
                 # If values differ or a key is only in one dict, include the new value
                 if old_val != new_val:
-                     # Recursively check for nested changes if both are dicts
+                    # Recursively check for nested changes if both are dicts
                     if isinstance(old_val, dict) and isinstance(new_val, dict):
-                         nested_changes = self._recursive_diff(old_val, new_val)
-                         if nested_changes is not None:
-                             changes[key] = nested_changes
-                         # If nested_changes is None, it means the nested dicts are the same,
-                         # so we don't add the key to the changes dict.
+                        nested_changes = self._recursive_diff(old_val, new_val)
+                        if nested_changes is not None:
+                            changes[key] = nested_changes
+                        # If nested_changes is None, it means the nested dicts are the same,
+                        # so we don't add the key to the changes dict.
                     else:
                         # Simple value change or key added/removed
                         changes[key] = new_val
@@ -131,7 +140,7 @@ class DiffCache:
             # If they are not equal and not both dicts, the new value is the change
             return new_data
 
-    async def set(self, key: str, diff: Dict[str, Any]):
+    async def set(self, key: str, diff: Dict[str, Any]) -> None:
         """Sets a diff in the cache with an expiry time."""
         async with self._lock:
             now = datetime.now()
@@ -140,12 +149,14 @@ class DiffCache:
 
             # If the key already exists, remove its old size before adding the new one
             if key in self._cache:
-                 old_entry = self._cache.pop(key) # Remove to update LRU position later
-                 self._current_size -= old_entry["size"]
+                old_entry = self._cache.pop(key)  # Remove to update LRU position later
+                self._current_size -= old_entry["size"]
 
             # Ensure space for the new item
             # Evict LRU items if adding this one exceeds max_size
-            while self._current_size + item_size > self._max_size and len(self._cache) > 0:
+            while (
+                self._current_size + item_size > self._max_size and len(self._cache) > 0
+            ):
                 # Pop the oldest item (least recently used)
                 _key, _entry = self._cache.popitem(last=False)
                 self._current_size -= _entry["size"]
@@ -153,14 +164,13 @@ class DiffCache:
             # Add the new item
             self._cache[key] = {"data": diff, "size": item_size, "expiry": expiry}
             self._current_size += item_size
-            self._stats["current_size"] = self._current_size # Update stats
+            self._stats["current_size"] = self._current_size  # Update stats
 
             # Move the newly set item to the end (most recently used)
             # This is automatically handled by OrderedDict when setting a key,
             # but explicitly calling move_to_end makes the intent clear and
             # handles the case where the key was already present.
             self._cache.move_to_end(key)
-
 
     async def get(self, key: str) -> Optional[Dict[str, Any]]:
         """Retrieves a diff from the cache if not expired."""
@@ -173,21 +183,21 @@ class DiffCache:
                 self._stats["hits"] += 1
                 # Move the accessed item to the end (most recently used)
                 self._cache.move_to_end(key)
-                return entry["data"]
+                return cast(Dict[str, Any], entry["data"])
             else:
                 self._stats["misses"] += 1
                 # Remove expired or non-existent entry
                 if key in self._cache:
                     entry = self._cache.pop(key)
                     self._current_size -= entry["size"]
-                    self._stats["current_size"] = self._current_size # Update stats
+                    self._stats["current_size"] = self._current_size  # Update stats
                 return None
 
     async def compare_and_cache(
         self,
         key: str,
         new_diff: Dict[str, Any],
-        clear_cached_for_unchanged: bool = False
+        clear_cached_for_unchanged: bool = False,
     ) -> Dict[str, Any]:
         """
         Compares new_diff with cached diff, updates cache, and returns changes.
@@ -221,8 +231,7 @@ class DiffCache:
                 if key in self._cache:
                     entry = self._cache.pop(key)
                     self._current_size -= entry["size"]
-                    self._stats["current_size"] = self._current_size # Update stats
-
+                    self._stats["current_size"] = self._current_size  # Update stats
 
             # Calculate changes
             if old_diff is None:
@@ -232,19 +241,18 @@ class DiffCache:
                 # Otherwise, calculate the difference
                 changes = self._recursive_diff(old_diff, new_diff)
                 # _recursive_diff returns None if no changes, convert to empty dict for consistency
-                if changes is None:
-                    changes = {}
+                changes = changes or {}
 
             # Determine what data to cache and if we should cache at all
-            data_to_cache = new_diff # Default: cache the full new diff
+            data_to_cache = new_diff  # Default: cache the full new diff
             should_cache = True
 
             if clear_cached_for_unchanged:
-                if changes: # If there are changes, cache only the changes
+                if changes:  # If there are changes, cache only the changes
                     data_to_cache = changes
-                else: # If no changes and flag is true, remove from cache
+                else:  # If no changes and flag is true, remove from cache
                     should_cache = False
-                    data_to_cache = None # Indicate removal
+                    data_to_cache = {}  # Use empty dict instead of None for consistent typing
 
             # --- Eviction and Caching/Removal Logic ---
 
@@ -252,8 +260,10 @@ class DiffCache:
             # This handles the case where the item was accessed and moved to end,
             # but not removed because it wasn't expired.
             if key in self._cache:
-                 old_entry_for_removal = self._cache.pop(key) # Remove before adding new version
-                 self._current_size -= old_entry_for_removal["size"]
+                old_entry_for_removal = self._cache.pop(
+                    key
+                )  # Remove before adding new version
+                self._current_size -= old_entry_for_removal["size"]
 
             if should_cache:
                 item_size = get_object_size(data_to_cache)
@@ -261,26 +271,33 @@ class DiffCache:
 
                 # Ensure space for the item to be cached
                 # Evict LRU items if adding this one exceeds max_size
-                while self._current_size + item_size > self._max_size and len(self._cache) > 0:
+                while (
+                    self._current_size + item_size > self._max_size
+                    and len(self._cache) > 0
+                ):
                     # Pop the oldest item (least recently used)
                     _key, _entry = self._cache.popitem(last=False)
                     self._current_size -= _entry["size"]
 
                 # Add the new item
-                self._cache[key] = {"data": data_to_cache, "size": item_size, "expiry": expiry}
+                self._cache[key] = {
+                    "data": data_to_cache,
+                    "size": item_size,
+                    "expiry": expiry,
+                }
                 self._current_size += item_size
                 # Move the newly set item to the end (most recently used)
                 self._cache.move_to_end(key)
             # else: should_cache is False, item was already removed if it existed.
 
-            self._stats["current_size"] = self._current_size # Update stats
+            self._stats["current_size"] = self._current_size  # Update stats
 
             return changes
 
-    async def clear(self, key: str = None):
+    async def clear(self, key: Optional[str] = None) -> None:
         """
         Clears the cache entirely or a specific key if provided.
-        
+
         Args:
             key: Optional key to clear. If None, clears the entire cache.
         """
@@ -294,7 +311,7 @@ class DiffCache:
                 self._cache.clear()
                 self._current_size = 0
                 self._stats["current_size"] = 0
-    
+
     def get_stats(self) -> Dict[str, Union[int, float]]:
         """
         Returns cache statistics including hits, misses, total accesses,
@@ -345,11 +362,10 @@ class DiffCache:
         stats_copy["hit_rate"] = (hits / total) if total > 0 else 0.0
         return stats_copy
 
-
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Signals the cleanup task to stop and waits for it."""
         self._shutdown_event.set()
-        if self._cleanup_task and not self._cleanup_task.done():
+        if self._cleanup_task is not None and not self._cleanup_task.done():
             try:
                 # Wait for the task to finish with a timeout
                 await asyncio.wait_for(self._cleanup_task, timeout=5.0)
@@ -362,13 +378,13 @@ class DiffCache:
                     pass
             except asyncio.CancelledError:
                 pass
-            self._cleanup_task = None # Clear reference
+            self._cleanup_task = None  # Clear reference
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'DiffCache':
         """Async context manager entry."""
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         """Async context manager exit, ensures shutdown."""
         await self.shutdown()

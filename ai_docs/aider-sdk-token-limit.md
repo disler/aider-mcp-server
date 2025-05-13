@@ -128,4 +128,3 @@
 
   Regular monitoring of the aider GitHub releases page and automated dependency checks will ensure that the MCP server stays up-to-date
    with the latest token handling improvements from the core aider project.
-

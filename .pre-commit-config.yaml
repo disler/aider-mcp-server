@@ -9,8 +9,9 @@ repos:
     rev: v0.11.6
     hooks:
       - id: ruff-format
+        args: ["--config=pyproject.toml"]
       - id: ruff
-        args: ["--fix", "--exit-non-zero-on-fix"]
+        args: ["--fix", "--exit-non-zero-on-fix", "--config=pyproject.toml"]
         types_or: [python, pyi]
         require_serial: true
 

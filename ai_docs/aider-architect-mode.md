@@ -36,7 +36,7 @@ Implementing Architect Mode in Aider MCP Server
   ) -> str:
       """
       Run Aider to perform AI coding tasks based on the provided prompt and files.
-      
+
       Added architect mode parameters:
       - architect_mode: Enable two-phase code generation with an architect model
       - editor_model: Optional secondary model for code implementation
@@ -106,17 +106,17 @@ Implementing Architect Mode in Aider MCP Server
               "type": "object",
               "properties": {
                   "ai_coding_prompt": {"type": "string", "description": "The prompt for the AI to execute"},
-                  "relative_editable_files": {"type": "array", "items": {"type": "string"}, "description": "LIST of relative paths to 
+                  "relative_editable_files": {"type": "array", "items": {"type": "string"}, "description": "LIST of relative paths to
   files that can be edited"},
-                  "relative_readonly_files": {"type": "array", "items": {"type": "string"}, "description": "LIST of relative paths to 
+                  "relative_readonly_files": {"type": "array", "items": {"type": "string"}, "description": "LIST of relative paths to
   files that can be read but not edited, add files that are not editable but useful for context"},
-                  "model": {"type": "string", "description": "The primary AI model Aider should use for generating code, leave blank 
+                  "model": {"type": "string", "description": "The primary AI model Aider should use for generating code, leave blank
   unless model is specified in the request"},
-                  "architect_mode": {"type": "boolean", "description": "Enable two-phase code generation with an architect model 
+                  "architect_mode": {"type": "boolean", "description": "Enable two-phase code generation with an architect model
   planning first, then an editor model implementing"},
-                  "editor_model": {"type": "string", "description": "The secondary AI model to use for code implementation when 
+                  "editor_model": {"type": "string", "description": "The secondary AI model to use for code implementation when
   architect_mode is enabled"},
-                  "auto_accept_architect": {"type": "boolean", "description": "Automatically accept architect suggestions without 
+                  "auto_accept_architect": {"type": "boolean", "description": "Automatically accept architect suggestions without
   confirmation"}
               },
               "required": ["ai_coding_prompt", "relative_editable_files"]
@@ -138,10 +138,10 @@ Implementing Architect Mode in Aider MCP Server
       Create a Calculator class with the following features:
       1. Basic operations: add, subtract, multiply, divide methods
       2. Memory functions: memory_store, memory_recall, memory_clear
-      3. A history feature that keeps track of operations 
+      3. A history feature that keeps track of operations
       4. A method to show_history
       5. Error handling for division by zero
-      
+
       All methods should be well-documented with docstrings.
       """
 

@@ -72,8 +72,8 @@
   3. Implement Smart File Selection
 
   def select_files_by_relevance(
-      files: List[str], 
-      prompt: str, 
+      files: List[str],
+      prompt: str,
       token_budget: int,
       model: str
   ) -> List[str]:
@@ -102,7 +102,7 @@
   4. Implement Content Reduction for Large Files
 
   def reduce_file_content(
-      file_path: str, 
+      file_path: str,
       max_tokens: int,
       model: str,
       preserve_imports: bool = True

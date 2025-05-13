@@ -26,7 +26,7 @@ def api_keys_missing() -> bool:
     except Exception as e:
         # Log or handle error if path resolution or loading fails, but don't fail the check
         print(f"Warning: Could not load .env files for API key check: {e}")
-        pass # Continue checking environment variables directly
+        pass  # Continue checking environment variables directly
 
     # List of potential API keys for different providers
     potential_keys = [
@@ -181,11 +181,13 @@ def test_addition(temp_dir: str) -> None:
     asyncio.run(init_diff_cache())
 
     # Run code_with_aider with working_dir
-    result = asyncio.run(code_with_aider(
-        ai_coding_prompt=prompt,
-        relative_editable_files=[test_file],
-        working_dir=temp_dir,  # Pass the temp directory as working_dir
-    ))
+    result = asyncio.run(
+        code_with_aider(
+            ai_coding_prompt=prompt,
+            relative_editable_files=[test_file],
+            working_dir=temp_dir,  # Pass the temp directory as working_dir
+        )
+    )
 
     # Parse the JSON result
     result_dict = json.loads(result)
@@ -230,11 +232,13 @@ def test_subtraction(temp_dir: str) -> None:
     asyncio.run(init_diff_cache())
 
     # Run code_with_aider with working_dir
-    result = asyncio.run(code_with_aider(
-        ai_coding_prompt=prompt,
-        relative_editable_files=[test_file],
-        working_dir=temp_dir,  # Pass the temp directory as working_dir
-    ))
+    result = asyncio.run(
+        code_with_aider(
+            ai_coding_prompt=prompt,
+            relative_editable_files=[test_file],
+            working_dir=temp_dir,  # Pass the temp directory as working_dir
+        )
+    )
 
     # Parse the JSON result
     result_dict = json.loads(result)
@@ -267,7 +271,7 @@ def test_multiplication(temp_dir: str) -> None:
     import asyncio
 
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
-    
+
     # Create the test file
     test_file = os.path.join(temp_dir, "math_multiply.py")
     with open(test_file, "w") as f:
@@ -279,11 +283,13 @@ def test_multiplication(temp_dir: str) -> None:
     asyncio.run(init_diff_cache())
 
     # Run code_with_aider with working_dir
-    result = asyncio.run(code_with_aider(
-        ai_coding_prompt=prompt,
-        relative_editable_files=[test_file],
-        working_dir=temp_dir,  # Pass the temp directory as working_dir
-    ))
+    result = asyncio.run(
+        code_with_aider(
+            ai_coding_prompt=prompt,
+            relative_editable_files=[test_file],
+            working_dir=temp_dir,  # Pass the temp directory as working_dir
+        )
+    )
 
     # Parse the JSON result
     result_dict = json.loads(result)
@@ -316,7 +322,7 @@ def test_division(temp_dir: str) -> None:
     import asyncio
 
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
-    
+
     # Create the test file
     test_file = os.path.join(temp_dir, "math_divide.py")
     with open(test_file, "w") as f:
@@ -328,11 +334,13 @@ def test_division(temp_dir: str) -> None:
     asyncio.run(init_diff_cache())
 
     # Run code_with_aider with working_dir
-    result = asyncio.run(code_with_aider(
-        ai_coding_prompt=prompt,
-        relative_editable_files=[test_file],
-        working_dir=temp_dir,  # Pass the temp directory as working_dir
-    ))
+    result = asyncio.run(
+        code_with_aider(
+            ai_coding_prompt=prompt,
+            relative_editable_files=[test_file],
+            working_dir=temp_dir,  # Pass the temp directory as working_dir
+        )
+    )
 
     # Parse the JSON result
     result_dict = json.loads(result)
@@ -365,7 +373,7 @@ def test_failure_case(temp_dir: str) -> None:
     import asyncio
 
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
-    
+
     # Save the original directory before changing it
     original_dir = os.getcwd()
 
@@ -385,12 +393,14 @@ def test_failure_case(temp_dir: str) -> None:
         asyncio.run(init_diff_cache())
 
         # Run code_with_aider with an invalid model name
-        result = asyncio.run(code_with_aider(
-            ai_coding_prompt=prompt,
-            relative_editable_files=[test_file],
-            model="non_existent_model_123456789",  # This model doesn't exist
-            working_dir=temp_dir,  # Pass the temp directory as working_dir
-        ))
+        result = asyncio.run(
+            code_with_aider(
+                ai_coding_prompt=prompt,
+                relative_editable_files=[test_file],
+                model="non_existent_model_123456789",  # This model doesn't exist
+                working_dir=temp_dir,  # Pass the temp directory as working_dir
+            )
+        )
 
         # Parse the JSON result
         result_dict = json.loads(result)
@@ -422,7 +432,7 @@ def test_complex_tasks(temp_dir: str) -> None:
     import asyncio
 
     from aider_mcp_server.atoms.tools.aider_ai_code import init_diff_cache
-    
+
     # Create the test file for a calculator class
     test_file = os.path.join(temp_dir, "calculator.py")
     with open(test_file, "w") as f:
@@ -452,16 +462,18 @@ def test_complex_tasks(temp_dir: str) -> None:
     ]
 
     last_error = None
-    result_dict: Any = None # Initialize result_dict
+    result_dict: Any = None  # Initialize result_dict
 
     for model in models_to_try:
         try:
-            result = asyncio.run(code_with_aider(
-                ai_coding_prompt=prompt,
-                relative_editable_files=[test_file],
-                model=model,
-                working_dir=temp_dir,
-            ))
+            result = asyncio.run(
+                code_with_aider(
+                    ai_coding_prompt=prompt,
+                    relative_editable_files=[test_file],
+                    model=model,
+                    working_dir=temp_dir,
+                )
+            )
 
             # Parse the JSON result
             result_dict = json.loads(result)
@@ -503,16 +515,15 @@ def test_complex_tasks(temp_dir: str) -> None:
     # Since we're just testing that aider_ai_code successfully modifies files,
     # let's simplify the test and skip the actual functionality testing
     # which is too dependent on the specific model implementation
-    
+
     # We'll just check that the file has been modified and contains a Calculator class
     # The assertions on line 490-496 already verify that the code contains basic required elements
-    
+
     # Add some more specific checks to increase confidence
     assert "def memory_store" in content, "Expected to find memory_store method"
-    assert "def memory_recall" in content, "Expected to find memory_recall method" 
+    assert "def memory_recall" in content, "Expected to find memory_recall method"
     assert "def memory_clear" in content, "Expected to find memory_clear method"
     assert "def show_history" in content, "Expected to find show_history method"
-    
+
     # If these assertions pass, the test is successful without needing to actually
     # execute the generated code, which could be unreliable depending on the model used
-
