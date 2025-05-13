@@ -1,6 +1,7 @@
 from typing import List
 
-from aider.models import fuzzy_match_models  # type: ignore # noqa
+# External import - no stubs available
+from aider.models import fuzzy_match_models
 
 
 def list_models(substring: str) -> List[str]:

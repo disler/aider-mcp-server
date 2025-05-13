@@ -124,11 +124,13 @@ async def _handle_message_request(request: Request) -> Response:
 def _setup_routes(app: FastAPI) -> None:
     """Set up the FastAPI routes for SSE and message endpoints."""
 
+    # FastAPI typing without type: ignore
     @app.get("/sse")
     async def sse_endpoint(request: Request) -> Response:
         """Endpoint for clients to establish an SSE connection and receive events."""
         return await _handle_sse_request(request)
 
+    # FastAPI typing without type: ignore
     @app.post("/message", status_code=202)  # Use 202 Accepted status code
     async def message_endpoint(request: Request) -> Response:
         """Endpoint to handle incoming message requests (like tool calls)."""

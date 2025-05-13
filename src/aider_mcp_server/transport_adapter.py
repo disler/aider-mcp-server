@@ -5,7 +5,6 @@ import typing
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     Optional,
     Set,
 )
@@ -13,9 +12,9 @@ from typing import (
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.mcp_types import (
-    LoggerProtocol,
-    LoggerFactory,
     EventData,
+    LoggerFactory,
+    LoggerProtocol,
     RequestParameters,
     TransportInterface,
 )

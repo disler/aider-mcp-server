@@ -19,10 +19,9 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
+        # Use only the config file - let pyproject.toml handle all settings
         args: [
-          "--explicit-package-bases",
-          "--namespace-packages",
-          "--python-version=3.12",
+          "--config-file=pyproject.toml"
         ]
         files: "^(src/aider_mcp_server|tests)/"
         additional_dependencies: ["pydantic>=2.11.2"]

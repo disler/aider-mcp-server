@@ -8,7 +8,10 @@ duplication, ensures consistency, and resolves circular dependency issues.
 
 import asyncio
 import enum
+
+# Import SecurityContext for type hinting, but only during type checking
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -27,11 +30,8 @@ from pydantic import BaseModel
 # Re-export the EventTypes enum to avoid circular imports
 from aider_mcp_server.atoms.event_types import EventTypes
 
-# Import SecurityContext for type hinting, but only during type checking
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from aider_mcp_server.security import SecurityContext, Permissions
+    from aider_mcp_server.security import SecurityContext
 
 
 # Generic Type Variables
@@ -40,6 +40,7 @@ ResponseT = TypeVar("ResponseT")
 DataT = TypeVar("DataT")
 
 # ====== Protocol Definitions ======
+
 
 @runtime_checkable
 class LoggerProtocol(Protocol):
@@ -116,7 +117,7 @@ class TransportInterface(Protocol):
 @runtime_checkable
 class Shutdownable(Protocol):
     """Protocol defining a minimal interface for objects that can be shut down."""
-    
+
     transport_id: str
 
     async def shutdown(self) -> None: ...
@@ -127,7 +128,7 @@ class Shutdownable(Protocol):
 @runtime_checkable
 class ShutdownContextProtocol(Protocol):
     """Protocol defining only the members needed by shutdown context managers."""
-    
+
     transport_id: str
 
     async def shutdown(self) -> None: ...
@@ -158,6 +159,7 @@ OperationCallback = Callable[[str, bool, Optional[Dict[str, Any]]], None]
 
 # ====== MCP Protocol Base Types ======
 
+
 class MCPRequest(BaseModel, Generic[T]):
     """Base class for MCP protocol requests."""
 
@@ -184,9 +186,10 @@ MCPToolResponse = Union[MCPResponse, MCPErrorResponse]
 
 # ====== Utility Types ======
 
+
 class ResultStatus(enum.Enum):
     """Status codes for operation results."""
-    
+
     SUCCESS = "success"
     FAILURE = "failure"
     PENDING = "pending"

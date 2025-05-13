@@ -5,7 +5,6 @@ from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
 from aider_mcp_server.mcp_types import (
-    LoggerProtocol,
     OperationResult,
     RequestParameters,
 )
@@ -79,7 +78,9 @@ def _process_readonly_files(request_id: str, params: RequestParameters) -> List[
     return relative_readonly_files_raw
 
 
-def _determine_model(request_id: str, params: RequestParameters, editor_model: str) -> str:
+def _determine_model(
+    request_id: str, params: RequestParameters, editor_model: str
+) -> str:
     """Determine which model to use based on request parameters and defaults."""
     request_model = params.get("model")
 
@@ -221,7 +222,7 @@ async def process_aider_ai_code_request(
         return {
             "success": False,
             "error": "Missing required parameters",
-            "details": "AI coding prompt or editable files are missing"
+            "details": "AI coding prompt or editable files are missing",
         }
 
     return await _execute_aider_code(

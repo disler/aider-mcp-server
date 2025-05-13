@@ -261,7 +261,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 operation_name="unknown",
                 error="Invalid request",
                 error_details=error_msg,
-                originating_transport_id=self.transport_id
+                originating_transport_id=self.transport_id,
             )
             return
         operation_name: str = raw_operation_name
@@ -279,7 +279,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     operation_name="unknown",
                     error="Invalid request",
                     error_details=error_msg,
-                    originating_transport_id=self.transport_id
+                    originating_transport_id=self.transport_id,
                 )
                 return
 
@@ -301,7 +301,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     operation_name=operation_name,
                     error="Internal error",
                     error_details=error_msg,
-                    originating_transport_id=self.transport_id
+                    originating_transport_id=self.transport_id,
                 )
             else:
                 self.logger.error(

@@ -3,7 +3,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path  # Import Path
-from typing import Any, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.atoms_utils import (
@@ -20,7 +20,6 @@ from aider_mcp_server.server import (  # stdio mode and validation
 )
 from aider_mcp_server.sse_server import serve_sse  # sse mode
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
-
 
 # Configure logging early
 log_dir_path: Optional[Path] = None

@@ -9,10 +9,8 @@ from starlette.routing import Route
 
 from aider_mcp_server.atoms.logging import Logger, get_logger
 from aider_mcp_server.mcp_types import (
-    EventData, 
-    LoggerProtocol, 
-    OperationResult, 
-    RequestParameters
+    OperationResult,
+    RequestParameters,
 )
 from aider_mcp_server.security import Permissions, SecurityContext
 from aider_mcp_server.server import is_git_repository
@@ -92,9 +90,7 @@ def _create_shutdown_task_wrapper(
         # so we use the sig value passed in during wrapper creation
         signum = sig
         frame = None
-        logger.debug(
-            f"Sync wrapper called for signal {sig}. Scheduling async handler."
-        )
+        logger.debug(f"Sync wrapper called for signal {sig}. Scheduling async handler.")
 
         if event is not None:
             try:
@@ -144,7 +140,7 @@ async def _aider_ai_code_handler(
     clear_cached_for_unchanged: bool = False,
 ) -> OperationResult:
     """Handler for aider_ai_code operation.
-    
+
     Args:
         request_id: Unique identifier for the request
         transport_id: Identifier for the transport that made the request
@@ -152,7 +148,7 @@ async def _aider_ai_code_handler(
         security_context: Security context for the request
         use_diff_cache: Whether to use diff caching
         clear_cached_for_unchanged: Whether to clear cache entries for unchanged files
-        
+
     Returns:
         Dict containing the operation result
     """
@@ -168,7 +164,7 @@ async def _list_models_handler(
     clear_cached_for_unchanged: bool = False,
 ) -> OperationResult:
     """Handler for list_models operation.
-    
+
     Args:
         request_id: Unique identifier for the request
         transport_id: Identifier for the transport that made the request
@@ -176,7 +172,7 @@ async def _list_models_handler(
         security_context: Security context for the request
         use_diff_cache: Whether to use diff caching (not applicable for this operation)
         clear_cached_for_unchanged: Whether to clear cache entries (not applicable for this operation)
-        
+
     Returns:
         Dict containing the list of available models
     """

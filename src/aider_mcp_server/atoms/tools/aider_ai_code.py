@@ -4,20 +4,12 @@ import os
 import os.path
 import pathlib
 import subprocess
-from typing import Any, Dict, List, Optional, Union, TypedDict, cast
+from typing import Any, Dict, List, Optional, TypedDict, Union, cast
 
-# Type definition for response from aider processing
-class ResponseDict(TypedDict, total=False):
-    """Type for Aider response dictionary."""
-    success: bool
-    diff: str
-    is_cached_diff: bool
-    rate_limit_info: Optional[Dict[str, Union[bool, int, str, None]]]
-
-# Add type ignores to imports that don't have type stubs
-from aider.coders import Coder  # type: ignore
-from aider.io import InputOutput  # type: ignore
-from aider.models import Model  # type: ignore
+# External imports - no stubs available
+from aider.coders import Coder
+from aider.io import InputOutput
+from aider.models import Model
 
 from aider_mcp_server.atoms.diff_cache import DiffCache
 from aider_mcp_server.atoms.logging import get_logger
@@ -25,6 +17,17 @@ from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
 )
+
+
+# Type definition for response from aider processing
+class ResponseDict(TypedDict, total=False):
+    """Type for Aider response dictionary."""
+
+    success: bool
+    diff: str
+    is_cached_diff: bool
+    rate_limit_info: Optional[Dict[str, Union[bool, int, str, None]]]
+
 
 # Try to import dotenv for environment variable loading
 try:
@@ -181,8 +184,6 @@ def check_api_keys(working_dir: Optional[str] = None) -> None:
         if gemini_key is not None:  # Explicit check for None
             logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
             os.environ["GOOGLE_API_KEY"] = gemini_key
-
-
 
 
 def _normalize_file_paths(
@@ -507,7 +508,7 @@ def _setup_aider_coder(
 
     # For the GitRepo, we need to import the class from aider (if available)
     try:
-        from aider.repo import GitRepo  # type: ignore  # missing stubs for aider.repo
+        from aider.repo import GitRepo  # No stubs available for aider.repo
 
         # Create a GitRepo instance
         try:
@@ -713,15 +714,15 @@ async def _process_coder_results(
             changes_is_none = changes_from_cache is None
             # In reality, the cache implementation never returns None, so mypy sees this as unreachable.
             # We're keeping this code for safety, but we need to silence the unreachable warning.
-            
+
             # Determine the final diff content based on cache result
             if changes_is_none:
                 # This branch is for defensive programming only
-                logger.warning(
-                    "Cache returned None - bypassing type check for safety"
-                )
+                logger.warning("Cache returned None - bypassing type check for safety")
                 final_diff_content = "Error retrieving changes from cache."
-            elif not changes_from_cache:  # Empty dict means no changes detected by cache
+            elif (
+                not changes_from_cache
+            ):  # Empty dict means no changes detected by cache
                 logger.info("Cache comparison detected no changes.")
                 final_diff_content = (
                     "No meaningful changes detected by cache comparison."

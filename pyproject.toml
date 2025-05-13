@@ -89,9 +89,11 @@ dependencies = ["aider-mcp-server[test]"]
 features = ["test"]
 
 [tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
 ignore = ["E501"]  # Ignore line length
-target-version = "py312"
 # Ignore S101 (assert usage) in test files
 per-file-ignores = {"tests/*" = ["S101"]}
 
@@ -118,6 +120,8 @@ disallow_incomplete_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
+disallow_untyped_decorators = false  # Allow untyped decorators by default
+ignore_missing_imports = true  # Ignore missing imports by default
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -139,14 +143,15 @@ ignore_missing_imports = true
 module = "mcp.types"
 ignore_missing_imports = true
 
+# External dependencies - ignore missing imports for all of these
 [[tool.mypy.overrides]]
-module = "aider_mcp_server.server"
+module = "aider.*"
 ignore_missing_imports = true
-disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = "aider_mcp_server.atoms.*"
+module = "fastapi.*"
 ignore_missing_imports = true
+disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
 module = "starlette.*"
@@ -161,5 +166,23 @@ module = "sse_starlette.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "fastapi.*"
+module = "mcp.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "dotenv"
+ignore_missing_imports = true
+
+# Internal modules with special configuration
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.server"
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.app"
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.multi_transport_server"
+disallow_untyped_decorators = false

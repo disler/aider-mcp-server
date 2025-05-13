@@ -20,12 +20,11 @@ from typing import (
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.mcp_types import (
-    LoggerProtocol,
-    LoggerFactory,
-    EventData,
-    RequestParameters,
-    OperationResult,
     AsyncTask,
+    LoggerFactory,
+    LoggerProtocol,
+    OperationResult,
+    RequestParameters,
     TransportInterface,
 )
 from aider_mcp_server.security import Permissions, SecurityContext
@@ -67,7 +66,8 @@ logger = get_logger_func(__name__)
 
 # Type alias for handler functions
 HandlerFunc = Callable[
-    [str, str, RequestParameters, SecurityContext, bool, bool], Coroutine[Any, Any, OperationResult]
+    [str, str, RequestParameters, SecurityContext, bool, bool],
+    Coroutine[Any, Any, OperationResult],
 ]
 
 # Constants
@@ -102,7 +102,9 @@ class ApplicationCoordinator:
 
         # Only set up basic attributes here
         # Full initialization happens in _initialize_coordinator
-        self._initialized_event = asyncio.Event()  # Event to signal initialization completion
+        self._initialized_event = (
+            asyncio.Event()
+        )  # Event to signal initialization completion
         self._shutdown_event = asyncio.Event()  # Event to signal shutdown
 
     async def _initialize_coordinator(self) -> None:
@@ -546,7 +548,9 @@ class ApplicationCoordinator:
             )
 
             # Log whether the diff was cached
-            if isinstance(result_data, dict) and result_data.get("is_cached_diff", False):
+            if isinstance(result_data, dict) and result_data.get(
+                "is_cached_diff", False
+            ):
                 logger.info(f"Received cached diff for request {request_id}.")
             else:
                 logger.info(f"Received full diff for request {request_id}.")
@@ -800,7 +804,11 @@ class ApplicationCoordinator:
             structured_error_details["message"] = error_details
         else:
             # Handle None or any other type (convert to string)
-            structured_error_details["original_error"] = str(error_details) if error_details is not None else "No details provided"
+            structured_error_details["original_error"] = (
+                str(error_details)
+                if error_details is not None
+                else "No details provided"
+            )
 
         result_data = {
             "success": False,

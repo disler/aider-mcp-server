@@ -29,8 +29,8 @@ from starlette.responses import JSONResponse, Response
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.mcp_types import (
-    LoggerProtocol,
     EventData,
+    LoggerProtocol,
     RequestParameters,
 )
 from aider_mcp_server.security import (
@@ -496,7 +496,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
         )
         try:
             if self._coordinator is None:
-                self.logger.error(f"Cannot start request {request_id}: coordinator is None")
+                self.logger.error(
+                    f"Cannot start request {request_id}: coordinator is None"
+                )
                 return await self._report_request_failure(
                     request_id,
                     operation_name,

@@ -3,7 +3,7 @@ import collections
 import pickle
 import sys
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, TypeVar, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from aider_mcp_server.mcp_types import AsyncTask
 
@@ -67,7 +67,9 @@ class DiffCache:
 
     async def start(self) -> None:
         """Starts the background cleanup task."""
-        if self._cleanup_task is None or (self._cleanup_task is not None and self._cleanup_task.done()):
+        if self._cleanup_task is None or (
+            self._cleanup_task is not None and self._cleanup_task.done()
+        ):
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
@@ -380,7 +382,7 @@ class DiffCache:
                 pass
             self._cleanup_task = None  # Clear reference
 
-    async def __aenter__(self) -> 'DiffCache':
+    async def __aenter__(self) -> "DiffCache":
         """Async context manager entry."""
         await self.start()
         return self

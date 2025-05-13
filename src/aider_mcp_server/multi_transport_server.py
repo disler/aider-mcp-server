@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import (
     Any,
     AsyncIterator,
-    Dict,
     Optional,
-    Protocol,
     Set,
     Tuple,
     TypeVar,
@@ -28,18 +26,16 @@ from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_WS_PORT,
 )
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.mcp_types import (
-    LoggerProtocol,
-    OperationResult,
-    RequestParameters,
-    Shutdownable,
-    ShutdownContextProtocol,
-)
 from aider_mcp_server.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
-from aider_mcp_server.security import SecurityContext, Permissions
+from aider_mcp_server.mcp_types import (
+    OperationResult,
+    RequestParameters,
+    ShutdownContextProtocol,
+)
+from aider_mcp_server.security import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
 from aider_mcp_server.server import is_git_repository
@@ -181,7 +177,7 @@ async def _register_handlers(
         clear_cached_for_unchanged: bool = False,
     ) -> OperationResult:
         """Wrapper for aider_ai_code handler that includes context parameters
-        
+
         Args:
             request_id: Unique identifier for the request
             transport_id: Identifier for the transport that made the request
@@ -189,7 +185,7 @@ async def _register_handlers(
             security_context: Security context for the request
             use_diff_cache: Whether to use diff caching
             clear_cached_for_unchanged: Whether to clear cache entries for unchanged files
-            
+
         Returns:
             Dict containing the operation result
         """
@@ -223,7 +219,7 @@ async def _register_handlers(
         clear_cached_for_unchanged: bool = False,
     ) -> OperationResult:
         """Wrapper for list_models handler
-        
+
         Args:
             request_id: Unique identifier for the request
             transport_id: Identifier for the transport that made the request
@@ -231,7 +227,7 @@ async def _register_handlers(
             security_context: Security context for the request
             use_diff_cache: Whether to use diff caching (not applicable for this operation)
             clear_cached_for_unchanged: Whether to clear cache entries (not applicable for this operation)
-            
+
         Returns:
             Dict containing the list of available models
         """
@@ -289,11 +285,13 @@ def _create_fastapi_app(sse_adapter: SSETransportAdapter) -> FastAPI:
         description="Handles SSE and Stdio connections.",
     )
 
+    # FastAPI typing without type: ignore
     @app.get("/sse", summary="Establish SSE Connection", tags=["SSE"])
     async def sse_endpoint(request: Request) -> Response:
         response: Response = await sse_adapter.handle_sse_request(request)
         return response
 
+    # FastAPI typing without type: ignore
     @app.post("/message", summary="Submit Operation Request", tags=["SSE"])
     async def message_endpoint(request: Request) -> Response:
         response: Response = await sse_adapter.handle_message_request(request)
@@ -339,8 +337,7 @@ def _configure_uvicorn_server(app: FastAPI, host: str, port: int) -> uvicorn.Ser
 
 
 async def _monitor_server_tasks(
-    server_task: asyncio.Task[Any],
-    shutdown_event: asyncio.Event
+    server_task: asyncio.Task[Any], shutdown_event: asyncio.Event
 ) -> None:
     """Monitor server tasks and handle shutdown when needed."""
     monitor_task: asyncio.Task[bool] = asyncio.create_task(
