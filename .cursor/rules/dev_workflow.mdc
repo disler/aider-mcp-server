@@ -94,9 +94,9 @@ Task Master offers two primary ways to interact:
     - Dependencies are displayed with status indicators (✅ for completed, ⏱️ for pending)
     - This helps quickly identify which prerequisite tasks are blocking work
 - **priority**: Importance level (Example: `"high"`, `"medium"`, `"low"`)
-- **details**: In-depth implementation instructions (Example: `"Use GitHub client ID/secret, handle callback, set session token."`) 
-- **testStrategy**: Verification approach (Example: `"Deploy and call endpoint to confirm 'Hello World' response."`) 
-- **subtasks**: List of smaller, more specific tasks (Example: `[{"id": 1, "title": "Configure OAuth", ...}]`) 
+- **details**: In-depth implementation instructions (Example: `"Use GitHub client ID/secret, handle callback, set session token."`)
+- **testStrategy**: Verification approach (Example: `"Deploy and call endpoint to confirm 'Hello World' response."`)
+- **subtasks**: List of smaller, more specific tasks (Example: `[{"id": 1, "title": "Configure OAuth", ...}]`)
 - Refer to task structure details (previously linked to `tasks.mdc`).
 
 ## Configuration Management (Updated)
