@@ -4,6 +4,7 @@ repos:
     hooks:
       - id: isort
         args: ["--profile", "black"]
+        types_or: [python, pyi]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.6
