@@ -21,13 +21,17 @@ from typing import (
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
+
+# Import the interface directly for runtime
+from aider_mcp_server.interfaces.transport_adapter import (
+    ITransportAdapter as TransportInterface,
+)
 from aider_mcp_server.mcp_types import (
     AsyncTask,
     LoggerFactory,
     LoggerProtocol,
     OperationResult,
     RequestParameters,
-    TransportInterface,
 )
 from aider_mcp_server.security import Permissions, SecurityContext
 
@@ -203,11 +207,16 @@ class ApplicationCoordinator:
             return None
 
     @classmethod
-    async def getInstance(cls) -> "ApplicationCoordinator":
+    async def getInstance(
+        cls, logger_factory: Optional[LoggerFactory] = None
+    ) -> "ApplicationCoordinator":
         """
         Gets the singleton instance of the ApplicationCoordinator.
 
         Uses double-checked locking with asyncio.Lock for async-safe initialization.
+
+        Args:
+            logger_factory: Factory function to create loggers. If None, uses default.
 
         Returns:
             ApplicationCoordinator: The singleton instance.
@@ -216,12 +225,39 @@ class ApplicationCoordinator:
             async with cls._creation_lock:
                 # Double-check inside the lock
                 if cls._instance is None:
+                    # Use provided logger_factory or default to get_logger_func (already defined)
                     cls._instance = cls()
         return cls._instance
 
-    async def wait_for_initialization(self) -> None:
-        """Waits until the coordinator's asyncio components are fully initialized."""
-        await self._initialized_event.wait()
+    async def wait_for_initialization(self, timeout: Optional[float] = 30.0) -> None:
+        """
+        Waits until the coordinator's asyncio components are fully initialized.
+
+        Args:
+            timeout: Maximum time (in seconds) to wait for initialization.
+                   Set to None for no timeout. Defaults to 30 seconds.
+
+        Raises:
+            asyncio.TimeoutError: If initialization doesn't complete within the timeout period.
+            RuntimeError: If coordinator is shutting down during initialization wait.
+        """
+        if self._shutdown_event.is_set():
+            raise RuntimeError(
+                "Cannot wait for initialization while coordinator is shutting down"
+            )
+
+        if timeout is not None:
+            # Use wait_for with timeout
+            try:
+                await asyncio.wait_for(self._initialized_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Coordinator initialization timed out after {timeout} seconds"
+                )
+                raise
+        else:
+            # Wait indefinitely
+            await self._initialized_event.wait()
 
     def is_shutting_down(self) -> bool:
         """Checks if the coordinator shutdown process has been initiated."""

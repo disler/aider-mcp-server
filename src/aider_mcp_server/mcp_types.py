@@ -19,7 +19,6 @@ from typing import (
     List,
     Optional,
     Protocol,
-    Set,
     TypeVar,
     Union,
     runtime_checkable,
@@ -28,10 +27,9 @@ from typing import (
 from pydantic import BaseModel
 
 # Re-export the EventTypes enum to avoid circular imports
-from aider_mcp_server.atoms.event_types import EventTypes
 
 if TYPE_CHECKING:
-    from aider_mcp_server.security import SecurityContext
+    from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 
 # Generic Type Variables
@@ -54,71 +52,24 @@ class LoggerProtocol(Protocol):
     def exception(self, message: str, **kwargs: Any) -> None: ...
 
 
-@runtime_checkable
-class TransportInterface(Protocol):
-    """
-    Protocol defining the interface for transport adapters.
+# Import the TransportInterface from the interfaces package instead of defining it here
+# Use a type alias to maintain backward compatibility
+# Transport adapter classes should use ITransportAdapter from interfaces.transport_adapter
+# This alias helps with the transition and existing code
+if TYPE_CHECKING:
+    TransportInterface = "ITransportAdapter"
+else:
+    from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
-    Any class implementing a transport mechanism (like SSE, Stdio, WebSocket)
-    that interacts with the ApplicationCoordinator should adhere to this protocol.
-    """
-
-    transport_id: str
-    transport_type: str
-
-    async def initialize(self) -> None:
-        """
-        Asynchronously initializes the transport adapter.
-        This method should handle setup specific to the transport,
-        registering with the coordinator, and starting any necessary background tasks (like heartbeat).
-        """
-        ...
-
-    async def shutdown(self) -> None:
-        """
-        Asynchronously shuts down the transport adapter.
-        This method should handle cleanup specific to the transport,
-        unregistering from the coordinator, and stopping any background tasks.
-        """
-        ...
-
-    async def send_event(self, event: EventTypes, data: Dict[str, Any]) -> None:
-        """
-        Asynchronously sends an event with associated data to the client
-        connected via this transport.
-
-        Args:
-            event: The event type (e.g., EventTypes.PROGRESS).
-            data: A dictionary containing the event payload.
-        """
-        ...
-
-    def get_capabilities(self) -> Set[EventTypes]:
-        """
-        Returns a set of event types that this transport adapter is capable
-        of sending or receiving.
-
-        This informs the ApplicationCoordinator which events can be routed
-        to this transport.
-        """
-        ...
-
-    def validate_request_security(
-        self, request_data: Dict[str, Any]
-    ) -> "SecurityContext":
-        """
-        Validates security information provided in the incoming request data
-        and returns the SecurityContext applicable to this specific request.
-        This method is called by the transport itself before processing a request.
-        """
-        ...
+    TransportInterface = ITransportAdapter
 
 
 @runtime_checkable
 class Shutdownable(Protocol):
     """Protocol defining a minimal interface for objects that can be shut down."""
 
-    transport_id: str
+    def get_transport_id(self) -> str: ...
+    def get_transport_type(self) -> str: ...
 
     async def shutdown(self) -> None: ...
     async def initialize(self) -> None: ...
@@ -129,7 +80,7 @@ class Shutdownable(Protocol):
 class ShutdownContextProtocol(Protocol):
     """Protocol defining only the members needed by shutdown context managers."""
 
-    transport_id: str
+    def get_transport_id(self) -> str: ...
 
     async def shutdown(self) -> None: ...
 

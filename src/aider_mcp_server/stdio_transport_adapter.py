@@ -41,6 +41,33 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     4. Finding and connecting to existing coordinators via discovery
     """
 
+    @property
+    def transport_id(self) -> str:
+        """
+        Property for accessing the transport ID.
+        Used for compatibility with code that expects a transport_id attribute.
+        """
+        return self._transport_id
+
+    @classmethod
+    def get_default_capabilities(cls) -> Set[EventTypes]:
+        """
+        Get the default capabilities for this transport adapter class without instantiation.
+
+        This allows the TransportAdapterRegistry to determine capabilities
+        without instantiating the adapter.
+
+        Returns:
+            A set of event types that this adapter supports by default.
+        """
+        # Stdio typically doesn't need heartbeats, but can receive other events
+        return {
+            EventTypes.STATUS,
+            EventTypes.PROGRESS,
+            EventTypes.TOOL_RESULT,
+            # Exclude HEARTBEAT unless specifically needed/handled
+        }
+
     _read_task: Optional[AsyncTask[None]]
     _input: TextIO
     _output: TextIO
@@ -153,7 +180,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # For now, we'll use the singleton ApplicationCoordinator instance
             # In a networked implementation, this would involve creating a client connection
 
-            self._coordinator = await ApplicationCoordinator.getInstance()
+            # Get logger factory from the transport coordinator module
+            from aider_mcp_server.atoms.logging import get_logger
+
+            self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
             await self.initialize()
 
             return True

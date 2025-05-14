@@ -228,7 +228,7 @@ async def serve_sse(
 
     try:
         # Get coordinator instance
-        coordinator = await ApplicationCoordinator.getInstance()
+        coordinator = await ApplicationCoordinator.getInstance(get_logger)
 
         # Use the coordinator in async context
         async with coordinator:

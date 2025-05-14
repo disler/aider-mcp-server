@@ -44,7 +44,7 @@ async def handle_sigterm(
         "SIGTERM received. Initiating graceful shutdown via Coordinator..."
     )
     try:
-        coordinator = await ApplicationCoordinator.getInstance()
+        coordinator = await ApplicationCoordinator.getInstance(get_logger)
         await coordinator.shutdown()
         logger_instance.info("ApplicationCoordinator shutdown initiated via SIGTERM.")
     except Exception as e:

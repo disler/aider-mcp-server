@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from .interfaces.transport_registry import TransportAdapterRegistry
 from .sse_transport_adapter import SSETransportAdapter
 from .transport_coordinator import ApplicationCoordinator, get_logger_func
 
@@ -137,7 +138,7 @@ def _setup_routes(app: FastAPI) -> None:
         return await _handle_message_request(request)
 
 
-def create_app(
+async def create_app(
     coordinator: ApplicationCoordinator,
     editor_model: str,  # Parameter kept for signature consistency, may be used elsewhere
     current_working_dir: str,  # Parameter kept for signature consistency
@@ -149,14 +150,23 @@ def create_app(
     # Create FastAPI app
     app = FastAPI()
 
-    # Create SSETransportAdapter instance
-    _adapter = SSETransportAdapter(
+    # Get the transport adapter registry
+    registry = await TransportAdapterRegistry.get_instance()
+
+    # Create SSETransportAdapter instance via registry
+    adapter = await registry.create_adapter(
+        adapter_type="sse",
         coordinator=coordinator,
         heartbeat_interval=heartbeat_interval,
     )
 
+    if not adapter:
+        logger.error("Failed to create SSE transport adapter via registry")
+        raise RuntimeError("Failed to create SSE transport adapter")
+
+    _adapter = adapter  # type: ignore  # We know this is an SSETransportAdapter
     logger.info(
-        f"Created FastAPI app with SSE adapter (heartbeat: {heartbeat_interval}s)"
+        f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)"
     )
 
     # Set up the routes

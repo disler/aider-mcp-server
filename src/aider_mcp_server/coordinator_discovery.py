@@ -365,10 +365,10 @@ class CoordinatorDiscovery:
         return self
 
     async def __aexit__(
-        self, 
-        exc_type: Optional[type[BaseException]], 
-        exc_val: Optional[BaseException], 
-        exc_tb: Optional[Any]
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
     ) -> None:
         """Exit async context and clean up."""
         await self.shutdown()

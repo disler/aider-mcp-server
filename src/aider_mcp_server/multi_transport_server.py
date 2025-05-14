@@ -30,6 +30,8 @@ from aider_mcp_server.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
+from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import (
     OperationResult,
     RequestParameters,
@@ -39,8 +41,6 @@ from aider_mcp_server.security import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
 from aider_mcp_server.server import is_git_repository
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.stdio_transport_adapter import StdioTransportAdapter
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 # Define a generic type variable for Task
@@ -56,7 +56,7 @@ async def adapter_shutdown_context(
     adapter: ShutdownContextProtocol,
 ) -> AsyncIterator[None]:
     """Ensures adapter.shutdown() is called on context exit."""
-    adapter_name = f"{adapter.transport_id} adapter"
+    adapter_name = f"{adapter.get_transport_id()} adapter"
     try:
         yield
     finally:
@@ -246,39 +246,53 @@ async def _setup_transports(
     stack: AsyncExitStack,
     coordinator: ApplicationCoordinator,
     heartbeat_interval: float,
-) -> Tuple[SSETransportAdapter, StdioTransportAdapter]:
-    """Set up and initialize transport adapters."""
-    # SSE Adapter
-    sse_adapter = SSETransportAdapter(
-        coordinator=coordinator, heartbeat_interval=heartbeat_interval
+) -> Tuple[ITransportAdapter, ITransportAdapter]:
+    """Set up and initialize transport adapters using the registry."""
+    # Initialize the transport adapter registry
+    registry = await TransportAdapterRegistry.get_instance()
+    logger.info(
+        f"Transport registry initialized with adapters: {registry.list_adapter_types()}"
     )
+
+    # Create SSE Adapter via registry
+    sse_adapter = await registry.create_adapter(
+        adapter_type="sse",
+        coordinator=coordinator,
+        heartbeat_interval=heartbeat_interval,
+    )
+    if not sse_adapter:
+        raise RuntimeError("Failed to create SSE transport adapter via registry")
+
     await stack.enter_async_context(adapter_shutdown_context(sse_adapter))
     await sse_adapter.initialize()
-    logger.info(f"SSETransportAdapter '{sse_adapter.transport_id}' initialized.")
+    logger.info(f"SSETransportAdapter '{sse_adapter.get_transport_id()}' initialized.")
 
-    # Stdio Adapter
-    stdio_adapter = StdioTransportAdapter(
-        coordinator=coordinator, heartbeat_interval=None
+    # Create Stdio Adapter via registry
+    stdio_adapter = await registry.create_adapter(
+        adapter_type="stdio", coordinator=coordinator, heartbeat_interval=None
     )
+    if not stdio_adapter:
+        raise RuntimeError("Failed to create Stdio transport adapter via registry")
+
     await stack.enter_async_context(adapter_shutdown_context(stdio_adapter))
     await stdio_adapter.initialize()
     await stdio_adapter.start_listening()  # Stdio needs explicit start
     logger.info(
-        f"StdioTransportAdapter '{stdio_adapter.transport_id}' initialized and listening."
+        f"StdioTransportAdapter '{stdio_adapter.get_transport_id()}' initialized and listening."
     )
 
     # Log transport capabilities
     logger.info(
-        f"SSE adapter '{sse_adapter.transport_id}' subscribed based on capabilities: {sse_adapter.get_capabilities()}"
+        f"SSE adapter '{sse_adapter.get_transport_id()}' subscribed based on capabilities: {sse_adapter.get_capabilities()}"
     )
     logger.info(
-        f"Stdio adapter '{stdio_adapter.transport_id}' subscribed based on capabilities: {stdio_adapter.get_capabilities()}"
+        f"Stdio adapter '{stdio_adapter.get_transport_id()}' subscribed based on capabilities: {stdio_adapter.get_capabilities()}"
     )
 
     return sse_adapter, stdio_adapter
 
 
-def _create_fastapi_app(sse_adapter: SSETransportAdapter) -> FastAPI:
+def _create_fastapi_app(sse_adapter: ITransportAdapter) -> FastAPI:
     """Create and configure the FastAPI application with SSE endpoints."""
     app = FastAPI(
         title="Aider MCP Server (Multi-Transport)",
@@ -463,8 +477,8 @@ async def serve_multi_transport(
 
     # Main server setup and execution
     async with AsyncExitStack() as stack:
-        # Initialize coordinator
-        coordinator = await ApplicationCoordinator.getInstance()
+        # Initialize coordinator with logger factory
+        coordinator = await ApplicationCoordinator.getInstance(get_logger)
         logger.info("ApplicationCoordinator instance obtained.")
         await stack.enter_async_context(coordinator_shutdown_context(coordinator))
 
