@@ -9,10 +9,12 @@ import asyncio
 import json
 import sys
 import uuid
-from typing import TYPE_CHECKING, Any, Optional, Set, TextIO
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, Set, TextIO, Union
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
 from aider_mcp_server.mcp_types import (
     AsyncTask,
     EventData,
@@ -36,12 +38,14 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     1. Reading JSON messages from stdin
     2. Processing tool call requests
     3. Writing JSON responses to stdout
+    4. Finding and connecting to existing coordinators via discovery
     """
 
     _read_task: Optional[AsyncTask[None]]
     _input: TextIO
     _output: TextIO
     _stop_reading: bool
+    _discovery: Optional[CoordinatorDiscovery]
 
     def __init__(
         self,
@@ -49,6 +53,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         input_stream: Optional[TextIO] = None,
         output_stream: Optional[TextIO] = None,
         heartbeat_interval: Optional[float] = None,
+        discovery_file: Optional[Union[str, Path]] = None,
     ) -> None:
         """
         Initialize the stdio transport adapter.
@@ -58,6 +63,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             input_stream: Input stream to read from (defaults to sys.stdin)
             output_stream: Output stream to write to (defaults to sys.stdout)
             heartbeat_interval: Time between heartbeat messages (defaults to None for stdio)
+            discovery_file: Optional path to the coordinator discovery file
         """
         transport_id = f"stdio_{uuid.uuid4()}"
         super().__init__(
@@ -70,7 +76,90 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         self._output = output_stream if output_stream is not None else sys.stdout
         self._read_task = None
         self._stop_reading = False
+        self._discovery = None
+        self._discovery_file = Path(discovery_file) if discovery_file else None
         self.logger.info(f"StdioTransportAdapter created with ID: {self.transport_id}")
+
+    @classmethod
+    async def find_and_connect(
+        cls,
+        discovery_file: Optional[Union[str, Path]] = None,
+        input_stream: Optional[TextIO] = None,
+        output_stream: Optional[TextIO] = None,
+        heartbeat_interval: Optional[float] = None,
+    ) -> Optional["StdioTransportAdapter"]:
+        """
+        Factory method to find an existing coordinator and create a connected adapter.
+
+        Args:
+            discovery_file: Path to the coordinator discovery file
+            input_stream: Input stream to read from
+            output_stream: Output stream to write to
+            heartbeat_interval: Time between heartbeat messages
+
+        Returns:
+            A connected StdioTransportAdapter or None if no coordinator found
+        """
+        from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+
+        # Convert string path to Path if provided
+        discovery_path = Path(discovery_file) if discovery_file else None
+
+        try:
+            # Find existing coordinator using discovery
+            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(
+                discovery_file=discovery_path
+            )
+
+            if not coordinator_info:
+                return None
+
+            # Create a new instance with discovery file configuration
+            adapter = cls(
+                coordinator=None,  # We'll set this after initialization
+                input_stream=input_stream,
+                output_stream=output_stream,
+                heartbeat_interval=heartbeat_interval,
+                discovery_file=discovery_path,
+            )
+
+            # Connect to the found coordinator
+            success = await adapter.connect_to_coordinator(coordinator_info)
+            return adapter if success else None
+
+        except Exception as e:
+            print(f"Error finding and connecting to coordinator: {e}", file=sys.stderr)
+            return None
+
+    async def connect_to_coordinator(self, coordinator_info: CoordinatorInfo) -> bool:
+        """
+        Connect to a specific coordinator using the provided information.
+
+        Args:
+            coordinator_info: Information about the coordinator to connect to
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+
+            self.logger.info(
+                f"Connecting to coordinator {coordinator_info.coordinator_id} "
+                f"at {coordinator_info.host}:{coordinator_info.port}"
+            )
+
+            # Here you would establish a connection to the coordinator
+            # For now, we'll use the singleton ApplicationCoordinator instance
+            # In a networked implementation, this would involve creating a client connection
+
+            self._coordinator = await ApplicationCoordinator.getInstance()
+            await self.initialize()
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Error connecting to coordinator: {e}")
+            return False
 
     async def initialize(self) -> None:
         """
@@ -84,7 +173,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     async def shutdown(self) -> None:
         """
         Shut down the stdio transport and unregister from coordinator.
-        Stops the task reading from stdin.
+        Stops the task reading from stdin and cleans up discovery resources.
         """
         self.logger.info(f"Shutting down stdio transport {self.transport_id}...")
         self._stop_reading = True
@@ -107,6 +196,16 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 )
             finally:
                 self._read_task = None
+
+        # Clean up discovery if it was created
+        if self._discovery:
+            try:
+                await self._discovery.shutdown()
+                self.logger.info(f"Shutdown discovery service for {self.transport_id}.")
+            except Exception as e:
+                self.logger.error(f"Error shutting down discovery service: {e}")
+            self._discovery = None
+
         await super().shutdown()
         self.logger.info(f"Stdio transport {self.transport_id} shut down.")
 

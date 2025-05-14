@@ -413,17 +413,21 @@ def _determine_provider(model: str) -> str:
         return "gemini"
 
 
-def _configure_model(model: str) -> Model:
+def _configure_model(
+    model: str, editor_model: Optional[str] = None, architect_mode: bool = False
+) -> Model:
     """
     Configure the Aider model based on the model name.
 
     Args:
         model: The model name in normalized format (provider/model)
+        editor_model: Optional secondary model for implementation when architect_mode is enabled
+        architect_mode: Whether to use the two-phase architecture mode
 
     Returns:
         Aider Model instance
     """
-    logger.info(f"Configuring model: {model}")
+    logger.info(f"Configuring model: {model}, architect_mode={architect_mode}")
 
     # For testing purposes (when we know the model will fail), use a simple model name
     if model == "non_existent_model_123456789":
@@ -444,10 +448,20 @@ def _configure_model(model: str) -> Model:
         f"Using standard model name for Aider compatibility: {aider_model_name}"
     )
 
-    # Create an Aider Model instance
-    model_instance = Model(aider_model_name)
-
-    return model_instance
+    # Configure model based on architect mode setting
+    if architect_mode:
+        if editor_model:
+            logger.info(f"Using editor model: {editor_model}")
+            return Model(aider_model_name, editor_model=editor_model)
+        else:
+            # Use the same model for both architect and editor roles
+            logger.info(
+                f"Using same model for architect and editor: {aider_model_name}"
+            )
+            return Model(aider_model_name, editor_model=aider_model_name)
+    else:
+        # Standard (non-architect) configuration
+        return Model(aider_model_name)
 
 
 def _convert_to_absolute_paths(
@@ -483,6 +497,8 @@ def _setup_aider_coder(
     working_dir: str,
     abs_editable_files: List[str],
     abs_readonly_files: List[str],
+    architect_mode: bool = False,
+    auto_accept_architect: bool = True,
 ) -> Coder:
     """
     Set up an Aider Coder instance with the given configuration.
@@ -492,17 +508,30 @@ def _setup_aider_coder(
         working_dir: Working directory for git operations
         abs_editable_files: List of absolute paths to files that can be edited
         abs_readonly_files: List of absolute paths to files that can be read but not edited
+        architect_mode: Whether to use two-phase architecture mode
+        auto_accept_architect: Whether to automatically accept architect suggestions
 
     Returns:
         Configured Aider Coder instance
     """
     logger.info("Setting up Aider coder...")
 
+    # Set chat history file path in the working directory if possible
+    chat_history_file = None
+    if working_dir:
+        try:
+            chat_history_dir = os.path.join(working_dir, ".aider")
+            os.makedirs(chat_history_dir, exist_ok=True)
+            chat_history_file = os.path.join(chat_history_dir, "chat_history.md")
+        except Exception as e:
+            logger.warning(f"Could not create chat history directory: {e}")
+
     # Create an IO instance for the Coder that won't require interactive prompting
     io = InputOutput(
         pretty=False,  # Disable fancy output
         yes=True,  # Always say yes to prompts
         fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
+        chat_history_file=chat_history_file,  # Set chat history file if available
     )
     io.yes_to_all = True  # Automatically say yes to all prompts
 
@@ -541,6 +570,12 @@ def _setup_aider_coder(
         stream=True,  # Stream model responses
         suggest_shell_commands=False,  # Don't suggest shell commands
         detect_urls=False,  # Don't detect URLs
+        edit_format="architect"
+        if architect_mode
+        else None,  # Set edit format based on architect mode
+        auto_accept_architect=auto_accept_architect
+        if architect_mode
+        else True,  # Only use when in architect mode
     )
 
     return coder
@@ -818,6 +853,9 @@ async def _execute_with_retry(
     provider: str,
     use_diff_cache: bool,
     clear_cached_for_unchanged: bool,
+    architect_mode: bool = False,
+    editor_model: Optional[str] = None,
+    auto_accept_architect: bool = True,
 ) -> ResponseDict:
     """
     Execute Aider with retry logic for rate limit handling.
@@ -833,6 +871,9 @@ async def _execute_with_retry(
         use_diff_cache: Whether to use the diff cache.
         clear_cached_for_unchanged: If using cache, whether to clear the entry
                                      if no changes are detected by the cache.
+        architect_mode: Whether to use two-phase architecture mode
+        editor_model: Optional secondary model for implementation when architect_mode is enabled
+        auto_accept_architect: Whether to automatically accept architect suggestions
 
     Returns:
         Response dictionary
@@ -855,9 +896,16 @@ async def _execute_with_retry(
     for attempt in range(max_retries + 1):
         try:
             # Configure the model and create the coder
-            ai_model = _configure_model(current_model)  # Use current_model
+            ai_model = _configure_model(
+                current_model, editor_model, architect_mode
+            )  # Use current_model
             coder = _setup_aider_coder(
-                ai_model, working_dir, abs_editable_files, abs_readonly_files
+                ai_model,
+                working_dir,
+                abs_editable_files,
+                abs_readonly_files,
+                architect_mode,
+                auto_accept_architect,
             )
 
             # Run the session and get results
@@ -923,6 +971,9 @@ async def code_with_aider(
     working_dir: Optional[str] = None,
     use_diff_cache: bool = True,
     clear_cached_for_unchanged: bool = True,
+    architect_mode: bool = False,
+    editor_model: Optional[str] = None,
+    auto_accept_architect: bool = True,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -936,6 +987,12 @@ async def code_with_aider(
         use_diff_cache: Whether to use the diff cache. Defaults to True.
         clear_cached_for_unchanged: If using cache, whether to clear the entry
                                      if no changes are detected by the cache. Defaults to True.
+        architect_mode (bool, optional): Enable two-phase code generation with an architect model
+                                       planning first, then an editor model implementing. Defaults to False.
+        editor_model (str, optional): The secondary AI model to use for code implementation when
+                                    architect_mode is enabled. Defaults to None.
+        auto_accept_architect (bool, optional): Automatically accept architect suggestions without
+                                              confirmation. Defaults to True.
 
     Returns:
         str: JSON string containing 'success', 'diff', 'is_cached_diff', and additional rate limit information.
@@ -968,6 +1025,12 @@ async def code_with_aider(
     logger.info(f"Initial model: {model}")
     logger.info(f"Use diff cache: {use_diff_cache}")
     logger.info(f"Clear cached for unchanged: {clear_cached_for_unchanged}")
+    logger.info(f"Architect mode: {architect_mode}")
+    if architect_mode:
+        logger.info(
+            f"Editor model: {editor_model if editor_model else 'Same as main model'}"
+        )
+        logger.info(f"Auto accept architect: {auto_accept_architect}")
 
     # Normalize model name
     model = _normalize_model_name(model)
@@ -997,6 +1060,9 @@ async def code_with_aider(
             provider,
             use_diff_cache,
             clear_cached_for_unchanged,
+            architect_mode,
+            editor_model,
+            auto_accept_architect,
         )
     except Exception as e:
         logger.exception(f"Critical Error in code_with_aider: {str(e)}")

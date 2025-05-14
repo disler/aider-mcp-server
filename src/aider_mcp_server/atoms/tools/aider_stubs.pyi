@@ -2,7 +2,14 @@
 Type stubs for the aider library to be used with mypy.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict, Union
+
+# Response dictionary from aider processing
+class ResponseDict(TypedDict, total=False):
+    success: bool
+    diff: str
+    is_cached_diff: bool
+    rate_limit_info: Optional[Dict[str, Union[bool, int, str, None]]]
 
 # Stub for aider.repo module
 class Repo:
@@ -83,3 +90,18 @@ class Models:
     def get_model_names() -> List[str]:
         """Get available model names."""
         pass
+
+async def code_with_aider(
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: Optional[List[str]] = None,
+    model: str = "gemini/gemini-2.5-flash-preview-04-17",
+    working_dir: Optional[str] = None,
+    use_diff_cache: bool = True,
+    clear_cached_for_unchanged: bool = True,
+    architect_mode: bool = False,
+    editor_model: Optional[str] = None,
+    auto_accept_architect: bool = True,
+) -> str: ...
+async def init_diff_cache() -> None: ...
+async def shutdown_diff_cache() -> None: ...

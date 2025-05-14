@@ -3,6 +3,7 @@ import contextlib
 import logging
 import typing
 import uuid
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -19,6 +20,7 @@ from typing import (
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
 from aider_mcp_server.mcp_types import (
     AsyncTask,
     LoggerFactory,
@@ -84,6 +86,10 @@ class ApplicationCoordinator:
 
     It also supports async context management (`async with`). Uses asyncio.Lock
     for internal state synchronization.
+
+    The coordinator can be discovered by other processes using the CoordinatorDiscovery
+    mechanism, which allows stdio and other transports to find and connect to an
+    existing coordinator.
     """
 
     _instance: Optional["ApplicationCoordinator"] = None
@@ -106,11 +112,25 @@ class ApplicationCoordinator:
             asyncio.Event()
         )  # Event to signal initialization completion
         self._shutdown_event = asyncio.Event()  # Event to signal shutdown
+        self._coordinator_id: Optional[str] = None
+        self._discovery: Optional[CoordinatorDiscovery] = None
 
-    async def _initialize_coordinator(self) -> None:
+    async def _initialize_coordinator(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        register_in_discovery: bool = False,
+        discovery_file: Optional[Path] = None,
+    ) -> None:
         """
         Internal method to initialize the ApplicationCoordinator state.
         Called from __aenter__ to avoid directly calling __init__.
+
+        Args:
+            host: Host where the coordinator is running (for discovery registration)
+            port: Port where the coordinator is listening (for discovery registration)
+            register_in_discovery: Whether to register this coordinator in the discovery system
+            discovery_file: Custom path to the discovery file
         """
         logger.info("Initializing ApplicationCoordinator singleton...")
         self._transports: Dict[str, TransportInterface] = {}
@@ -140,10 +160,47 @@ class ApplicationCoordinator:
             # as that can cause issues in tests and other environments
             self._loop = asyncio.get_event_loop_policy().get_event_loop()
 
+        # Initialize coordinator discovery if requested
+        if register_in_discovery and host is not None and port is not None:
+            try:
+                self._discovery = CoordinatorDiscovery(discovery_file=discovery_file)
+                self._coordinator_id = await self._discovery.register_coordinator(
+                    host=host,
+                    port=port,
+                    transport_type="sse",  # Default to SSE for now
+                    metadata={"version": "1.0.0"},  # Add metadata as needed
+                )
+                logger.info(
+                    f"Registered coordinator {self._coordinator_id} in discovery system"
+                )
+            except Exception as e:
+                logger.error(f"Failed to register coordinator in discovery: {e}")
+                self._discovery = None
+
         # Mark as initialized *after* setup is complete
         ApplicationCoordinator._initialized = True
         self._initialized_event.set()  # Signal that initialization is done
         logger.info("ApplicationCoordinator initialized successfully.")
+
+    @classmethod
+    async def find_existing_coordinator(
+        cls, discovery_file: Optional[Path] = None
+    ) -> Optional[CoordinatorInfo]:
+        """
+        Attempts to find an existing coordinator in the discovery system.
+
+        Args:
+            discovery_file: Optional path to the discovery file
+
+        Returns:
+            Information about the best coordinator found, or None if none are available
+        """
+        try:
+            discovery = CoordinatorDiscovery(discovery_file=discovery_file)
+            return await discovery.find_best_coordinator()
+        except Exception as e:
+            logger.error(f"Error finding existing coordinator: {e}")
+            return None
 
     @classmethod
     async def getInstance(cls) -> "ApplicationCoordinator":
@@ -172,8 +229,22 @@ class ApplicationCoordinator:
 
     # --- Async Context Management ---
 
-    async def __aenter__(self) -> "ApplicationCoordinator":
-        """Enter the async context, ensuring initialization."""
+    async def __aenter__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        register_in_discovery: bool = False,
+        discovery_file: Optional[Path] = None,
+    ) -> "ApplicationCoordinator":
+        """
+        Enter the async context, ensuring initialization.
+
+        Args:
+            host: Host where the coordinator is running (for discovery registration)
+            port: Port where the coordinator is listening (for discovery registration)
+            register_in_discovery: Whether to register this coordinator in the discovery system
+            discovery_file: Custom path to the discovery file
+        """
         # In case getInstance wasn't awaited, ensure initialization happens.
         # Note: getInstance should ideally be the entry point.
         if not ApplicationCoordinator._initialized:
@@ -183,7 +254,12 @@ class ApplicationCoordinator:
                         self  # Assign self if called directly
                     )
                     # Initialize explicitly instead of calling __init__ directly
-                    await self._initialize_coordinator()
+                    await self._initialize_coordinator(
+                        host=host,
+                        port=port,
+                        register_in_discovery=register_in_discovery,
+                        discovery_file=discovery_file,
+                    )
 
         await self.wait_for_initialization()
         logger.debug("ApplicationCoordinator context entered.")
@@ -1300,7 +1376,17 @@ class ApplicationCoordinator:
         # 2. Shutdown all registered transports
         await self._shutdown_transports()
 
-        # 3. Clear handlers and other state
+        # 3. Shutdown discovery service if active
+        if self._discovery:
+            try:
+                await self._discovery.shutdown()
+                logger.info("Shutdown coordinator discovery service.")
+            except Exception as e:
+                logger.error(f"Error shutting down discovery service: {e}")
+            self._discovery = None
+            self._coordinator_id = None
+
+        # 4. Clear handlers and other state
         await self._clear_coordinator_state()
 
         # Reset singleton state ONLY if necessary (e.g., for tests)
