@@ -40,7 +40,27 @@ except ImportError:
             logger.addHandler(handler)
             if logger.level == logging.NOTSET:
                 logger.setLevel(logging.INFO)
-        return logger
+
+        class CustomLogger(LoggerProtocol):
+            def debug(self, message: str, **kwargs: typing.Any) -> None:
+                logger.debug(message, **kwargs)
+
+            def info(self, message: str, **kwargs: typing.Any) -> None:
+                logger.info(message, **kwargs)
+
+            def warning(self, message: str, **kwargs: typing.Any) -> None:
+                logger.warning(message, **kwargs)
+
+            def error(self, message: str, **kwargs: typing.Any) -> None:
+                logger.error(message, **kwargs)
+
+            def critical(self, message: str, **kwargs: typing.Any) -> None:
+                logger.critical(message, **kwargs)
+
+            def exception(self, message: str, **kwargs: typing.Any) -> None:
+                logger.exception(message, **kwargs)
+
+        return CustomLogger()
 
     get_logger_func = fallback_get_logger
 

@@ -100,7 +100,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
             coordinator: The ApplicationCoordinator instance.
             heartbeat_interval: Interval in seconds for sending heartbeat events, or None to disable.
         """
-        super().__init__(transport_id=transport_id, transport_type=transport_type)
+        super().__init__(transport_id, transport_type)
         self._coordinator = coordinator
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_task = None

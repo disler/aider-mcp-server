@@ -59,20 +59,21 @@ class TransportRegistry:
     def __init__(self) -> None:
         self.transports: Dict[str, ITransportAdapter] = {}
         self.capabilities: Dict[str, Set[EventTypes]] = {}
-        self.subscriptions: Dict[EventTypes, Set[str]] = {}
+        self.subscriptions_by_event: Dict[EventTypes, Set[str]] = {}
+        self.subscriptions_by_transport: Dict[str, Set[EventTypes]] = {}
 
     def register_transport(
         self, transport_id: str, transport: ITransportAdapter
     ) -> None:
         self.transports[transport_id] = transport
         self.capabilities[transport_id] = set()
-        self.subscriptions[transport_id] = set()
+        self.subscriptions_by_transport[transport_id] = set()
 
     def unregister_transport(self, transport_id: str) -> None:
         if transport_id in self.transports:
             del self.transports[transport_id]
             del self.capabilities[transport_id]
-            del self.subscriptions[transport_id]
+            del self.subscriptions_by_transport[transport_id]
 
     def update_transport_capabilities(
         self, transport_id: str, capabilities: Set[EventTypes]
@@ -83,29 +84,29 @@ class TransportRegistry:
     def update_transport_subscriptions(
         self, transport_id: str, subscriptions: Set[EventTypes]
     ) -> None:
-        if transport_id in self.subscriptions:
-            self.subscriptions[transport_id] = subscriptions
+        if transport_id in self.subscriptions_by_transport:
+            self.subscriptions_by_transport[transport_id] = subscriptions
 
     def subscribe_to_event_type(
         self, transport_id: str, event_type: EventTypes
     ) -> None:
-        if event_type not in self.subscriptions:
-            self.subscriptions[event_type] = set()
-        self.subscriptions[event_type].add(transport_id)
+        if event_type not in self.subscriptions_by_event:
+            self.subscriptions_by_event[event_type] = set()
+        self.subscriptions_by_event[event_type].add(transport_id)
 
     def unsubscribe_from_event_type(
         self, transport_id: str, event_type: EventTypes
     ) -> None:
         if (
-            event_type in self.subscriptions
-            and transport_id in self.subscriptions[event_type]
+            event_type in self.subscriptions_by_event
+            and transport_id in self.subscriptions_by_event[event_type]
         ):
-            self.subscriptions[event_type].remove(transport_id)
+            self.subscriptions_by_event[event_type].remove(transport_id)
 
     def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
         return (
-            event_type in self.subscriptions
-            and transport_id in self.subscriptions[event_type]
+            event_type in self.subscriptions_by_event
+            and transport_id in self.subscriptions_by_event[event_type]
         )
 
     def get_transport(self, transport_id: str) -> Optional[ITransportAdapter]:
@@ -120,17 +121,18 @@ class TransportRegistry:
         return set()
 
     def get_transport_subscriptions(self, transport_id: str) -> Set[EventTypes]:
-        if transport_id in self.subscriptions:
-            return self.subscriptions[transport_id]
+        if transport_id in self.subscriptions_by_transport:
+            return self.subscriptions_by_transport[transport_id]
         return set()
 
     def get_all_transports(self) -> Dict[str, ITransportAdapter]:
         return self.transports
 
     def get_all_subscriptions(self) -> Dict[EventTypes, Set[str]]:
-        return self.subscriptions
+        return self.subscriptions_by_event
 
     def clear(self) -> None:
         self.transports.clear()
         self.capabilities.clear()
-        self.subscriptions.clear()
+        self.subscriptions_by_event.clear()
+        self.subscriptions_by_transport.clear()

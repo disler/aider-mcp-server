@@ -4,14 +4,13 @@ from typing import Any, Dict, Optional, Type, Union
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
-from aider_mcp_server.mcp_types import (
-    ITransportAdapter,
-    LoggerFactory,
-    Permissions,
-)  # Added ITransportAdapter import
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
+from aider_mcp_server.mcp_types import LoggerFactory
+from aider_mcp_server.security import Permissions
 from aider_mcp_server.request_processor import RequestProcessor
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.session_manager import SessionManager
+from atoms.event_types import EventTypes
 
 
 class ApplicationCoordinator:
@@ -155,7 +154,7 @@ class ApplicationCoordinator:
 
     async def broadcast_event(
         self,
-        event_type: Type,
+        event_type: Type[EventTypes],
         data: Dict[str, Any],
         exclude_transport_id: Optional[str] = None,
     ) -> None:
@@ -164,19 +163,19 @@ class ApplicationCoordinator:
         )
 
     async def send_event_to_transport(
-        self, transport_id: str, event_type: Type, data: Dict[str, Any]
+        self, transport_id: str, event_type: Type[EventTypes], data: Dict[str, Any]
     ) -> None:
         await self._event_coordinator.send_event_to_transport(
             transport_id, event_type, data
         )
 
     async def subscribe_to_event_type(
-        self, transport_id: str, event_type: Type
+        self, transport_id: str, event_type: Type[EventTypes]
     ) -> None:
         await self._event_coordinator.subscribe_to_event_type(transport_id, event_type)
 
     async def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: Type
+        self, transport_id: str, event_type: Type[EventTypes]
     ) -> None:
         await self._event_coordinator.unsubscribe_from_event_type(
             transport_id, event_type
