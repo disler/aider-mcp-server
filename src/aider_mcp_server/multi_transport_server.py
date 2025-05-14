@@ -18,7 +18,7 @@ from typing import (
 import uvicorn
 
 # Use absolute imports from the package root
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 
 from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
@@ -30,12 +30,12 @@ from aider_mcp_server.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
+from aider_mcp_server.interfaces.shutdown_context import ShutdownContextProtocol
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import (
     OperationResult,
     RequestParameters,
-    ShutdownContextProtocol,
 )
 from aider_mcp_server.security import Permissions, SecurityContext
 
@@ -301,15 +301,13 @@ def _create_fastapi_app(sse_adapter: ITransportAdapter) -> FastAPI:
 
     # FastAPI typing without type: ignore
     @app.get("/sse", summary="Establish SSE Connection", tags=["SSE"])
-    async def sse_endpoint(request: Request) -> Response:
-        response: Response = await sse_adapter.handle_sse_request(request)
-        return response
+    async def sse_endpoint(request: Request) -> Any:
+        return await sse_adapter.handle_sse_request(request)
 
     # FastAPI typing without type: ignore
     @app.post("/message", summary="Submit Operation Request", tags=["SSE"])
-    async def message_endpoint(request: Request) -> Response:
-        response: Response = await sse_adapter.handle_message_request(request)
-        return response
+    async def message_endpoint(request: Request) -> Any:
+        return await sse_adapter.handle_message_request(request)
 
     logger.info("FastAPI app created and SSE routes added (/sse GET, /message POST).")
     return app

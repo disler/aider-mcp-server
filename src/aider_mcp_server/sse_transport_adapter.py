@@ -230,14 +230,18 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         # Create a connection ID for this client
         client_id = f"client_{uuid.uuid4()}"
-        queue: asyncio.Queue = asyncio.Queue(maxsize=self._sse_queue_size)
+        queue: asyncio.Queue[Union[str, Dict[str, str]]] = asyncio.Queue(
+            maxsize=self._sse_queue_size
+        )
 
         # Register this connection
         self._active_connections[client_id] = queue
         self.logger.info(f"SSE connection established: {client_id}")
 
         # Define the event generator
-        async def event_generator():
+        async def event_generator() -> (
+            Any
+        ):  # Using Any for the async generator return type
             try:
                 # Send initial connection event
                 yield {

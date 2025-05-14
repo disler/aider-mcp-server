@@ -10,6 +10,7 @@ from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.response_formatter import ResponseFormatter
+from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.session_manager import SessionManager
 
 
@@ -117,7 +118,26 @@ class RequestProcessor:
                     },
                 )
 
-                result = await handler(request_id, transport_id, request_data)
+                # Extract parameters for the handler
+                # Get security context - Use a properly typed security context
+                from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT
+
+                security_context: SecurityContext = ANONYMOUS_SECURITY_CONTEXT
+
+                # Extract parameters from request_data
+                params = request_data.get("parameters", {})
+
+                # Call the handler with all required parameters plus defaults
+                # Handler expects 6 parameters:
+                # request_id, transport_id, params, security_context, use_diff_cache, clear_cached_for_unchanged
+                result = await handler(
+                    request_id,
+                    transport_id,
+                    params,
+                    security_context,
+                    True,  # use_diff_cache
+                    True,  # clear_cached_for_unchanged
+                )
 
                 # Format success response
                 success_response = self._response_formatter.format_success_response(
@@ -184,9 +204,20 @@ class RequestProcessor:
             )
             return
 
-        # Format error response
+        # Format error response - convert error_details to appropriate format
+        error_message = error
+        error_code = None
+
+        # If error_details is a dict, use it for details parameter
+        # If it's a string, use it as the error message instead
+        details = None
+        if isinstance(error_details, dict):
+            details = error_details
+        else:
+            error_message = error_details
+
         error_response = self._response_formatter.format_error_response(
-            request_id, originating_transport_id, error, error_details
+            request_id, originating_transport_id, error_message, error_code, details
         )
 
         # Send failure message as a TOOL_RESULT event

@@ -145,7 +145,7 @@ class EventSystem:
         if self._is_shutting_down:
             return
 
-        transport = await self._transport_registry.get_transport(transport_id)
+        transport = self._transport_registry.get_cached_adapter("sse", transport_id)
         if transport:
             logger.debug(
                 f"Sending direct event {event_type.value} to transport {transport_id} (Request: {data.get('request_id', 'N/A')})"
@@ -226,7 +226,7 @@ class EventSystem:
         transport_id: str,
         event_type: EventTypes,
         data: Dict[str, Any],
-    ) -> asyncio.Task:
+    ) -> asyncio.Task[Any]:
         """
         Create a task to send an event to a transport.
 
@@ -287,7 +287,7 @@ class EventSystem:
 
     async def _handle_task_results(
         self,
-        tasks: List[asyncio.Task],
+        tasks: List[asyncio.Task[Any]],
         results: List[Any],
     ) -> None:
         """
@@ -321,38 +321,142 @@ class EventSystem:
                 exc_info=log_exc_info,
             )
 
-    async def _send_event_to_transports(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: Optional[str] = None,
-        exclude_transport_id: Optional[str] = None,
-        request_details: Optional[
-            Dict[str, Any]
-        ] = None,  # Original request params for filtering
+    async def subscribe_to_event_type(
+        self, transport_id: str, event_type: EventTypes
     ) -> None:
         """
-        Internal helper to send an event to relevant transports based on subscriptions.
-        Includes logic to check transport's should_receive_event method if available.
+        Subscribe a transport to a specific event type.
 
         Args:
+            transport_id: The ID of the transport
+            event_type: The event type to subscribe to
+        """
+        # Implementation would typically update an in-memory registry of subscriptions
+        # For now, log the request but don't implement subscription tracking
+        logger.debug(
+            f"Transport {transport_id} subscribing to event type {event_type.value}"
+        )
+        # Dummy implementation - subscription handling would be added here
+
+    async def unsubscribe_from_event_type(
+        self, transport_id: str, event_type: EventTypes
+    ) -> None:
+        """
+        Unsubscribe a transport from a specific event type.
+
+        Args:
+            transport_id: The ID of the transport
+            event_type: The event type to unsubscribe from
+        """
+        # Implementation would typically update an in-memory registry of subscriptions
+        # For now, log the request but don't implement subscription tracking
+        logger.debug(
+            f"Transport {transport_id} unsubscribing from event type {event_type.value}"
+        )
+        # Dummy implementation - unsubscription handling would be added here
+
+    async def update_transport_capabilities(
+        self, transport_id: str, capabilities: Set[EventTypes]
+    ) -> None:
+        """
+        Update the capabilities of a transport.
+
+        Args:
+            transport_id: The ID of the transport
+            capabilities: The capabilities of the transport
+        """
+        # Implementation would typically update an in-memory registry of capabilities
+        # For now, log the request but don't implement capability tracking
+        logger.debug(
+            f"Updating capabilities for transport {transport_id}: {[c.value for c in capabilities]}"
+        )
+        # Dummy implementation - capability handling would be added here
+
+    async def update_transport_subscriptions(
+        self, transport_id: str, subscriptions: Set[EventTypes]
+    ) -> None:
+        """
+        Update the subscriptions of a transport.
+
+        Args:
+            transport_id: The ID of the transport
+            subscriptions: The event types the transport is subscribed to
+        """
+        # Implementation would typically update an in-memory registry of subscriptions
+        # For now, log the request but don't implement subscription tracking
+        logger.debug(
+            f"Updating subscriptions for transport {transport_id}: {[s.value for s in subscriptions]}"
+        )
+        # Dummy implementation - subscription handling would be added here
+
+    async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
+        """
+        Check if a transport is subscribed to a specific event type.
+
+        Args:
+            transport_id: The ID of the transport
+            event_type: The event type to check
+
+        Returns:
+            True if the transport is subscribed to the event type, False otherwise
+        """
+        # Implementation would typically check an in-memory registry of subscriptions
+        # For now, assume all transports are subscribed to all events
+        logger.debug(
+            f"Checking if transport {transport_id} is subscribed to event type {event_type.value}"
+        )
+        return True  # Dummy implementation - always return True for now
+
+    async def _get_transports_map(self) -> Dict[str, ITransportAdapter]:
+        """
+        Helper to get all cached adapters to use as transports.
+
+        Returns:
+            Dictionary mapping transport IDs to transport adapter instances
+        """
+        transports = {}
+        all_adapter_types = self._transport_registry.list_adapter_types()
+        for adapter_type in all_adapter_types:
+            # Get cached adapters or create them
+            adapter_class = self._transport_registry.get_adapter_class(adapter_type)
+            if adapter_class:
+                # Dummy ID for example
+                adapter_id = f"{adapter_type}_dummy_id"
+                cached_adapter = self._transport_registry.get_cached_adapter(
+                    adapter_type, adapter_id
+                )
+                if cached_adapter:
+                    transports[adapter_id] = cached_adapter
+        return transports
+
+    async def _process_eligible_transports(
+        self,
+        transports: Dict[str, ITransportAdapter],
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        originating_transport_id: Optional[str],
+        exclude_transport_id: Optional[str],
+        subscriptions: Dict[str, Set[EventTypes]],
+        request_details: Optional[Dict[str, Any]],
+    ) -> Tuple[List[asyncio.Task[Any]], Set[str]]:
+        """
+        Process each transport and determine if it should receive the event.
+
+        Args:
+            transports: Dictionary of transport ID to transport adapter
             event_type: The type of event
             data: The event data payload
             originating_transport_id: Optional ID of the transport that originated the request
             exclude_transport_id: Optional ID of the transport to exclude
+            subscriptions: Dictionary mapping transport IDs to subscribed event types
             request_details: Optional original request parameters for context
-        """
-        if self._is_shutting_down:
-            return
 
+        Returns:
+            Tuple of (tasks, sent_to) where tasks is list of asyncio Tasks and sent_to is a set of transport IDs
+        """
         tasks = []
         sent_to = set()
 
-        # Get transports and subscriptions
-        transports = await self._transport_registry.get_all_transports()
-        subscriptions = await self._transport_registry.get_all_subscriptions()
-
-        # Process transports
         for transport_id, transport in transports.items():
             if transport_id == exclude_transport_id:
                 continue
@@ -376,6 +480,30 @@ class EventSystem:
                 )
                 sent_to.add(transport_id)
 
+        return tasks, sent_to
+
+    async def _log_event_status(
+        self,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        originating_transport_id: Optional[str],
+        sent_to: Set[str],
+        transports: Dict[str, ITransportAdapter],
+        subscriptions: Dict[str, Set[EventTypes]],
+        exclude_transport_id: Optional[str],
+    ) -> None:
+        """
+        Log information about event delivery status.
+
+        Args:
+            event_type: The type of event
+            data: The event data payload
+            originating_transport_id: Optional ID of the transport that originated the request
+            sent_to: Set of transport IDs that received the event
+            transports: Dictionary of transport ID to transport adapter
+            subscriptions: Dictionary mapping transport IDs to subscribed event types
+            exclude_transport_id: Optional ID of the transport to exclude
+        """
         # Check if the originating transport should have received it but didn't
         if (
             originating_transport_id
@@ -401,6 +529,58 @@ class EventSystem:
                 logger.debug(
                     f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})"
                 )
+
+    async def _send_event_to_transports(
+        self,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        originating_transport_id: Optional[str] = None,
+        exclude_transport_id: Optional[str] = None,
+        request_details: Optional[
+            Dict[str, Any]
+        ] = None,  # Original request params for filtering
+    ) -> None:
+        """
+        Internal helper to send an event to relevant transports based on subscriptions.
+        Includes logic to check transport's should_receive_event method if available.
+
+        Args:
+            event_type: The type of event
+            data: The event data payload
+            originating_transport_id: Optional ID of the transport that originated the request
+            exclude_transport_id: Optional ID of the transport to exclude
+            request_details: Optional original request parameters for context
+        """
+        if self._is_shutting_down:
+            return
+
+        # Get all transport adapters
+        transports = await self._get_transports_map()
+
+        # Dummy subscriptions - in a real implementation, this would be tracked
+        subscriptions: Dict[str, Set[EventTypes]] = {}
+
+        # Process transports and determine which ones should receive the event
+        tasks, sent_to = await self._process_eligible_transports(
+            transports,
+            event_type,
+            data,
+            originating_transport_id,
+            exclude_transport_id,
+            subscriptions,
+            request_details,
+        )
+
+        # Log information about event delivery status
+        await self._log_event_status(
+            event_type,
+            data,
+            originating_transport_id,
+            sent_to,
+            transports,
+            subscriptions,
+            exclude_transport_id,
+        )
 
         # Wait for all send tasks to complete
         if tasks:

@@ -76,14 +76,7 @@ class Shutdownable(Protocol):
     async def start_listening(self) -> None: ...
 
 
-@runtime_checkable
-class ShutdownContextProtocol(Protocol):
-    """Protocol defining only the members needed by shutdown context managers."""
-
-    def get_transport_id(self) -> str: ...
-
-    async def shutdown(self) -> None: ...
-
+# ShutdownContextProtocol has been moved to interfaces/shutdown_context.py to resolve circular imports
 
 # ====== Common Type Aliases ======
 
