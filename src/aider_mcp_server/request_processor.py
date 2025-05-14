@@ -3,15 +3,14 @@ RequestProcessor component for handling request processing functionality.
 """
 
 import asyncio
-from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.event_coordinator import EventCoordinator
-from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
-from aider_mcp_server.security import Permissions
-from aider_mcp_server.session_manager import SessionManager
 from aider_mcp_server.handler_registry import HandlerRegistry
+from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.response_formatter import ResponseFormatter
+from aider_mcp_server.session_manager import SessionManager
 
 
 class RequestProcessor:
@@ -81,7 +80,9 @@ class RequestProcessor:
             )
             return
 
-        required_permission = await self._handler_registry.get_required_permission(operation_name)
+        required_permission = await self._handler_registry.get_required_permission(
+            operation_name
+        )
 
         if required_permission:
             # Check permissions
@@ -119,7 +120,9 @@ class RequestProcessor:
                 result = await handler(request_id, transport_id, request_data)
 
                 # Format success response
-                success_response = self._response_formatter.format_success_response(request_id, transport_id, result)
+                success_response = self._response_formatter.format_success_response(
+                    request_id, transport_id, result
+                )
 
                 # Send the result back to the client
                 await self._event_coordinator.send_event_to_transport(
@@ -182,7 +185,9 @@ class RequestProcessor:
             return
 
         # Format error response
-        error_response = self._response_formatter.format_error_response(request_id, originating_transport_id, error, error_details)
+        error_response = self._response_formatter.format_error_response(
+            request_id, originating_transport_id, error, error_details
+        )
 
         # Send failure message as a TOOL_RESULT event
         await self._event_coordinator.send_event_to_transport(

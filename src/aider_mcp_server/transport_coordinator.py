@@ -324,7 +324,7 @@ class ApplicationCoordinator:
                 )
             self._transports[transport_id] = transport
             logger.info(
-                f"Transport registered: {transport_id} ({transport.transport_type})"
+                f"Transport registered: {transport_id} ({transport.get_transport_type()})"
             )
         # Update capabilities and default subscriptions (outside transports_lock)
         await self.update_transport_capabilities(
@@ -1333,11 +1333,12 @@ class ApplicationCoordinator:
         # Create shutdown tasks
         for transport in transports_to_shutdown:
             logger.debug(
-                f"Initiating shutdown for transport {transport.transport_id}..."
+                f"Initiating shutdown for transport {transport.get_transport_id()}..."
             )
             transport_shutdown_tasks.append(
                 self._loop.create_task(
-                    transport.shutdown(), name=f"shutdown-{transport.transport_id}"
+                    transport.shutdown(),
+                    name=f"shutdown-{transport.get_transport_id()}",
                 )
             )
 

@@ -2,19 +2,19 @@
 Event Coordinator for handling event publishing and subscription functionality.
 """
 
-import asyncio
 from typing import Any, Dict, Optional, Set
 
 from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.mcp_types import LoggerFactory
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.event_system import EventSystem
+from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
+from aider_mcp_server.mcp_types import LoggerFactory
 
 
 class EventCoordinator:
     def __init__(
-        self, transport_registry: TransportAdapterRegistry, logger_factory: LoggerFactory
+        self,
+        transport_registry: TransportAdapterRegistry,
+        logger_factory: LoggerFactory,
     ) -> None:
         self._transport_registry = transport_registry
         self._logger = logger_factory(__name__)
@@ -33,12 +33,16 @@ class EventCoordinator:
     async def update_transport_capabilities(
         self, transport_id: str, capabilities: Set[EventTypes]
     ) -> None:
-        await self._event_system.update_transport_capabilities(transport_id, capabilities)
+        await self._event_system.update_transport_capabilities(
+            transport_id, capabilities
+        )
 
     async def update_transport_subscriptions(
         self, transport_id: str, subscriptions: Set[EventTypes]
     ) -> None:
-        await self._event_system.update_transport_subscriptions(transport_id, subscriptions)
+        await self._event_system.update_transport_subscriptions(
+            transport_id, subscriptions
+        )
 
     async def broadcast_event(
         self,
