@@ -2,7 +2,6 @@
 
 import asyncio
 import io
-import json
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
@@ -25,7 +24,7 @@ async def coordinator_with_discovery():
 
         # Create a mock coordinator for testing
         mock_coordinator = AsyncMock(spec=ApplicationCoordinator)
-        
+
         # Configure the mock with required attributes
         mock_coordinator._transports = {}
         mock_coordinator.register_transport = AsyncMock()
@@ -273,17 +272,19 @@ async def test_coordinator_discovery_integration(mock_input_output):
 
     # Create a temporary file for discovery
     with tempfile.TemporaryDirectory() as temp_dir:
-        discovery_file = Path(temp_dir) / "integration_test_registry.json"
+        # Path is just for context, not needed in this test
+        Path(temp_dir) / "integration_test_registry.json"
 
-        # Create a mock coordinator for testing 
+        # Create a mock coordinator for testing
         mock_coordinator = AsyncMock(spec=ApplicationCoordinator)
         mock_coordinator._transports = {}
         mock_coordinator.register_transport = AsyncMock()
         mock_coordinator.unregister_transport = AsyncMock()
         mock_coordinator._send_event_to_transports = AsyncMock()
         mock_coordinator.shutdown = AsyncMock()
-        
+
         from aider_mcp_server.atoms.event_types import EventTypes
+
         mock_coordinator.atoms = MagicMock()
         mock_coordinator.atoms.event_types = EventTypes
 
@@ -296,14 +297,15 @@ async def test_coordinator_discovery_integration(mock_input_output):
         stdio_adapter.transport_id = "stdio_mock_id"
         stdio_adapter._coordinator = mock_coordinator
         stdio_adapter.shutdown = AsyncMock()
-        
+
         # Mock the find_and_connect to return our mocked adapter
-        with patch("aider_mcp_server.stdio_transport_adapter.StdioTransportAdapter.find_and_connect", 
-                   return_value=stdio_adapter):
-            
+        with patch(
+            "aider_mcp_server.stdio_transport_adapter.StdioTransportAdapter.find_and_connect",
+            return_value=stdio_adapter,
+        ):
             # Configure SSE to monitor stdio
             sse_adapter.monitor_stdio_transport_id = stdio_adapter.transport_id
-            
+
             # Simulate an event
             data = {"request_id": "test_integration_1", "status": "received"}
             await mock_coordinator._send_event_to_transports(
@@ -311,7 +313,7 @@ async def test_coordinator_discovery_integration(mock_input_output):
                 data=data,
                 originating_transport_id=stdio_adapter.transport_id,
             )
-            
+
             # Clean up
             await stdio_adapter.shutdown()
             await mock_coordinator.shutdown()
