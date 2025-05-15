@@ -142,13 +142,13 @@ async def test_addition_mock(temp_dir: str) -> None:
         # Verify the results
         result_dict = json.loads(result)
         assert result_dict["success"] is True
-        
+
         # Check the file contents
         with open(test_file, "r") as f:
             content = f.read()
         assert "def add(a, b):" in content
         assert "return a + b" in content
-        
+
         # Try to use the function
         import sys
         sys.path.append(temp_dir)

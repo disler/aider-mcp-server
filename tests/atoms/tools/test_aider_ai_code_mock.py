@@ -10,32 +10,34 @@ import json
 import os
 import tempfile
 from typing import Generator
-from unittest.mock import patch
 
 import pytest
 
 from aider_mcp_server.atoms.tools.aider_ai_code import (
     _check_for_meaningful_changes,
     _configure_model,
-    _setup_aider_coder,
     code_with_aider,
     init_diff_cache,
     shutdown_diff_cache,
 )
 
 # Import our mock implementation
-from tests.atoms.tools.test_mock_api_keys import setup_mock_aider
+from tests.atoms.tools.test_mock_api_keys import (
+    setup_mock_aider,  # noqa: F401 - used as a fixture
+)
 
 
 @pytest.fixture
 def temp_dir() -> Generator[str, None, None]:
     """Create a temporary directory for testing."""
     tmp_dir = tempfile.mkdtemp()
-    
+
     # Create a basic README file to simulate a git repo
     with open(os.path.join(tmp_dir, "README.md"), "w") as f:
-        f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
-    
+        f.write(
+            "# Test Repository\nThis is a test repository for Aider MCP Server tests."
+        )
+
     yield tmp_dir
 
 
@@ -45,18 +47,18 @@ def test_check_for_meaningful_changes(temp_dir: str) -> None:
     empty_file = os.path.join(temp_dir, "empty.py")
     with open(empty_file, "w") as f:
         f.write("# Just a comment\n")
-    
+
     # Create a test file with meaningful content
     meaningful_file = os.path.join(temp_dir, "meaningful.py")
     with open(meaningful_file, "w") as f:
         f.write("def hello():\n    return 'world'\n")
-    
+
     # Test with empty file
     assert not _check_for_meaningful_changes([empty_file], temp_dir)
-    
+
     # Test with meaningful file
     assert _check_for_meaningful_changes([meaningful_file], temp_dir)
-    
+
     # Test with both files
     assert _check_for_meaningful_changes([empty_file, meaningful_file], temp_dir)
 
@@ -67,9 +69,11 @@ def test_configure_model() -> None:
     model = _configure_model("gemini/gemini-pro")
     assert model is not None
     assert isinstance(model.model_name, str)
-    
+
     # Test with architect mode
-    model = _configure_model("gemini/gemini-pro", editor_model="openai/gpt-3.5-turbo", architect_mode=True)
+    model = _configure_model(
+        "gemini/gemini-pro", editor_model="openai/gpt-3.5-turbo", architect_mode=True
+    )
     assert model is not None
     assert model.editor_model is not None
 
@@ -110,7 +114,9 @@ async def test_addition_mock(temp_dir: str) -> None:
             content = f.read()
 
         assert "def add(a, b):" in content, "Expected to find add function in the file"
-        assert "return a + b" in content, "Expected to find return statement in the file"
+        assert "return a + b" in content, (
+            "Expected to find return statement in the file"
+        )
 
         # Try to import and use the function
         import sys
@@ -159,8 +165,12 @@ async def test_subtraction_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def subtract(a, b):" in content, "Expected to find subtract function in the file"
-        assert "return a - b" in content, "Expected to find return statement in the file"
+        assert "def subtract(a, b):" in content, (
+            "Expected to find subtract function in the file"
+        )
+        assert "return a - b" in content, (
+            "Expected to find return statement in the file"
+        )
 
         # Try to import and use the function
         import sys
@@ -209,8 +219,12 @@ async def test_multiplication_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def multiply(a, b):" in content, "Expected to find multiply function in the file"
-        assert "return a * b" in content, "Expected to find return statement in the file"
+        assert "def multiply(a, b):" in content, (
+            "Expected to find multiply function in the file"
+        )
+        assert "return a * b" in content, (
+            "Expected to find return statement in the file"
+        )
 
         # Try to import and use the function
         import sys
@@ -259,7 +273,9 @@ async def test_division_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def divide(a, b):" in content, "Expected to find divide function in the file"
+        assert "def divide(a, b):" in content, (
+            "Expected to find divide function in the file"
+        )
         assert "return" in content, "Expected to find return statement in the file"
 
         # Try to import and use the function
@@ -286,21 +302,18 @@ async def test_failure_case_mock(temp_dir: str) -> None:
     # Use an invalid model name to ensure a failure
     prompt = "This prompt should fail because we're using a non-existent model."
 
-    # Save original file content
-    original_content = "# This file should trigger a failure\n"
+    # No need to save original content - we don't use it later
 
     try:
         # Initialize diff_cache
         await init_diff_cache()
-        
+
         # We'll modify the file manually to simulate what's happening in production
-        # This way we'll get a predictable error case
-        with open(test_file, "r") as f:
-            content = f.read()
-            
+        # No need to read file content as we're testing for failure case
+
         # Our test now has different expectations - we simply verify the success flag is False
         # but don't need to verify file contents as that's implementation-specific
-        
+
         # Run code_with_aider with an invalid model name
         result = await asyncio.wait_for(
             code_with_aider(
@@ -318,23 +331,28 @@ async def test_failure_case_mock(temp_dir: str) -> None:
 
         # Check the result - we're expecting error information
         assert "diff" in result_dict, "Expected diff to be in result"
-        
+
         # Test for expected message patterns in the diff
         expected_patterns = [
             "File contents after editing",
             "No meaningful changes detected",
-            "Error"
+            "Error",
         ]
-        
+
         # Any of these patterns is acceptable - we're testing the high-level behavior,
         # not the specific error message format
-        pattern_found = any(pattern in result_dict["diff"] for pattern in expected_patterns)
+        pattern_found = any(
+            pattern in result_dict["diff"] for pattern in expected_patterns
+        )
         if not pattern_found:
-            print(f"WARNING: Expected one of {expected_patterns} in diff, but got: {result_dict['diff']}")
-            
+            print(
+                f"WARNING: Expected one of {expected_patterns} in diff, but got: {result_dict['diff']}"
+            )
+
     except asyncio.TimeoutError:
         # If the test times out, consider it a pass with a warning
         import warnings
+
         warnings.warn(
             "test_failure_case_mock timed out but this is expected for a failure case",
             stacklevel=2,
@@ -391,20 +409,22 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
             content = f.read()
 
         # Check for class definition and methods
-        assert "class Calculator" in content, "Expected to find Calculator class definition"
+        assert "class Calculator" in content, (
+            "Expected to find Calculator class definition"
+        )
         assert "add" in content, "Expected to find add method"
         assert "subtract" in content, "Expected to find subtract method"
         assert "multiply" in content, "Expected to find multiply method"
         assert "divide" in content, "Expected to find divide method"
         assert "memory_" in content, "Expected to find memory functions"
         assert "history" in content, "Expected to find history functionality"
-        
+
         # More specific checks
         assert "def memory_store" in content, "Expected to find memory_store method"
         assert "def memory_recall" in content, "Expected to find memory_recall method"
         assert "def memory_clear" in content, "Expected to find memory_clear method"
         assert "def show_history" in content, "Expected to find show_history method"
-        
+
     finally:
         # Always clean up
         await shutdown_diff_cache()
