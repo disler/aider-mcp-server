@@ -1,47 +1,128 @@
-import asyncio
-from unittest.mock import MagicMock, patch
+"""
+Comprehensive tests for the SSE server functionality.
+
+These tests focus on basic functionality and error handling scenarios.
+"""
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.sse_server import serve_sse
+from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 
 @pytest.mark.asyncio
-async def test_sse_connection_establishment_and_termination():
-    # Mocking setup
-    mock_coordinator_instance = MagicMock(spec=ApplicationCoordinator)
-    mock_asyncio_event_cls = patch("aider_mcp_server.sse_server.asyncio.Event").start()
-    mock_event_instance_returned = mock_asyncio_event_cls.return_value
-    mock_event_instance_returned.is_set = MagicMock(return_value=False)
-    mock_event_instance_returned.wait = MagicMock(side_effect=wait_side_effect)
-    mock_event_instance_returned.set = MagicMock(side_effect=set_side_effect)
+async def test_sse_transport_adapter_initialization():
+    """
+    Test the initialization of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
 
-    host, port, editor_model, cwd, heartbeat = (
-        "127.0.0.1",
-        8888,
-        "test_model",
-        "/test/repo",
-        20.0,
-    )
-
-    with patch(
-        "aider_mcp_server.sse_server.is_git_repository", return_value=(True, None)
-    ):
-        await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat)
-
-    # Verify coordinator was used correctly
-    mock_coordinator_instance.__aenter__.assert_awaited_once()
-
-    # Verify coordinator cleanup was called
-    mock_coordinator_instance.__aexit__.assert_awaited_once()
+        assert sse_adapter.transport_id.startswith("sse_")
+        assert sse_adapter.get_capabilities() == {
+            EventTypes.STATUS,
+            EventTypes.PROGRESS,
+            EventTypes.TOOL_RESULT,
+            EventTypes.HEARTBEAT,
+        }
 
 
-def wait_side_effect(mock_event_instance_returned):
-    while not mock_event_instance_returned.is_set():
-        await asyncio.sleep(0.001)
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_event_sending():
+    """
+    Test the event sending mechanism of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
+
+        with patch.object(sse_adapter, "_active_connections", {}):
+            with patch.object(sse_adapter, "logger"):
+                await sse_adapter.send_event(
+                    EventTypes.STATUS, {"message": "Test status message"}
+                )
 
 
-def set_side_effect(mock_event_instance_returned):
-    mock_event_instance_returned.is_set.return_value = True
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_connection_handling():
+    """
+    Test the connection handling of the SSETransportAdapter.
+    """
+    with patch("sse_starlette.sse.EventSourceResponse"):
+        with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+            sse_adapter = SSETransportAdapter()
+
+            with patch.object(sse_adapter, "logger"):
+                request = MagicMock()
+                response = await sse_adapter.handle_sse_request(request)
+
+                assert response is not None
+
+
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_message_handling():
+    """
+    Test the message handling of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
+
+        with patch("aider_mcp_server.sse_transport_adapter.json") as mock_json:
+            mock_json.loads.return_value = {
+                "operation": "test_operation",
+                "parameters": {},
+            }
+
+            request = MagicMock()
+            request.json = AsyncMock(return_value={})
+            response = await sse_adapter.handle_message_request(request)
+
+            assert response is not None
+
+
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_validate_request_security():
+    """
+    Test the validate_request_security method of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
+
+        from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT
+
+        request_data = {}
+        security_context = sse_adapter.validate_request_security(request_data)
+
+        assert security_context == ANONYMOUS_SECURITY_CONTEXT
+
+
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_start_listening():
+    """
+    Test the start_listening method of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
+
+        with patch.object(sse_adapter, "logger"):
+            await sse_adapter.start_listening()
+
+            sse_adapter.logger.debug.assert_called_once_with(
+                f"SSE adapter {sse_adapter.transport_id} start_listening called (no-op)"
+            )
+
+
+@pytest.mark.asyncio
+async def test_sse_transport_adapter_send_event_error_handling():
+    """
+    Test the error handling in send_event method of the SSETransportAdapter.
+    """
+    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        sse_adapter = SSETransportAdapter()
+
+        with patch.object(sse_adapter, "_active_connections", {}):
+            with patch.object(sse_adapter, "logger"):
+                await sse_adapter.send_event(
+                    EventTypes.STATUS, {"message": "Test status message"}
+                )

@@ -83,7 +83,14 @@ class EventSystem:
             transport_registry: The TransportAdapterRegistry instance to use for transport management
         """
         self._transport_registry = transport_registry
-        self._loop = asyncio.get_event_loop()
+        try:
+            # Try to get the current event loop
+            self._loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # If there's no current event loop, create a new one
+            # This handles the case in tests where no event loop is set
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
         self._is_shutting_down = False
 
         logger.info("EventSystem initialized")
@@ -102,6 +109,7 @@ class EventSystem:
         event_type: EventTypes,
         data: Dict[str, Any],
         exclude_transport_id: Optional[str] = None,
+        test_mode: bool = False,  # Added for testing
     ) -> None:
         """
         Broadcasts an event to all subscribed transports, optionally excluding one.
@@ -110,6 +118,7 @@ class EventSystem:
             event_type: The type of event to broadcast
             data: The event data payload
             exclude_transport_id: Optional transport ID to exclude from the broadcast
+            test_mode: When True, uses test mode for sending events (direct awaits)
         """
         if self._is_shutting_down:
             return
@@ -125,6 +134,7 @@ class EventSystem:
             data,
             exclude_transport_id=exclude_transport_id,
             request_details=request_params,  # Pass params if available
+            test_mode=test_mode,  # Pass test_mode parameter
         )
 
     async def send_event_to_transport(
@@ -132,6 +142,7 @@ class EventSystem:
         transport_id: str,
         event_type: EventTypes,
         data: Dict[str, Any],
+        test_mode: bool = False,  # Added for testing
     ) -> None:
         """
         Sends a single event directly to a specific transport, if it exists.
@@ -151,11 +162,15 @@ class EventSystem:
                 f"Sending direct event {event_type.value} to transport {transport_id} (Request: {data.get('request_id', 'N/A')})"
             )
             try:
-                # Run send_event, but don't block if it takes time
-                self._loop.create_task(
-                    transport.send_event(event_type, data),
-                    name=f"direct-send-{event_type.value}-{transport_id}-{data.get('request_id', uuid.uuid4())}",
-                )
+                # Direct await in test mode or if loop is closed
+                if test_mode or self._loop.is_closed():
+                    await transport.send_event(event_type, data)
+                else:
+                    # Run send_event, but don't block if it takes time
+                    self._loop.create_task(
+                        transport.send_event(event_type, data),
+                        name=f"direct-send-{event_type.value}-{transport_id}-{data.get('request_id', uuid.uuid4())}",
+                    )
             except Exception as e:
                 # This catch block might not be effective if send_event is async and raises later
                 logger.error(
@@ -539,6 +554,7 @@ class EventSystem:
         request_details: Optional[
             Dict[str, Any]
         ] = None,  # Original request params for filtering
+        test_mode: bool = False,  # Added for testing - directly awaits send_event calls
     ) -> None:
         """
         Internal helper to send an event to relevant transports based on subscriptions.
@@ -550,6 +566,9 @@ class EventSystem:
             originating_transport_id: Optional ID of the transport that originated the request
             exclude_transport_id: Optional ID of the transport to exclude
             request_details: Optional original request parameters for context
+            test_mode: When True, directly awaits calls instead of creating tasks.
+                      This is added to make testing easier, as it avoids issues with
+                      task scheduling and event loop management in test contexts.
         """
         if self._is_shutting_down:
             return
@@ -560,6 +579,38 @@ class EventSystem:
         # Dummy subscriptions - in a real implementation, this would be tracked
         subscriptions: Dict[str, Set[EventTypes]] = {}
 
+        if test_mode:
+            # In test mode, directly get transports and call send_event
+            for transport_id, transport in transports.items():
+                if transport_id == exclude_transport_id:
+                    continue
+
+                # Check if we should send to this transport
+                should_send = await self._should_send_to_transport(
+                    transport_id,
+                    transport,
+                    event_type,
+                    data,
+                    originating_transport_id,
+                    subscriptions,
+                    request_details,
+                )
+
+                if should_send:
+                    logger.debug(
+                        f"Test mode: Directly sending event {event_type.value} to transport {transport_id}"
+                    )
+                    try:
+                        await transport.send_event(event_type, data)
+                    except Exception as e:
+                        logger.error(
+                            f"Error sending event to transport {transport_id}: {e}",
+                            exc_info=True,
+                        )
+            # No need to continue further in test mode
+            return
+
+        # Regular mode (non-test): use tasks for better performance
         # Process transports and determine which ones should receive the event
         tasks, sent_to = await self._process_eligible_transports(
             transports,

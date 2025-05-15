@@ -49,13 +49,22 @@ class EventCoordinator:
         event_type: EventTypes,
         data: Dict[str, Any],
         exclude_transport_id: Optional[str] = None,
+        test_mode: bool = False,  # Added for testing
     ) -> None:
-        await self._event_system.broadcast_event(event_type, data, exclude_transport_id)
+        await self._event_system.broadcast_event(
+            event_type, data, exclude_transport_id, test_mode=test_mode
+        )
 
     async def send_event_to_transport(
-        self, transport_id: str, event_type: EventTypes, data: Dict[str, Any]
+        self,
+        transport_id: str,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        test_mode: bool = False,
     ) -> None:
-        await self._event_system.send_event_to_transport(transport_id, event_type, data)
+        await self._event_system.send_event_to_transport(
+            transport_id, event_type, data, test_mode=test_mode
+        )
 
     async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
         return await self._event_system.is_subscribed(transport_id, event_type)

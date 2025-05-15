@@ -5,7 +5,7 @@ This module tests the standardized interfaces for transport adapters.
 """
 
 import uuid
-from typing import Set
+from typing import Any, Dict, Set
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,9 +23,18 @@ class ConcreteTransportAdapter(TransportAdapterBase):
     """Concrete implementation of the abstract base class for testing."""
 
     def __init__(self, transport_id: str, transport_type: str = "test"):
-        self.transport_id = transport_id
-        self.transport_type = transport_type
+        super().__init__(transport_id, transport_type)
         self.sent_events = []
+
+    @property
+    def transport_id(self) -> str:
+        """Return the transport ID."""
+        return self._transport_id
+
+    @property
+    def transport_type(self) -> str:
+        """Return the transport type."""
+        return self._transport_type
 
     async def send_event(self, event_type: EventTypes, data: EventData) -> None:
         """Record sent events for testing."""
@@ -47,6 +56,26 @@ class ConcreteTransportAdapter(TransportAdapterBase):
             EventTypes.TOOL_RESULT,
             EventTypes.HEARTBEAT,
         }
+
+    async def initialize(self) -> None:
+        """Initialize the transport adapter."""
+        pass
+
+    async def shutdown(self) -> None:
+        """Shutdown the transport adapter."""
+        pass
+
+    async def start_listening(self) -> None:
+        """Start listening for events."""
+        pass
+
+    async def handle_sse_request(self, request_details: Dict[str, Any]) -> None:
+        """Handle SSE request."""
+        pass
+
+    async def handle_message_request(self, request_details: Dict[str, Any]) -> None:
+        """Handle message request."""
+        pass
 
 
 @pytest.fixture

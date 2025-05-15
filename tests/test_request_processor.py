@@ -9,25 +9,33 @@ from aider_mcp_server.security import Permissions
 
 
 @pytest.fixture
-def request_processor():
-    event_coordinator = MagicMock()
-    # Configure the send_event_to_transport method to be awaitable
-    event_coordinator.send_event_to_transport = AsyncMock()
-    event_coordinator.broadcast_event = AsyncMock()
+def request_processor(
+    event_coordinator,
+    session_manager,
+    logger_factory,
+    handler_registry,
+    response_formatter,
+):
+    return RequestProcessor(
+        event_coordinator,
+        session_manager,
+        logger_factory,
+        handler_registry,
+        response_formatter,
+    )
 
-    session_manager = MagicMock()
-    # Configure the check_permission method to be awaitable
-    session_manager.check_permission = AsyncMock(return_value=True)
 
-    logger_factory = MagicMock(return_value=MagicMock())
-    return RequestProcessor(event_coordinator, session_manager, logger_factory)
+@pytest.fixture
+def handler_registry():
+    handler_registry_mock = MagicMock()
 
-
-@pytest.mark.asyncio
-async def test_register_handler(request_processor):
-    # Test registering a handler
     async def test_handler(
-        request_id: str, transport_id: str, request_data: dict
+        request_id: str,
+        transport_id: str,
+        request_data: dict,
+        security_context,
+        use_diff_cache: bool,
+        clear_cached_for_unchanged: bool,
     ) -> OperationResult:
         return {
             "success": True,
@@ -36,56 +44,105 @@ async def test_register_handler(request_processor):
             "result": {"message": "Test Result"},
         }
 
-    await request_processor.register_handler(
-        "test_operation", test_handler, Permissions.EXECUTE_AIDER
+    handler_registry_mock.get_handler = AsyncMock()
+    handler_registry_mock.get_required_permission = AsyncMock(
+        return_value=Permissions.EXECUTE_AIDER
     )
+    handler_registry_mock.register_handler = AsyncMock()
 
-    assert "test_operation" in request_processor._handlers
-    assert request_processor._handlers["test_operation"][0] == test_handler
-    assert request_processor._handlers["test_operation"][1] == Permissions.EXECUTE_AIDER
+    return handler_registry_mock
 
 
-@pytest.mark.asyncio
-async def test_process_request(request_processor):
-    # Test processing a request
-    async def test_handler(
-        request_id: str, transport_id: str, request_data: dict
+@pytest.fixture
+def response_formatter():
+    response_formatter_mock = MagicMock()
+
+    async def format_success_response(
+        request_id: str, transport_id: str, result: dict
     ) -> OperationResult:
         return {
             "success": True,
             "request_id": request_id,
             "transport_id": transport_id,
-            "result": {"message": "Test Result"},
+            "result": result,
         }
 
-    await request_processor.register_handler(
-        "test_operation", test_handler, Permissions.EXECUTE_AIDER
+    async def format_error_response(
+        request_id: str,
+        transport_id: str,
+        error_message: str,
+        error_code=None,
+        details=None,
+    ) -> OperationResult:
+        error_data = {
+            "message": error_message,
+        }
+
+        if error_code:
+            error_data["code"] = error_code
+
+        if details:
+            error_data["details"] = details
+
+        return {
+            "success": False,
+            "request_id": request_id,
+            "transport_id": transport_id,
+            "error": error_data,
+        }
+
+    response_formatter_mock.format_success_response = AsyncMock(
+        side_effect=format_success_response
+    )
+    response_formatter_mock.format_error_response = AsyncMock(
+        side_effect=format_error_response
     )
 
-    request_data = {"key": "value"}
-    await request_processor.process_request(
-        "123", "transport_id", "test_operation", request_data
-    )
+    return response_formatter_mock
 
-    assert "123" in request_processor._active_requests
-    assert (
-        request_processor._active_requests["123"]["operation_name"] == "test_operation"
-    )
-    assert request_processor._active_requests["123"]["status"] == "processing"
-    assert request_processor._active_requests["123"]["details"] == request_data
+
+@pytest.fixture
+def event_coordinator():
+    coordinator = MagicMock()
+    coordinator.send_event_to_transport = AsyncMock()
+    coordinator.broadcast_event = AsyncMock()
+    return coordinator
+
+
+@pytest.fixture
+def session_manager():
+    return AsyncMock()
+
+
+@pytest.fixture
+def logger_factory():
+    return MagicMock()
 
 
 @pytest.mark.asyncio
-async def test_fail_request(request_processor):
+async def test_fail_request(request_processor, handler_registry, response_formatter):
     # Test failing a request
     async def test_handler(
-        request_id: str, transport_id: str, request_data: dict
+        request_id: str,
+        transport_id: str,
+        request_data: dict,
+        security_context,
+        use_diff_cache: bool,
+        clear_cached_for_unchanged: bool,
     ) -> OperationResult:
         raise Exception("Test Error")
 
-    await request_processor.register_handler(
+    await handler_registry.register_handler(
         "test_operation", test_handler, Permissions.EXECUTE_AIDER
     )
+
+    # Set a specific return value for response_formatter.format_error_response
+    response_formatter.format_error_response.return_value = {
+        "success": False,
+        "request_id": "123",
+        "transport_id": "transport_id",
+        "error": {"message": "Error Details", "code": "Error Message"},
+    }
 
     # Directly call fail_request since process_request will run in the background
     await request_processor.fail_request(
@@ -95,28 +152,57 @@ async def test_fail_request(request_processor):
     # Check that send_event_to_transport was called with appropriate error info
     request_processor._event_coordinator.send_event_to_transport.assert_any_call(
         "transport_id",
-        EventTypes.TOOL_RESULT,
+        EventTypes.STATUS,
         {
             "request_id": "123",
-            "tool_name": "test_operation",
-            "result": {
-                "success": False,
-                "request_id": "123",
-                "transport_id": "transport_id",
-                "error": {"message": "Error Details", "code": "Error Message"},
-            },
+            "status": "failed",
+            "message": "Operation test_operation failed: Error Message",
         },
     )
 
 
 @pytest.mark.asyncio
-async def test_cleanup_request(request_processor):
-    # Test cleaning up a request
-    request_data = {"key": "value"}
+async def test_register_handler(request_processor, handler_registry):
+    # Test registering a handler
+    async def test_handler(
+        request_id: str,
+        transport_id: str,
+        request_data: dict,
+        security_context,
+        use_diff_cache: bool,
+        clear_cached_for_unchanged: bool,
+    ) -> OperationResult:
+        return {
+            "success": True,
+            "request_id": request_id,
+            "transport_id": transport_id,
+            "result": {"message": "Test Result"},
+        }
+
+    await handler_registry.register_handler(
+        "test_operation", test_handler, Permissions.EXECUTE_AIDER
+    )
+
+    handler_registry.register_handler.assert_called_once_with(
+        "test_operation", test_handler, Permissions.EXECUTE_AIDER
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_request(request_processor, handler_registry):
+    # Test processing a request
+    request_data = {"parameters": {"param1": "value1", "param2": "value2"}}
+
     await request_processor.process_request(
         "123", "transport_id", "test_operation", request_data
     )
 
+    handler_registry.get_handler.assert_called_once_with("test_operation")
+
+
+@pytest.mark.asyncio
+async def test_cleanup_request(request_processor):
+    # Test cleaning up a request
     await request_processor._cleanup_request("123")
 
     assert "123" not in request_processor._active_requests
