@@ -9,6 +9,7 @@ from __future__ import annotations  # Ensure forward references work
 
 import asyncio
 import json
+import time
 import typing
 import uuid
 from typing import (
@@ -55,6 +56,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
     2. Processing tool call requests received via a separate HTTP endpoint (e.g., POST).
     3. Formatting and sending events from the coordinator to connected SSE clients.
     4. Validating security for incoming tool call requests.
+    5. Maintaining connection with client through dual heartbeat mechanism:
+       - Regular heartbeats from coordinator (15s default interval)
+       - Event stream heartbeats when no messages for 30s
     """
 
     if TYPE_CHECKING:
@@ -308,6 +312,13 @@ class SSETransportAdapter(AbstractTransportAdapter):
         async def event_generator() -> typing.AsyncGenerator[
             Union[str, Dict[str, str]], None
         ]:
+            """
+            Generates SSE events for clients.
+
+            Waits for messages from queue with a 30-second timeout.
+            If no messages are received within the timeout, sends a heartbeat event
+            to keep the connection alive and prevent client timeouts.
+            """
             # Use AsyncGenerator for type hinting
             queue = self._active_connections.get(
                 conn_id
@@ -328,25 +339,37 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 }
 
                 while True:
-                    message = await queue.get()
+                    try:
+                        # Wait for a message with a 30-second timeout
+                        message = await asyncio.wait_for(queue.get(), timeout=30.0)
 
-                    if isinstance(message, str):
-                        if message == "CLOSE_CONNECTION":
-                            self.logger.debug(
-                                f"Received close signal for connection {conn_id}. Closing stream."
-                            )
-                            break
-                        else:
-                            # Yield the pre-formatted SSE message string directly
-                            # This matches the format expected by test_sse_adapter_handle_sse_request
+                        if isinstance(message, str):
+                            if message == "CLOSE_CONNECTION":
+                                self.logger.debug(
+                                    f"Received close signal for connection {conn_id}. Closing stream."
+                                )
+                                break
+                            else:
+                                # Yield the pre-formatted SSE message string directly
+                                # This matches the format expected by test_sse_adapter_handle_sse_request
+                                yield message
+                        elif isinstance(message, dict):
+                            # Yield dictionary messages (like the initial 'connected' message)
+                            # This ensures the initial message is handled correctly by EventSourceResponse
                             yield message
-                    elif isinstance(message, dict):
-                        # Yield dictionary messages (like the initial 'connected' message)
-                        # This ensures the initial message is handled correctly by EventSourceResponse
-                        yield message
-                    # No else needed due to Union type hint
+                        # No else needed due to Union type hint
 
-                    queue.task_done()  # Mark task as done
+                        queue.task_done()  # Mark task as done
+                    except asyncio.TimeoutError:
+                        # Send a heartbeat if no messages received for 30 seconds
+                        self.logger.debug(
+                            f"No messages for 30s on connection {conn_id}, sending heartbeat"
+                        )
+                        # Send heartbeat as a formatted SSE event
+                        yield {
+                            "event": "heartbeat",
+                            "data": json.dumps({"timestamp": time.time()}),
+                        }
 
             except asyncio.CancelledError:
                 self.logger.info(
