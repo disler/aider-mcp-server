@@ -23,9 +23,7 @@ from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
 
 # Import the interface directly for runtime
-from aider_mcp_server.interfaces.transport_adapter import (
-    ITransportAdapter as TransportInterface,
-)
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface
 from aider_mcp_server.mcp_types import (
     AsyncTask,
     LoggerFactory,

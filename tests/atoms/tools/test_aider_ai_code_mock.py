@@ -22,9 +22,7 @@ from aider_mcp_server.atoms.tools.aider_ai_code import (
 )
 
 # Import our mock implementation
-from tests.atoms.tools.test_mock_api_keys import (
-    setup_mock_aider,  # noqa: F401 - used as a fixture
-)
+from tests.atoms.tools.test_mock_api_keys import setup_mock_aider  # noqa: F401 - used as a fixture
 
 
 @pytest.fixture
