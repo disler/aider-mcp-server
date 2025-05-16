@@ -1,8 +1,8 @@
 """
-SSE Transport Adapter for Aider MCP Server using Starlette.
+SSE Transport Adapter for MCP Server.
 
-This module implements an adapter for the SSE transport that interfaces
-with the ApplicationCoordinator and directly handles SSE connections using Starlette.
+This module provides Server-Sent Events (SSE) transport capabilities for the MCP server,
+allowing web clients to connect and receive real-time events through an HTTP connection.
 """
 
 from __future__ import annotations  # Ensure forward references work
@@ -10,6 +10,7 @@ from __future__ import annotations  # Ensure forward references work
 import asyncio
 import json
 import time
+import typing
 import uuid
 from typing import (
     TYPE_CHECKING,
@@ -31,165 +32,165 @@ from aider_mcp_server.transport_adapter import (
 )
 
 if TYPE_CHECKING:
+    from aider_mcp_server.atoms.logging import Logger
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 
 class SSETransportAdapter(AbstractTransportAdapter):
-    """
-    Adapter that bridges Starlette/FastAPI SSE connections with the ApplicationCoordinator.
-
-    This class handles:
-    1. Managing active SSE connections using Starlette's EventSourceResponse.
-    2. Processing tool call requests received via a separate HTTP endpoint (e.g., POST).
-    3. Formatting and sending events from the coordinator to connected SSE clients.
-    4. Validating security for incoming tool call requests.
-    """
-
-    @property
-    def transport_id(self) -> str:
-        """
-        Property for accessing the transport ID.
-        Used for compatibility with code that expects a transport_id attribute.
-        """
-        return self._transport_id
-
-    @classmethod
-    def get_default_capabilities(cls) -> Set[EventTypes]:
-        """
-        Get the default capabilities for this transport adapter class without instantiation.
-
-        This allows the TransportAdapterRegistry to determine capabilities
-        without instantiating the adapter.
-
-        Returns:
-            A set of event types that this adapter supports by default.
-        """
-        # SSE is primarily for broadcasting, so it supports receiving these events
-        return {
-            EventTypes.STATUS,
-            EventTypes.PROGRESS,
-            EventTypes.TOOL_RESULT,
-            EventTypes.HEARTBEAT,  # Can receive heartbeats from coordinator
-            # Add other event types SSE clients might subscribe to
-        }
-
-    if TYPE_CHECKING:
-        logger: LoggerProtocol
-
-    # Queue holds formatted SSE message strings or special control messages (like CLOSE_CONNECTION)
-    _active_connections: Dict[str, asyncio.Queue[Union[str, Dict[str, str]]]]
-    _sse_queue_size: int
+    """SSE transport adapter for MCP server."""
 
     def __init__(
         self,
-        coordinator: Optional[ApplicationCoordinator] = None,
-        heartbeat_interval: float = 15.0,
-        sse_queue_size: int = 100,  # Matches test expectation
-    ) -> None:
+        coordinator: Optional["ApplicationCoordinator"] = None,
+        host: str = "0.0.0.0",
+        port: int = 8808,
+        sse_queue_size: int = 10,
+        get_logger: Optional[Any] = None,
+        **kwargs: Any,  # Accept and ignore additional keyword arguments
+    ):
         """
         Initialize the SSE transport adapter.
 
         Args:
-            coordinator: Optional ApplicationCoordinator instance.
-            heartbeat_interval: Time between heartbeat messages in seconds.
-            sse_queue_size: Maximum number of messages to buffer per SSE client.
+            coordinator: The coordinator to use for transport operations
+            host: The hostname/IP to bind the SSE server to (default: "0.0.0.0")
+            port: The port to bind the SSE server to (default: 8808)
+            sse_queue_size: Maximum size of the SSE event queue (default: 10)
+            get_logger: Function to create logger instance
+            **kwargs: Additional keyword arguments (ignored)
         """
-        transport_id = f"sse_{uuid.uuid4()}"
-        # Initialize AbstractTransportAdapter first to set up the logger
+        if get_logger is None:
+            from aider_mcp_server.atoms.logging import get_logger
+
         super().__init__(
-            transport_id=transport_id,
+            transport_id="sse",
             transport_type="sse",
             coordinator=coordinator,
-            heartbeat_interval=heartbeat_interval,
+            get_logger=get_logger,
         )
-        # Now self.logger is available
-        self._active_connections = {}
+
+        self._host = host
+        self._port = port
         self._sse_queue_size = sse_queue_size
-
-        # Get event loop for task creation
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self.logger.warning("No running event loop found. Creating a new one.")
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-
-        self.logger.info(
-            f"SSETransportAdapter created with ID: {self.transport_id}. Max queue size: {self._sse_queue_size}"
+        self._active_connections: Dict[str, asyncio.Queue[Union[str, Dict[str, str]]]] = (
+            {}
         )
+        self._server: Optional[Any] = None  # Starlette/Uvicorn server
+        self._monitor_connections: Set[str] = set()
+        self.monitor_stdio_transport_id: Optional[str] = None
+        self._app: Optional[Any] = None  # Starlette app instance
+        self._server_instance: Optional[Any] = None  # Uvicorn server instance
 
-    def get_capabilities(self) -> Set[EventTypes]:
-        """Returns the set of event types this SSE transport can handle."""
-        # SSE is primarily for broadcasting, so it supports receiving these events
-        return {
-            EventTypes.STATUS,
-            EventTypes.PROGRESS,
-            EventTypes.TOOL_RESULT,
-            EventTypes.HEARTBEAT,  # Can receive heartbeats from coordinator
-            # Add other event types SSE clients might subscribe to
-        }
-
-    def validate_request_security(self, request_data: Dict[str, Any]) -> Any:
+    async def initialize(self) -> None:
         """
-        Validates security information provided in the incoming request data.
+        Initialize the SSE transport adapter.
 
-        For SSE connections, we use a simple anonymous security context.
-
-        Args:
-            request_data: The data from the incoming request.
-
-        Returns:
-            A SecurityContext representing the security validation result.
+        Sets up the Starlette app with SSE endpoints and prepares it for serving.
         """
-        from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT
+        self.logger.info(f"Initializing SSE transport adapter on {self._host}:{self._port}")
+        # Call parent initialization
+        await super().initialize()
 
-        return ANONYMOUS_SECURITY_CONTEXT
+        # Create the Starlette app with SSE endpoints
+        await self._create_app()
+        self.logger.info("SSE transport adapter initialized")
+
+    async def _create_app(self) -> None:
+        """Create the Starlette application with SSE endpoints."""
+        from starlette.applications import Starlette
+        from starlette.routing import Route
+
+        async def handle_sse(request: Any) -> Any:
+            """Handle SSE connection requests."""
+            return await self.handle_sse_request(request)
+
+        self._app = Starlette(
+            routes=[
+                Route("/sse", handle_sse),
+            ],
+            debug=True,  # Enable debug mode for better error messages
+        )
 
     async def start_listening(self) -> None:
-        """
-        Start listening for incoming connections.
+        """Start listening for SSE connections."""
+        self.logger.info(f"Starting SSE transport on {self._host}:{self._port}")
 
-        For SSE adapter, this is a no-op since listening happens when the FastAPI/Starlette
-        server registers the routes, not in the adapter itself.
-        """
-        self.logger.debug(
-            f"SSE adapter {self.transport_id} start_listening called (no-op)"
+        # Import here to avoid circular dependency issues
+        import uvicorn
+
+        # Create server configuration
+        config = uvicorn.Config(
+            app=self._app,
+            host=self._host,
+            port=self._port,
+            log_level="warning",  # Reduce Uvicorn's verbosity
+            access_log=False,  # Disable access logs
         )
-        # No action needed as listening is handled by the FastAPI/Starlette server
-        pass
+
+        # Create and start server
+        self._server_instance = uvicorn.Server(config)
+
+        # Run server in background task
+        asyncio.create_task(self._server_instance.serve())
+        self.logger.info(f"SSE transport started on {self._host}:{self._port}")
+
+    async def shutdown(self) -> None:
+        """Shutdown the SSE transport adapter."""
+        self.logger.info("Shutting down SSE transport adapter")
+
+        # Close all active connections by sending a close signal
+        for client_id, queue in list(self._active_connections.items()):
+            try:
+                # Put a special message to signal connection close
+                await queue.put("CLOSE_CONNECTION")
+            except Exception as e:
+                self.logger.debug(f"Error sending close signal to {client_id}: {e}")
+
+        # Give some time for connections to close gracefully
+        await asyncio.sleep(0.1)
+
+        # Now force-clear all connections
+        self._active_connections.clear()
+
+        # Shutdown the server if it's running
+        if self._server_instance:
+            self.logger.debug("Shutting down Uvicorn server")
+            await self._server_instance.shutdown()
+            self._server_instance = None
+
+        # Call parent shutdown
+        await super().shutdown()
+        self.logger.info("SSE transport adapter shut down")
+
+    def get_capabilities(self) -> Dict[str, Any]:
+        """
+        Return the capabilities of this transport adapter.
+
+        Returns:
+            A dictionary describing the transport's capabilities, including:
+            - transport_type: Always "sse" for this adapter
+            - supports_events: True (SSE is event-based)
+            - supports_requests: True (can handle incoming requests)
+            - protocol: The base protocol which is HTTP
+            - connection_type: unidirectional (server can only send to client)
+        """
+        return {
+            "transport_type": self.transport_type,
+            "supports_events": True,
+            "supports_requests": True,
+            "protocol": "http",
+            "connection_type": "unidirectional",
+        }
 
     async def send_event(self, event_type: EventTypes, data: EventData) -> None:
-        """
-        Asynchronously sends an event with associated data to all active SSE connections.
+        """Send an event to all connected SSE clients."""
+        # Format as SSE message
+        sse_message = f"event: {event_type.value}\ndata: {json.dumps(data)}\n\n"
 
-        Formats the event according to SSE standard and puts it into the client queue.
+        if event_type == EventTypes.PROGRESS:
+            self.logger.debug(f"Broadcasting progress event to SSE clients: {data}")
 
-        Args:
-            event_type: The event type (e.g., EventTypes.PROGRESS).
-            data: A dictionary containing the event payload.
-        """
-        if not self._active_connections:
-            self.logger.debug(
-                f"No active SSE connections to send event {event_type.value}"
-            )
-            return
-
-        # Serialize data to JSON
-        try:
-            event_data_json = json.dumps(data)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to serialize event data for {event_type.value}: {e}"
-            )
-            return
-
-        # Format the SSE message string
-        sse_message = f"event: {event_type.value}\ndata: {event_data_json}\n\n"
-
-        # Send to all active connections using put_nowait
-        self.logger.debug(
-            f"Sending event {event_type.value} to {len(self._active_connections)} active connections"
-        )
+        # Use list() to create a copy to avoid modification during iteration
         connection_ids = list(self._active_connections.keys())
         for conn_id in connection_ids:
             queue = self._active_connections.get(conn_id)
@@ -238,10 +239,17 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self._active_connections[client_id] = queue
         self.logger.info(f"SSE connection established: {client_id}")
 
-        # Define the event generator
-        async def event_generator() -> (
-            Any
-        ):  # Using Any for the async generator return type
+        # Define the event stream generator
+        async def event_generator() -> typing.AsyncGenerator[
+            Union[str, Dict[str, str]], None
+        ]:
+            """
+            Generates SSE events for clients.
+
+            Waits for messages from queue with a 30-second timeout.
+            If no messages are received within the timeout, sends a heartbeat event
+            to keep the connection alive and prevent client timeouts.
+            """
             try:
                 # Send initial connection event
                 yield {
@@ -252,8 +260,22 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 # Loop to pull messages from the queue
                 while True:
                     try:
+                        # Wait for a message with a 30-second timeout
                         message = await asyncio.wait_for(queue.get(), timeout=30.0)
-                        yield message
+
+                        if isinstance(message, str):
+                            if message == "CLOSE_CONNECTION":
+                                self.logger.debug(
+                                    f"Received close signal for connection {client_id}. Closing stream."
+                                )
+                                break
+                            else:
+                                # Yield the pre-formatted SSE message string directly
+                                # This matches the format expected by test_sse_adapter_handle_sse_request
+                                yield message
+                        elif isinstance(message, dict):
+                            # If it's a dict, yield it directly (for initial connection events)
+                            yield message
                         queue.task_done()
                     except asyncio.TimeoutError:
                         # Heartbeat to keep connection alive
@@ -266,6 +288,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
                             f"Error in SSE event stream for {client_id}: {e}"
                         )
                         break
+
             except asyncio.CancelledError:
                 # Client disconnected
                 self.logger.info(f"SSE connection closed: {client_id}")
@@ -278,99 +301,55 @@ class SSETransportAdapter(AbstractTransportAdapter):
         return EventSourceResponse(event_generator())
 
     async def handle_message_request(self, request: Any) -> Any:
-        """
-        Handle a message request from a client, such as a tool call.
+        """Handle incoming message requests."""
+        self.logger.debug("Handling message request (not implemented for SSE)")
+        # SSE is unidirectional - messages go from server to client only
+        # Return an error or appropriate response
+        return {"error": "SSE transport does not support incoming messages"}
 
-        This method will process the request, validate it, and forward it to
-        the coordinator for execution. The response will be sent back via SSE.
+    def register_monitor_connection(self, connection_id: str) -> None:
+        """
+        Register a connection ID as a monitor that should receive events from stdio.
 
         Args:
-            request: The Starlette/FastAPI request object containing the message
+            connection_id: The connection ID to register as a monitor
+        """
+        self._monitor_connections.add(connection_id)
+        self.logger.info(f"Registered monitor connection: {connection_id}")
+
+    def should_receive_event(
+        self,
+        event_type: EventTypes,
+        data: EventData,
+        request_details: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Determine if this transport adapter should receive and handle a given event.
+
+        For SSE transport, we want to receive events that:
+        1. Should be forwarded to SSE clients (like stdio events when monitoring)
+        2. Are not originated from SSE itself (to prevent loops)
+
+        Args:
+            event_type: The type of event being checked
+            data: The event data
+            request_details: Optional request details (not used for SSE)
 
         Returns:
-            A JSONResponse with a confirmation of the message processing
+            True if the event should be received, False otherwise
         """
-        from fastapi.responses import JSONResponse
-
-        try:
-            # Parse the request body
-            request_body = await request.json()
-
-            # Validate the request structure
-            if not isinstance(request_body, dict):
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "success": False,
-                        "error": "Request body must be a JSON object",
-                    },
+        # If we're monitoring stdio transport, receive events from it
+        if self.monitor_stdio_transport_id and data.get("transport_origin"):
+            origin = data["transport_origin"]
+            if origin.get("transport_id") == self.monitor_stdio_transport_id:
+                self.logger.debug(
+                    f"SSE accepting event from monitored stdio transport: {event_type.value}"
                 )
+                return True
 
-            # Extract request fields
-            request_id = request_body.get("request_id", str(uuid.uuid4()))
-            operation = request_body.get("operation")
-            params = request_body.get("parameters", {})
+        # Skip events that originated from us to prevent loops
+        if data.get("transport_origin", {}).get("transport_id") == self.transport_id:
+            return False
 
-            if not operation:
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "success": False,
-                        "error": "Missing required field 'operation'",
-                    },
-                )
-
-            # Log the request
-            self.logger.info(
-                f"Received message request {request_id} for operation '{operation}'"
-            )
-
-            # Make sure we have a coordinator
-            if not self._coordinator:
-                self.logger.error("No coordinator available to process message request")
-                return JSONResponse(
-                    status_code=503,
-                    content={
-                        "success": False,
-                        "error": "Server not ready to process requests",
-                    },
-                )
-
-            # Start the request processing in the coordinator (non-blocking)
-            # This will handle the request and send results via SSE
-            self._loop.create_task(
-                self._coordinator.start_request(
-                    request_id=request_id,
-                    transport_id=self.get_transport_id(),
-                    operation_name=operation,
-                    request_data={"parameters": params},
-                )
-            )
-
-            # Return a 202 Accepted response immediately
-            return JSONResponse(
-                status_code=202,  # Accepted
-                content={
-                    "success": True,
-                    "message": f"Request {request_id} accepted for processing",
-                    "request_id": request_id,
-                },
-            )
-
-        except json.JSONDecodeError:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "error": "Invalid JSON in request body"},
-            )
-        except Exception as e:
-            self.logger.exception(f"Error processing message request: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "success": False,
-                    "error": "Internal server error processing request",
-                },
-            )
-
-
-...
+        # All other events should be received
+        return True
