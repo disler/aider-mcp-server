@@ -130,33 +130,30 @@ class SSETransportAdapter(AbstractTransportAdapter):
             ai_coding_prompt: str,
             relative_editable_files: list[str],
             relative_readonly_files: Optional[list[str]] = None,
-            model: Optional[str] = None
+            model: Optional[str] = None,
         ) -> dict[str, Any]:
             """Run Aider to perform AI coding tasks"""
             try:
                 self.logger.info(f"aider_ai_code called with prompt: {ai_coding_prompt}")
-                
+
                 # Create request parameters
                 params = {
                     "ai_coding_prompt": ai_coding_prompt,
                     "relative_editable_files": relative_editable_files,
                     "relative_readonly_files": relative_readonly_files or [],
-                    "model": model
+                    "model": model,
                 }
-                
+
                 # Use the existing handler with required parameters
                 request_id = f"sse_{uuid.uuid4()}"
                 security_context = SecurityContext(
-                    user_id=None,
-                    permissions=set(),
-                    is_anonymous=True,
-                    transport_id=self.get_transport_id()
+                    user_id=None, permissions=set(), is_anonymous=True, transport_id=self.get_transport_id()
                 )
                 result = await process_aider_ai_code_request(
                     request_id=request_id,
                     transport_id=self.get_transport_id(),
                     params=params,
-                    security_context=security_context
+                    security_context=security_context,
                 )
                 return result.result if hasattr(result, "result") else result
             except Exception as e:
@@ -168,23 +165,20 @@ class SSETransportAdapter(AbstractTransportAdapter):
             """List available models that match the provided substring"""
             try:
                 self.logger.info(f"list_models called with substring: {substring}")
-                
+
                 # Create request parameters
                 params = {"substring": substring} if substring else {}
-                
+
                 # Use the existing handler with required parameters
                 request_id = f"sse_{uuid.uuid4()}"
                 security_context = SecurityContext(
-                    user_id=None,
-                    permissions=set(),
-                    is_anonymous=True,
-                    transport_id=self.get_transport_id()
+                    user_id=None, permissions=set(), is_anonymous=True, transport_id=self.get_transport_id()
                 )
                 result = await process_list_models_request(
                     request_id=request_id,
                     transport_id=self.get_transport_id(),
                     params=params,
-                    security_context=security_context
+                    security_context=security_context,
                 )
                 # Extract models list from the result
                 if isinstance(result, dict) and "models" in result:
@@ -202,9 +196,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
     async def _create_app(self) -> None:
         """Create the Starlette application with SSE endpoints."""
-        from starlette.applications import Starlette
-        from starlette.routing import Route, Mount
         from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.routing import Mount, Route
 
         # Create the MCP SSE transport with proper message endpoint
         self._mcp_transport = SseServerTransport("/messages/")
@@ -231,7 +225,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         # Create server configuration
         if self._app is None:
             raise RuntimeError("App not initialized. Call _create_app() first.")
-            
+
         config = uvicorn.Config(
             app=self._app,
             host=self._host,
@@ -245,10 +239,10 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         # Run server in background task and give it time to start
         self._server_task = asyncio.create_task(self._server_instance.serve())
-        
+
         # Wait a moment for the server to start
         await asyncio.sleep(0.5)
-        
+
         self.logger.info(f"SSE transport started on {self._host}:{self._port}")
 
     async def shutdown(self) -> None:
@@ -343,22 +337,19 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self.logger.info("Handling SSE connection")
         try:
             if self._mcp_transport and self._mcp_server:
-                async with self._mcp_transport.connect_sse(
-                    request.scope, request.receive, request._send
-                ) as streams:
+                async with self._mcp_transport.connect_sse(request.scope, request.receive, request._send) as streams:
                     self.logger.info("Running MCP server for SSE connection")
                     await self._mcp_server._mcp_server.run(
-                        streams[0], streams[1], 
-                        self._mcp_server._mcp_server.create_initialization_options()
+                        streams[0], streams[1], self._mcp_server._mcp_server.create_initialization_options()
                     )
                     self.logger.info("SSE connection completed")
-                
+
                 # Return empty response after successful handling
                 return Response()
             else:
                 self.logger.error("SSE transport or MCP server not initialized")
                 return Response("Server not properly initialized", status_code=500)
-            
+
         except asyncio.CancelledError:
             self.logger.info("SSE connection cancelled (client disconnect)")
             return Response()

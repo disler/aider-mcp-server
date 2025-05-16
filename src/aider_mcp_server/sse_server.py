@@ -4,7 +4,6 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, Callable, Coroutine, Optional
 
-
 from aider_mcp_server.atoms.logging import Logger, get_logger
 from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.server import is_git_repository
@@ -116,8 +115,6 @@ def _create_shutdown_task_wrapper(
     return sync_wrapper
 
 
-
-
 async def run_sse_server(
     host: str = "127.0.0.1",
     port: int = 8765,
@@ -151,55 +148,48 @@ async def run_sse_server(
 
     # Get coordinator instance
     coordinator = await ApplicationCoordinator.getInstance(get_logger)
-    
+
     # Use the coordinator in async context
     async with coordinator:
         logger.info("Coordinator context entered")
-        
+
         # Create the SSE adapter with coordinator
-        sse_adapter = SSETransportAdapter(
-            coordinator=coordinator,
-            host=host,
-            port=port,
-            get_logger=get_logger
-        )
-        
+        sse_adapter = SSETransportAdapter(coordinator=coordinator, host=host, port=port, get_logger=get_logger)
+
         # Initialize the adapter (this will create the FastMCP server)
         await sse_adapter.initialize()
-        
+
         # Register the adapter with the coordinator
         await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
         logger.info("Registered SSE transport with coordinator")
-        
+
         # Start the SSE server
         await sse_adapter.start_listening()
         logger.info(f"SSE server listening on {host}:{port}")
-        
+
         # Setup shutdown event
         shutdown_event = asyncio.Event()
-        
+
         async def handle_shutdown() -> None:
             """Handle graceful shutdown"""
             logger.info("Initiating graceful shutdown...")
             shutdown_event.set()
-        
+
         # Setup signal handlers
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
+
             def create_handler(s: int = sig) -> None:
                 asyncio.create_task(handle_shutdown())
+
             loop.add_signal_handler(sig, create_handler)
-        
+
         # Wait for shutdown signal and server task
         try:
             # Get the server task from the adapter if available
             server_task = getattr(sse_adapter, "_server_task", None)
             if server_task:
-                await asyncio.gather(
-                    shutdown_event.wait(),
-                    server_task,
-                    return_exceptions=True
-                )
+                await asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True)
             else:
                 await shutdown_event.wait()
             logger.info("Shutdown event received. Closing SSE server...")
@@ -224,9 +214,4 @@ async def serve_sse(
     """
     Compatibility wrapper for the old serve_sse function.
     """
-    await run_sse_server(
-        host=host,
-        port=port,
-        editor_model=editor_model,
-        current_working_dir=current_working_dir
-    )
+    await run_sse_server(host=host, port=port, editor_model=editor_model, current_working_dir=current_working_dir)
