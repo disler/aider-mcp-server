@@ -122,31 +122,6 @@ def _create_shutdown_task_wrapper(
     return sync_wrapper
 
 
-# Handler functions that will be registered with the coordinator
-async def _aider_ai_code_handler(
-    request_id: str,
-    transport_id: str,
-    parameters: RequestParameters,
-    security_context: SecurityContext,
-    use_diff_cache: bool = True,
-    clear_cached_for_unchanged: bool = False,
-) -> OperationResult:
-    """Handler for aider_ai_code operation.
-
-    Args:
-        request_id: Unique identifier for the request
-        transport_id: Identifier for the transport that made the request
-        parameters: Request parameters
-        security_context: Security context for the request
-        use_diff_cache: Whether to use diff caching
-        clear_cached_for_unchanged: Whether to clear cache entries for unchanged files
-
-    Returns:
-        Dict containing the operation result
-    """
-    return {"success": True}
-
-
 
 
 async def run_sse_server(
