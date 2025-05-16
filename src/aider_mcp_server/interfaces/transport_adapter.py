@@ -17,9 +17,7 @@ class ITransportAdapter(Protocol):
     # Additional methods specific to ITransportAdapter
     def get_transport_type(self) -> str: ...
     def get_capabilities(self) -> Set[EventTypes]: ...
-    async def send_event(
-        self, event_type: EventTypes, data: Dict[str, Any]
-    ) -> None: ...
+    async def send_event(self, event_type: EventTypes, data: Dict[str, Any]) -> None: ...
     def should_receive_event(
         self,
         event_type: EventTypes,
@@ -30,9 +28,7 @@ class ITransportAdapter(Protocol):
     async def start_listening(self) -> None: ...
     async def handle_sse_request(self, request_details: Dict[str, Any]) -> None: ...
     async def handle_message_request(self, request_details: Dict[str, Any]) -> None: ...
-    def validate_request_security(
-        self, request_details: Dict[str, Any]
-    ) -> SecurityContext: ...
+    def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext: ...
 
 
 class TransportAdapterBase(ITransportAdapter):
@@ -78,7 +74,5 @@ class TransportAdapterBase(ITransportAdapter):
     async def handle_message_request(self, request_details: Dict[str, Any]) -> None:
         raise NotImplementedError
 
-    def validate_request_security(
-        self, request_details: Dict[str, Any]
-    ) -> SecurityContext:
+    def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext:
         raise NotImplementedError

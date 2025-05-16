@@ -141,14 +141,14 @@ async def handle_request(
         request_type = request.get("name")
         params = request.get("parameters", {})
 
-        logger.info(
-            f"Received request: Type='{request_type}', CWD='{current_working_dir}'"
-        )
+        logger.info(f"Received request: Type='{request_type}', CWD='{current_working_dir}'")
 
         # Validate that the current_working_dir is a git repository before changing to it
         is_git_repo, error_message = is_git_repository(current_working_dir)
         if not is_git_repo:
-            error_msg = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
+            error_msg = (
+                f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
+            )
             logger.error(error_msg)
             return {"success": False, "error": error_msg}
 
@@ -157,9 +157,7 @@ async def handle_request(
             os.chdir(current_working_dir)
             logger.info(f"Changed working directory to: {current_working_dir}")
         except Exception as e:
-            error_msg = (
-                f"Failed to change working directory to {current_working_dir}: {e}"
-            )
+            error_msg = f"Failed to change working directory to {current_working_dir}: {e}"
             logger.critical(error_msg)
             return {"success": False, "error": error_msg}
 
@@ -189,9 +187,7 @@ async def handle_request(
 
     except Exception as e:
         # Handle any errors
-        logger.exception(
-            f"Critical Error: Unhandled exception during request processing: {str(e)}"
-        )
+        logger.exception(f"Critical Error: Unhandled exception during request processing: {str(e)}")
         return {"success": False, "error": f"Internal server error: {str(e)}"}
 
 
@@ -268,9 +264,7 @@ async def serve(
             logger.info("Server running. Waiting for requests...")
             await server.run(read_stream, write_stream, options, raise_exceptions=True)
     except Exception as e:
-        logger.exception(
-            f"Critical Error: Server stopped due to unhandled exception: {e}"
-        )
+        logger.exception(f"Critical Error: Server stopped due to unhandled exception: {e}")
         # Exit with error code if server crashes
         sys.exit(1)  # Ensure exit on critical error
     finally:

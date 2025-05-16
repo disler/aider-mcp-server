@@ -81,19 +81,13 @@ class RequestProcessor:
             )
             return
 
-        required_permission = await self._handler_registry.get_required_permission(
-            operation_name
-        )
+        required_permission = await self._handler_registry.get_required_permission(operation_name)
 
         if required_permission:
             # Check permissions
-            has_permission = await self._session_manager.check_permission(
-                transport_id, required_permission
-            )
+            has_permission = await self._session_manager.check_permission(transport_id, required_permission)
             if not has_permission:
-                self._logger.error(
-                    f"Permission denied for operation '{operation_name}'"
-                )
+                self._logger.error(f"Permission denied for operation '{operation_name}'")
                 await self.fail_request(
                     request_id,
                     operation_name,
@@ -140,9 +134,7 @@ class RequestProcessor:
                 )
 
                 # Format success response
-                success_response = self._response_formatter.format_success_response(
-                    request_id, transport_id, result
-                )
+                success_response = self._response_formatter.format_success_response(request_id, transport_id, result)
 
                 # Send the result back to the client
                 await self._event_coordinator.send_event_to_transport(
@@ -199,9 +191,7 @@ class RequestProcessor:
             request_details: Original request parameters and data
         """
         if originating_transport_id is None:
-            self._logger.warning(
-                f"Cannot send failure notification for request {request_id}: no transport ID provided"
-            )
+            self._logger.warning(f"Cannot send failure notification for request {request_id}: no transport ID provided")
             return
 
         # Format error response - convert error_details to appropriate format

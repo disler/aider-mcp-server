@@ -19,12 +19,8 @@ from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegis
 class MockTransportAdapter(TransportAdapterBase):
     """Mock transport adapter for testing."""
 
-    def __init__(
-        self, transport_id: str = "mock_id", transport_type: str = "mock", **kwargs: Any
-    ):
-        super().__init__(
-            transport_id=transport_id, transport_type=transport_type, **kwargs
-        )
+    def __init__(self, transport_id: str = "mock_id", transport_type: str = "mock", **kwargs: Any):
+        super().__init__(transport_id=transport_id, transport_type=transport_type, **kwargs)
 
     @classmethod
     def get_default_capabilities(cls) -> Set[EventTypes]:
@@ -165,9 +161,7 @@ async def test_create_adapter_with_kwargs(registry):
             extra_param: str = "default",
             **kwargs: Any,
         ):
-            super().__init__(
-                transport_id=transport_id, transport_type=transport_type, **kwargs
-            )
+            super().__init__(transport_id=transport_id, transport_type=transport_type, **kwargs)
             self.extra_param = extra_param
 
     # Register the adapter

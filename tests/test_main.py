@@ -31,9 +31,7 @@ def mock_serve_sse() -> Generator[AsyncMock, None, None]:
 @pytest.fixture
 def mock_serve_multi() -> Generator[AsyncMock, None, None]:
     """Mock the serve_multi_transport function."""
-    with patch(
-        "aider_mcp_server.__main__.serve_multi_transport", new_callable=AsyncMock
-    ) as mock:
+    with patch("aider_mcp_server.__main__.serve_multi_transport", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -44,27 +42,21 @@ def mock_serve_multi() -> Generator[AsyncMock, None, None]:
 def mock_is_git_repository() -> Generator[MagicMock, None, None]:
     """Mock the is_git_repository check to always return True."""
     # Patch where it's used in __main__
-    with patch(
-        "aider_mcp_server.__main__.is_git_repository", return_value=(True, None)
-    ) as mock:
+    with patch("aider_mcp_server.__main__.is_git_repository", return_value=(True, None)) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_os_makedirs() -> Generator[MagicMock, None, None]:
     """Mock os.makedirs to avoid filesystem side effects."""
-    with patch(
-        "aider_mcp_server.__main__.os.makedirs"
-    ) as mock:  # Patch where it's used
+    with patch("aider_mcp_server.__main__.os.makedirs") as mock:  # Patch where it's used
         yield mock
 
 
 @pytest.fixture
 def mock_get_logger() -> Generator[MagicMock, None, None]:
     """Mock get_logger to return a mock logger with mocked methods."""
-    with patch(
-        "aider_mcp_server.__main__.get_logger", autospec=True
-    ) as mock_get_logger_factory:
+    with patch("aider_mcp_server.__main__.get_logger", autospec=True) as mock_get_logger_factory:
         # Create a mock logger instance that conforms to the Logger protocol/class
         mock_logger_instance = MagicMock(spec=Logger)
         # Ensure all methods used in __main__ are mocked
@@ -123,9 +115,7 @@ def run_main_with_args(
     mock_loop = MagicMock()
     mock_loop.add_signal_handler = MagicMock()
     # Patch where get_event_loop is called (__main__)
-    with patch(
-        "aider_mcp_server.__main__.asyncio.get_event_loop", return_value=mock_loop
-    ):
+    with patch("aider_mcp_server.__main__.asyncio.get_event_loop", return_value=mock_loop):
         # Patch Path.resolve and Path.is_dir as __main__ uses them
         with (
             patch.object(Path, "resolve") as mock_resolve,
@@ -134,12 +124,8 @@ def run_main_with_args(
             # Configure mocks for validation steps
             # Make resolve return a Path object that has the is_dir method mocked
             mock_resolved_path = MagicMock(spec=Path)
-            mock_resolved_path.is_dir.return_value = (
-                True  # Assume dir exists for successful runs
-            )
-            mock_resolved_path.__str__.return_value = (
-                abs_test_dir  # Return string path when needed
-            )
+            mock_resolved_path.is_dir.return_value = True  # Assume dir exists for successful runs
+            mock_resolved_path.__str__.return_value = abs_test_dir  # Return string path when needed
             mock_resolve.return_value = mock_resolved_path
             mock_is_dir.return_value = True  # Also mock the direct call if used
 
@@ -178,9 +164,7 @@ def test_stdio_mode_default(
 
     mock_serve.assert_called_once()
     call_args = mock_serve.call_args[1]
-    assert (
-        call_args["current_working_dir"] == abs_test_dir
-    )  # __main__ passes resolved string path
+    assert call_args["current_working_dir"] == abs_test_dir  # __main__ passes resolved string path
     assert call_args["editor_model"] == DEFAULT_EDITOR_MODEL
     mock_serve_sse.assert_not_called()
     mock_serve_multi.assert_not_called()

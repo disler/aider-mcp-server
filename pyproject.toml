@@ -90,9 +90,10 @@ features = ["test"]
 
 [tool.ruff]
 target-version = "py312"
+line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "A", "B", "C", "Q", "S"]
+select = ["E", "F", "A", "B", "C", "Q", "S"]  # Removed "I" for isort
 ignore = ["E501"]  # Ignore line length
 # Ignore S101 (assert usage) in test files and exclude stubbed file from formatting
 per-file-ignores = {"tests/*" = ["S101"], "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]}
@@ -101,6 +102,8 @@ per-file-ignores = {"tests/*" = ["S101"], "src/aider_mcp_server/stubs/sse_starle
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+# Skip formatting long imports to avoid conflicts with isort
+skip-magic-trailing-comma = false
 
 [tool.isort]
 profile = "black"

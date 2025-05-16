@@ -72,9 +72,7 @@ class SessionManager:
                 self.sessions[transport_id] = new_session
                 return new_session
 
-    async def update_session(
-        self, transport_id: str, data: Dict[str, Any]
-    ) -> Optional[Session]:
+    async def update_session(self, transport_id: str, data: Dict[str, Any]) -> Optional[Session]:
         async with self.lock:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
@@ -92,9 +90,7 @@ class SessionManager:
             else:
                 logger.warning(f"Session for transport '{transport_id}' not found.")
 
-    async def check_permission(
-        self, transport_id: str, required_permission: Permissions
-    ) -> bool:
+    async def check_permission(self, transport_id: str, required_permission: Permissions) -> bool:
         async with self.lock:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
@@ -119,16 +115,13 @@ class SessionManager:
             expired_sessions = [
                 transport_id
                 for transport_id, session in self.sessions.items()
-                if (current_time - session.last_accessed_time).total_seconds()
-                > self.session_timeout
+                if (current_time - session.last_accessed_time).total_seconds() > self.session_timeout
             ]
 
             async with self.lock:
                 for transport_id in expired_sessions:
                     del self.sessions[transport_id]
-                    logger.info(
-                        f"Expired session for transport '{transport_id}' removed."
-                    )
+                    logger.info(f"Expired session for transport '{transport_id}' removed.")
 
             if run_once:
                 break
@@ -137,9 +130,7 @@ class SessionManager:
         async with self.lock:
             return self.sessions.copy()
 
-    async def set_permissions(
-        self, transport_id: str, permissions: Set[Permissions]
-    ) -> Optional[Session]:
+    async def set_permissions(self, transport_id: str, permissions: Set[Permissions]) -> Optional[Session]:
         async with self.lock:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]

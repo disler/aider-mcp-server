@@ -18,15 +18,11 @@ def _check_adapter_availability() -> Optional[Response]:
     """Check if the adapter is available and not shutting down."""
     if not _adapter:
         logger.error("Request received but SSE Transport Adapter is not initialized.")
-        return Response(
-            content="Server not ready", status_code=503, media_type="text/plain"
-        )
+        return Response(content="Server not ready", status_code=503, media_type="text/plain")
 
     if _adapter._coordinator and _adapter._coordinator.is_shutting_down():
         logger.warning("Request rejected: Server is shutting down.")
-        return Response(
-            content="Server is shutting down", status_code=503, media_type="text/plain"
-        )
+        return Response(content="Server is shutting down", status_code=503, media_type="text/plain")
 
     return None
 
@@ -39,18 +35,14 @@ async def _handle_sse_request(request: Request) -> Response:
     # Ensure adapter is available before calling its methods
     if _adapter is None:
         logger.error("Adapter unexpectedly None despite availability check")
-        return Response(
-            content="Server not ready", status_code=503, media_type="text/plain"
-        )
+        return Response(content="Server not ready", status_code=503, media_type="text/plain")
 
     try:
         # Delegate the request handling to the adapter
         return await _adapter.handle_sse_request(request)
     except HTTPException as http_exc:
         # Re-raise FastAPI/Starlette HTTP exceptions directly
-        logger.warning(
-            f"HTTPException during SSE request: {http_exc.status_code} - {http_exc.detail}"
-        )
+        logger.warning(f"HTTPException during SSE request: {http_exc.status_code} - {http_exc.detail}")
         raise http_exc
     except Exception as e:
         # Catch any other unexpected errors during adapter processing
@@ -73,9 +65,7 @@ async def _extract_request_id(request: Request) -> str:
             request_id = body.get("request_id", "unknown")
     except Exception:
         # Ignore errors during body parsing for logging purposes
-        logger.warning(
-            "Failed to parse request body to extract request_id for logging during error handling."
-        )
+        logger.warning("Failed to parse request body to extract request_id for logging during error handling.")
     return request_id
 
 
@@ -83,9 +73,7 @@ async def _handle_message_request(request: Request) -> Response:
     """Handle message requests with error handling."""
     # Check adapter availability
     if not _adapter:
-        logger.error(
-            "Message request received but SSE Transport Adapter is not initialized."
-        )
+        logger.error("Message request received but SSE Transport Adapter is not initialized.")
         # Raise 503 Service Unavailable if adapter isn't ready
         raise HTTPException(status_code=503, detail="Server not ready")
 
@@ -104,9 +92,7 @@ async def _handle_message_request(request: Request) -> Response:
         return await adapter.handle_message_request(request)
     except HTTPException as http_exc:
         # Re-raise FastAPI/Starlette HTTP exceptions directly
-        logger.warning(
-            f"HTTPException during message request: {http_exc.status_code} - {http_exc.detail}"
-        )
+        logger.warning(f"HTTPException during message request: {http_exc.status_code} - {http_exc.detail}")
         raise http_exc
     except Exception as e:
         # Catch any other unexpected errors during adapter processing
@@ -165,9 +151,7 @@ async def create_app(
         raise RuntimeError("Failed to create SSE transport adapter")
 
     _adapter = adapter  # type: ignore  # We know this is an SSETransportAdapter
-    logger.info(
-        f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)"
-    )
+    logger.info(f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)")
 
     # Set up the routes
     _setup_routes(app)

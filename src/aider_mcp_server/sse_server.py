@@ -42,9 +42,7 @@ async def handle_shutdown_signal(
         received_signal_name = signal.Signals(received_signal_num).name
     except ValueError:
         received_signal_name = f"UNKNOWN SIGNAL ({received_signal_num})"
-    log_message = (
-        f"Received signal {received_signal_name}. Initiating graceful shutdown..."
-    )
+    log_message = f"Received signal {received_signal_name}. Initiating graceful shutdown..."
     logger.warning(log_message)
 
     if not event.is_set():
@@ -96,9 +94,7 @@ def _create_shutdown_task_wrapper(
             try:
                 loop = asyncio.get_running_loop()
                 if loop.is_running() and not loop.is_closed():
-                    logger.debug(
-                        f"Scheduling async handler for signal {sig} with event."
-                    )
+                    logger.debug(f"Scheduling async handler for signal {sig} with event.")
                     loop.create_task(async_handler(sig, event, signum, frame))
                 else:
                     logger.warning(
@@ -112,15 +108,11 @@ def _create_shutdown_task_wrapper(
                     exc_info=True,
                 )
         else:
-            logger.debug(
-                f"Scheduling async handler for signal {sig} without event (test mode?)."
-            )
+            logger.debug(f"Scheduling async handler for signal {sig} without event (test mode?).")
             try:
                 asyncio.create_task(async_handler(sig, signum, frame))
             except RuntimeError as e:
-                logger.error(
-                    f"Error calling asyncio.create_task directly for signal {sig} in test mode: {e}"
-                )
+                logger.error(f"Error calling asyncio.create_task directly for signal {sig} in test mode: {e}")
             except Exception as e:
                 logger.error(
                     f"Unexpected error scheduling async handler for signal {sig} without event: {e}",
@@ -199,7 +191,9 @@ async def serve_sse(
     logger.info(f"Validating working directory: {current_working_dir}")
     is_repo, error_msg = is_git_repository(Path(current_working_dir))
     if not is_repo:
-        error_message = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_msg}"
+        error_message = (
+            f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_msg}"
+        )
         logger.critical(error_message)
         raise ValueError(error_message)
     logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
@@ -212,19 +206,13 @@ async def serve_sse(
     sync_signal_handlers: Dict[int, Callable[[], None]] = {}
 
     for sig_num in (signal.SIGINT, signal.SIGTERM):
-        sync_wrapper = _create_shutdown_task_wrapper(
-            sig_num, actual_shutdown_handler, shutdown_event
-        )
+        sync_wrapper = _create_shutdown_task_wrapper(sig_num, actual_shutdown_handler, shutdown_event)
         sync_signal_handlers[sig_num] = sync_wrapper
         try:
             loop.add_signal_handler(sig_num, sync_wrapper)
-            logger.info(
-                f"Registered signal handler for {signal.Signals(sig_num).name} using loop.add_signal_handler."
-            )
+            logger.info(f"Registered signal handler for {signal.Signals(sig_num).name} using loop.add_signal_handler.")
         except Exception as e:
-            logger.error(
-                f"Error setting signal handler for {signal.Signals(sig_num).name}: {e}"
-            )
+            logger.error(f"Error setting signal handler for {signal.Signals(sig_num).name}: {e}")
 
     try:
         # Get coordinator instance
@@ -235,15 +223,11 @@ async def serve_sse(
             logger.info("Coordinator context entered")
 
             # Create and initialize SSE adapter
-            sse_adapter = SSETransportAdapter(
-                coordinator=coordinator, heartbeat_interval=heartbeat_interval
-            )
+            sse_adapter = SSETransportAdapter(coordinator=coordinator, heartbeat_interval=heartbeat_interval)
             await sse_adapter.initialize()
 
             # Register the SSE adapter with the coordinator
-            await coordinator.register_transport(
-                sse_adapter.get_transport_id(), sse_adapter
-            )
+            await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
 
             # Register handlers with the coordinator
             await coordinator.register_handler(
@@ -278,9 +262,7 @@ async def serve_sse(
             logger.info("Shutdown event received. Closing SSE server...")
 
     except Exception as e:
-        logger.exception(
-            f"An unexpected error occurred during server setup or runtime: {e}"
-        )
+        logger.exception(f"An unexpected error occurred during server setup or runtime: {e}")
 
     finally:
         # Clean up signal handlers

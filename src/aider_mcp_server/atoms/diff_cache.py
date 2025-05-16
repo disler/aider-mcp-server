@@ -48,9 +48,7 @@ class DiffCache:
 
         # Cache stores {'key': {'data': ..., 'size': ..., 'expiry': ...}}
         # OrderedDict maintains LRU order (last accessed/set is at the end)
-        self._cache: collections.OrderedDict[str, Dict[str, Any]] = (
-            collections.OrderedDict()
-        )
+        self._cache: collections.OrderedDict[str, Dict[str, Any]] = collections.OrderedDict()
         self._current_size: int = 0
 
         self._stats: Dict[str, Union[int, float]] = {
@@ -67,9 +65,7 @@ class DiffCache:
 
     async def start(self) -> None:
         """Starts the background cleanup task."""
-        if self._cleanup_task is None or (
-            self._cleanup_task is not None and self._cleanup_task.done()
-        ):
+        if self._cleanup_task is None or (self._cleanup_task is not None and self._cleanup_task.done()):
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
@@ -156,9 +152,7 @@ class DiffCache:
 
             # Ensure space for the new item
             # Evict LRU items if adding this one exceeds max_size
-            while (
-                self._current_size + item_size > self._max_size and len(self._cache) > 0
-            ):
+            while self._current_size + item_size > self._max_size and len(self._cache) > 0:
                 # Pop the oldest item (least recently used)
                 _key, _entry = self._cache.popitem(last=False)
                 self._current_size -= _entry["size"]
@@ -262,9 +256,7 @@ class DiffCache:
             # This handles the case where the item was accessed and moved to end,
             # but not removed because it wasn't expired.
             if key in self._cache:
-                old_entry_for_removal = self._cache.pop(
-                    key
-                )  # Remove before adding new version
+                old_entry_for_removal = self._cache.pop(key)  # Remove before adding new version
                 self._current_size -= old_entry_for_removal["size"]
 
             if should_cache:
@@ -273,10 +265,7 @@ class DiffCache:
 
                 # Ensure space for the item to be cached
                 # Evict LRU items if adding this one exceeds max_size
-                while (
-                    self._current_size + item_size > self._max_size
-                    and len(self._cache) > 0
-                ):
+                while self._current_size + item_size > self._max_size and len(self._cache) > 0:
                     # Pop the oldest item (least recently used)
                     _key, _entry = self._cache.popitem(last=False)
                     self._current_size -= _entry["size"]

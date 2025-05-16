@@ -40,9 +40,7 @@ class ConcreteTransportAdapter(TransportAdapterBase):
         """Record sent events for testing."""
         self.sent_events.append((event_type, data))
 
-    def validate_request_security(
-        self, request_data: RequestParameters
-    ) -> SecurityContext:
+    def validate_request_security(self, request_data: RequestParameters) -> SecurityContext:
         """Simple security validation for testing."""
         # Create a mock security context for testing
         mock_context = MagicMock(spec=SecurityContext)
@@ -112,9 +110,7 @@ class TestTransportAdapterInterface:
         data = {"test": "data"}
         assert transport_adapter.should_receive_event(event_type, data)
         # With request details
-        assert transport_adapter.should_receive_event(
-            event_type, data, {"request_id": "123"}
-        )
+        assert transport_adapter.should_receive_event(event_type, data, {"request_id": "123"})
 
     @pytest.mark.asyncio
     async def test_start_listening_default(self, transport_adapter):

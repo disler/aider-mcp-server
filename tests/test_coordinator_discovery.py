@@ -361,9 +361,7 @@ class TestCoordinatorDiscovery:
     async def test_async_context_manager(self, temp_discovery_file):
         """Test using discovery as async context manager."""
         # Use async context manager
-        async with CoordinatorDiscovery(
-            discovery_file=temp_discovery_file
-        ) as discovery:
+        async with CoordinatorDiscovery(discovery_file=temp_discovery_file) as discovery:
             # Register a coordinator
             await discovery.register_coordinator(
                 host="localhost",

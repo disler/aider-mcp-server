@@ -83,9 +83,7 @@ async def coordinator_shutdown_context(
             await coordinator.shutdown()
             logger.info("Application Coordinator shut down successfully.")
         except Exception as e:
-            logger.error(
-                f"Error shutting down Application Coordinator: {e}", exc_info=True
-            )
+            logger.error(f"Error shutting down Application Coordinator: {e}", exc_info=True)
 
 
 # Global logger instance needed for context managers and setup
@@ -103,9 +101,7 @@ def _setup_logger(log_dir: Optional[Union[str, Path]]) -> None:
         try:
             log_dir_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            logger.error(
-                f"Failed to create log directory {log_dir_path}: {e}. Logging may be incomplete."
-            )
+            logger.error(f"Failed to create log directory {log_dir_path}: {e}. Logging may be incomplete.")
             log_dir_path = None
     else:
         log_dir_path = None
@@ -119,12 +115,8 @@ def _validate_working_directory(current_working_dir: str) -> Path:
     cwd_path = Path(current_working_dir)
     is_repo, git_error = is_git_repository(cwd_path)
     if not is_repo:
-        logger.critical(
-            f"Working directory '{cwd_path}' is not a valid git repository: {git_error}. Aborting."
-        )
-        raise ValueError(
-            f"Working directory '{cwd_path}' is not a valid git repository: {git_error}"
-        )
+        logger.critical(f"Working directory '{cwd_path}' is not a valid git repository: {git_error}. Aborting.")
+        raise ValueError(f"Working directory '{cwd_path}' is not a valid git repository: {git_error}")
     return cwd_path
 
 
@@ -143,28 +135,20 @@ def _setup_signal_handlers(shutdown_event: asyncio.Event) -> None:
     for sig_enum in (signal.SIGINT, signal.SIGTERM):
         sig_num = int(sig_enum)
         try:
-            loop.add_signal_handler(
-                sig_num, functools.partial(_signal_handler, sig_num)
-            )
+            loop.add_signal_handler(sig_num, functools.partial(_signal_handler, sig_num))
         except (NotImplementedError, ValueError, OSError) as e:
             logger.warning(
                 f"Could not register signal handler for {sig_enum.name} using loop.add_signal_handler: {e}. Trying signal.signal."
             )
             try:
-                signal.signal(
-                    sig_num, lambda s, f: functools.partial(_signal_handler, s)()
-                )
+                signal.signal(sig_num, lambda s, f: functools.partial(_signal_handler, s)())
             except (ValueError, OSError) as sig_e:
-                logger.error(
-                    f"Failed to register signal handler for {sig_enum.name} using signal.signal: {sig_e}"
-                )
+                logger.error(f"Failed to register signal handler for {sig_enum.name} using signal.signal: {sig_e}")
 
     logger.debug("Signal handlers registered.")
 
 
-async def _register_handlers(
-    coordinator: ApplicationCoordinator, editor_model: str, cwd_path: Path
-) -> None:
+async def _register_handlers(coordinator: ApplicationCoordinator, editor_model: str, cwd_path: Path) -> None:
     """Register operation handlers with the coordinator."""
 
     # Aider AI Code handler
@@ -205,9 +189,7 @@ async def _register_handlers(
         aider_handler_wrapper,
         required_permission=Permissions.EXECUTE_AIDER,
     )
-    logger.info(
-        "Registered handler for 'aider_ai_code' with permission 'execute_aider'."
-    )
+    logger.info("Registered handler for 'aider_ai_code' with permission 'execute_aider'.")
 
     # List Models handler
     async def list_models_wrapper(
@@ -250,9 +232,7 @@ async def _setup_transports(
     """Set up and initialize transport adapters using the registry."""
     # Initialize the transport adapter registry
     registry = await TransportAdapterRegistry.get_instance()
-    logger.info(
-        f"Transport registry initialized with adapters: {registry.list_adapter_types()}"
-    )
+    logger.info(f"Transport registry initialized with adapters: {registry.list_adapter_types()}")
 
     # Create SSE Adapter via registry
     sse_adapter = await registry.create_adapter(
@@ -277,9 +257,7 @@ async def _setup_transports(
     await stack.enter_async_context(adapter_shutdown_context(stdio_adapter))
     await stdio_adapter.initialize()
     await stdio_adapter.start_listening()  # Stdio needs explicit start
-    logger.info(
-        f"StdioTransportAdapter '{stdio_adapter.get_transport_id()}' initialized and listening."
-    )
+    logger.info(f"StdioTransportAdapter '{stdio_adapter.get_transport_id()}' initialized and listening.")
 
     # Log transport capabilities
     logger.info(
@@ -348,22 +326,16 @@ def _configure_uvicorn_server(app: FastAPI, host: str, port: int) -> uvicorn.Ser
     return server
 
 
-async def _monitor_server_tasks(
-    server_task: asyncio.Task[Any], shutdown_event: asyncio.Event
-) -> None:
+async def _monitor_server_tasks(server_task: asyncio.Task[Any], shutdown_event: asyncio.Event) -> None:
     """Monitor server tasks and handle shutdown when needed."""
-    monitor_task: asyncio.Task[bool] = asyncio.create_task(
-        shutdown_event.wait(), name="shutdown_monitor"
-    )
+    monitor_task: asyncio.Task[bool] = asyncio.create_task(shutdown_event.wait(), name="shutdown_monitor")
     tasks_to_wait = {server_task, monitor_task}
     done: Set[asyncio.Task[Any]] = set()
     pending: Set[asyncio.Task[Any]] = tasks_to_wait
 
     try:
         while not shutdown_event.is_set() and server_task in pending:
-            done_part, pending = await asyncio.wait(
-                pending, return_when=asyncio.FIRST_COMPLETED
-            )
+            done_part, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
             done.update(done_part)
             if server_task in done_part and not server_task.cancelled():
                 exc = server_task.exception()
@@ -373,13 +345,9 @@ async def _monitor_server_tasks(
                         exc_info=exc,
                     )
                 else:
-                    logger.warning(
-                        f"Task {server_task.get_name()} exited unexpectedly without error."
-                    )
+                    logger.warning(f"Task {server_task.get_name()} exited unexpectedly without error.")
                 if not shutdown_event.is_set():
-                    logger.warning(
-                        f"Triggering shutdown due to unexpected exit of task {server_task.get_name()}."
-                    )
+                    logger.warning(f"Triggering shutdown due to unexpected exit of task {server_task.get_name()}.")
                     shutdown_event.set()
     except asyncio.CancelledError:
         logger.info("Main server loop cancelled, initiating shutdown.")
@@ -395,9 +363,7 @@ async def _monitor_server_tasks(
             pass
 
 
-async def _signal_server_shutdown(
-    server: uvicorn.Server, server_task: asyncio.Task[Any]
-) -> None:
+async def _signal_server_shutdown(server: uvicorn.Server, server_task: asyncio.Task[Any]) -> None:
     """Signal the Uvicorn server to shut down."""
     if server.should_exit:
         return
@@ -421,9 +387,7 @@ async def _signal_server_shutdown(
         logger.info("Uvicorn server signaled via should_exit=True.")
 
 
-async def _wait_for_server_task(
-    server_task: asyncio.Task[Any], done: Set[asyncio.Task[Any]]
-) -> None:
+async def _wait_for_server_task(server_task: asyncio.Task[Any], done: Set[asyncio.Task[Any]]) -> None:
     """Wait for the Uvicorn server task to finish."""
     if server_task in done:
         return
@@ -433,9 +397,7 @@ async def _wait_for_server_task(
         await asyncio.wait_for(server_task, timeout=5.0)
         logger.info("Uvicorn server task finished.")
     except asyncio.TimeoutError:
-        logger.warning(
-            "Uvicorn server task did not finish within timeout. Attempting cancellation."
-        )
+        logger.warning("Uvicorn server task did not finish within timeout. Attempting cancellation.")
         server_task.cancel()
     except asyncio.CancelledError:
         logger.info("Uvicorn server task was cancelled.")
@@ -484,9 +446,7 @@ async def serve_multi_transport(
         await _register_handlers(coordinator, editor_model, cwd_path)
 
         # Set up transport adapters
-        sse_adapter, stdio_adapter = await _setup_transports(
-            stack, coordinator, heartbeat_interval
-        )
+        sse_adapter, stdio_adapter = await _setup_transports(stack, coordinator, heartbeat_interval)
 
         # Create and configure FastAPI app
         app = _create_fastapi_app(sse_adapter)
@@ -494,17 +454,13 @@ async def serve_multi_transport(
         # Configure and start Uvicorn server
         server = _configure_uvicorn_server(app, host, port)
         server_task = asyncio.create_task(server.serve(), name="uvicorn_server")
-        logger.info(
-            "Starting Uvicorn server task. Stdio adapter is listening in background."
-        )
+        logger.info("Starting Uvicorn server task. Stdio adapter is listening in background.")
 
         # Monitor server tasks and handle shutdown
         await _monitor_server_tasks(server_task, shutdown_event)
 
         # Shutdown sequence
-        logger.info(
-            "Shutdown signal detected or server task finished. Proceeding with cleanup."
-        )
+        logger.info("Shutdown signal detected or server task finished. Proceeding with cleanup.")
         await _shutdown_uvicorn_server(server, server_task, set())
 
     # Exit stack context manager handles adapter and coordinator shutdown
@@ -533,9 +489,7 @@ def main() -> None:
         default=DEFAULT_EDITOR_MODEL,
         help=f"Primary AI model (default: {DEFAULT_EDITOR_MODEL})",
     )
-    parser.add_argument(
-        "--cwd", type=str, default=".", help="Working directory (git repo) (default: .)"
-    )
+    parser.add_argument("--cwd", type=str, default=".", help="Working directory (git repo) (default: .)")
     parser.add_argument(
         "--log-dir",
         type=str,

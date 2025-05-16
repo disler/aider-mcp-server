@@ -27,9 +27,7 @@ def test_format_success_response(response_formatter):
     """Test formatting successful responses."""
     # Test basic success response
     result = {"data": "test_data"}
-    response = response_formatter.format_success_response(
-        "req-1", "transport-1", result
-    )
+    response = response_formatter.format_success_response("req-1", "transport-1", result)
 
     assert response["success"] is True
     assert response["request_id"] == "req-1"
@@ -40,9 +38,7 @@ def test_format_success_response(response_formatter):
 def test_format_error_response(response_formatter):
     """Test formatting error responses with different error details."""
     # Test basic error response
-    response = response_formatter.format_error_response(
-        "req-1", "transport-1", "An error occurred"
-    )
+    response = response_formatter.format_error_response("req-1", "transport-1", "An error occurred")
 
     assert response["success"] is False
     assert response["request_id"] == "req-1"
@@ -63,9 +59,7 @@ def test_format_error_response(response_formatter):
 
     # Test error response with details
     details = {"field": "username", "reason": "Already exists"}
-    response = response_formatter.format_error_response(
-        "req-3", "transport-1", "Validation error", details=details
-    )
+    response = response_formatter.format_error_response("req-3", "transport-1", "Validation error", details=details)
 
     assert response["success"] is False
     assert response["error"]["message"] == "Validation error"

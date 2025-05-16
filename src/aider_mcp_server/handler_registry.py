@@ -27,15 +27,11 @@ try:
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:
 
-    def fallback_get_logger(
-        name: str, *args: typing.Any, **kwargs: typing.Any
-    ) -> LoggerProtocol:
+    def fallback_get_logger(name: str, *args: typing.Any, **kwargs: typing.Any) -> LoggerProtocol:
         logger = logging.getLogger(name)
         if not logger.hasHandlers():
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             logger.addHandler(handler)
             if logger.level == logging.NOTSET:
@@ -106,9 +102,7 @@ class HandlerRegistry:
         """
         async with self._handlers_lock:
             if operation_name in self._handlers:
-                logger.warning(
-                    f"Handler for operation '{operation_name}' already registered. Overwriting."
-                )
+                logger.warning(f"Handler for operation '{operation_name}' already registered. Overwriting.")
             self._handlers[operation_name] = (handler, required_permission)
             logger.info(f"Handler registered for operation: '{operation_name}'")
 
@@ -124,9 +118,7 @@ class HandlerRegistry:
                 del self._handlers[operation_name]
                 logger.info(f"Handler unregistered for operation: '{operation_name}'")
             else:
-                logger.warning(
-                    f"Attempted to unregister non-existent handler: '{operation_name}'"
-                )
+                logger.warning(f"Attempted to unregister non-existent handler: '{operation_name}'")
 
     async def get_handler(self, operation_name: str) -> Optional[HandlerFunc]:
         """
@@ -141,9 +133,7 @@ class HandlerRegistry:
         handler_info = await self.get_handler_info(operation_name)
         return handler_info[0] if handler_info else None
 
-    async def get_required_permission(
-        self, operation_name: str
-    ) -> Optional[Permissions]:
+    async def get_required_permission(self, operation_name: str) -> Optional[Permissions]:
         """
         Gets the required permission for a specific operation name.
 
@@ -156,9 +146,7 @@ class HandlerRegistry:
         handler_info = await self.get_handler_info(operation_name)
         return handler_info[1] if handler_info else None
 
-    async def get_handler_info(
-        self, operation_name: str
-    ) -> Optional[Tuple[HandlerFunc, Optional[Permissions]]]:
+    async def get_handler_info(self, operation_name: str) -> Optional[Tuple[HandlerFunc, Optional[Permissions]]]:
         """
         Gets handler function and required permission by operation name.
 

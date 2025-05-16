@@ -67,9 +67,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
 
         # Create and commit an initial file to have a valid git history
         with open(os.path.join(tmp_dir, "README.md"), "w") as f:
-            f.write(
-                "# Test Repository\nThis is a test repository for Aider MCP Server tests."
-            )
+            f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
 
         subprocess.run(  # noqa: S603
             [git_executable, "add", "README.md"],
@@ -126,9 +124,7 @@ def temp_dir() -> Generator[str, None, None]:
 
     # Create and commit an initial file to have a valid git history
     with open(os.path.join(tmp_dir, "README.md"), "w") as f:
-        f.write(
-            "# Test Repository\nThis is a test repository for Aider MCP Server tests."
-        )
+        f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
 
     subprocess.run(  # noqa: S603
         [git_executable, "add", "README.md"],
@@ -180,16 +176,12 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
                     patch(
                         "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -198,9 +190,7 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
                 p.start()
 
             # Add __import__ patch for GitRepo
-            def mock_import_from(
-                name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-            ):
+            def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
                 if name == "aider.repo" and "GitRepo" in fromlist:
                     # Return a module-like object with a GitRepo attribute
                     class MockModule:
@@ -234,9 +224,7 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
                 if "math_add.py" in test_file:
                     # Addition
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement addition\n\ndef add(a, b):\n    return a + b\n"
-                        )
+                        f.write("# This file should implement addition\n\ndef add(a, b):\n    return a + b\n")
 
                     result = json.dumps(
                         {
@@ -248,9 +236,7 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
                 elif "math_subtract.py" in test_file:
                     # Subtraction
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n"
-                        )
+                        f.write("# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n")
 
                     result = json.dumps(
                         {
@@ -366,9 +352,7 @@ class Calculator:
             assert any(x in content for x in ["def add(a, b):", "def add(a:"]), (
                 "Expected to find add function in the file"
             )
-            assert "return a + b" in content, (
-                "Expected to find return statement in the file"
-            )
+            assert "return a + b" in content, "Expected to find return statement in the file"
 
             # Try to import and use the function
             import sys
@@ -417,16 +401,12 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
                     patch(
                         "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -435,9 +415,7 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
                 p.start()
 
             # Add __import__ patch for GitRepo
-            def mock_import_from(
-                name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-            ):
+            def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
                 if name == "aider.repo" and "GitRepo" in fromlist:
                     # Return a module-like object with a GitRepo attribute
                     class MockModule:
@@ -471,9 +449,7 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
                 if "math_add.py" in test_file:
                     # Addition
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement addition\n\ndef add(a, b):\n    return a + b\n"
-                        )
+                        f.write("# This file should implement addition\n\ndef add(a, b):\n    return a + b\n")
 
                     result = json.dumps(
                         {
@@ -485,9 +461,7 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
                 elif "math_subtract.py" in test_file:
                     # Subtraction
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n"
-                        )
+                        f.write("# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n")
 
                     result = json.dumps(
                         {
@@ -600,12 +574,10 @@ class Calculator:
             with open(test_file, "r") as f:
                 content = f.read()
 
-            assert any(
-                x in content for x in ["def subtract(a, b):", "def subtract(a:"]
-            ), "Expected to find subtract function in the file"
-            assert "return a - b" in content, (
-                "Expected to find return statement in the file"
+            assert any(x in content for x in ["def subtract(a, b):", "def subtract(a:"]), (
+                "Expected to find subtract function in the file"
             )
+            assert "return a - b" in content, "Expected to find return statement in the file"
 
             # Try to import and use the function
             import sys
@@ -654,16 +626,12 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
                     patch(
                         "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -672,9 +640,7 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
                 p.start()
 
             # Add __import__ patch for GitRepo
-            def mock_import_from(
-                name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-            ):
+            def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
                 if name == "aider.repo" and "GitRepo" in fromlist:
                     # Return a module-like object with a GitRepo attribute
                     class MockModule:
@@ -708,9 +674,7 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
                 if "math_add.py" in test_file:
                     # Addition
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement addition\n\ndef add(a, b):\n    return a + b\n"
-                        )
+                        f.write("# This file should implement addition\n\ndef add(a, b):\n    return a + b\n")
 
                     result = json.dumps(
                         {
@@ -722,9 +686,7 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
                 elif "math_subtract.py" in test_file:
                     # Subtraction
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n"
-                        )
+                        f.write("# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n")
 
                     result = json.dumps(
                         {
@@ -837,12 +799,10 @@ class Calculator:
             with open(test_file, "r") as f:
                 content = f.read()
 
-            assert any(
-                x in content for x in ["def multiply(a, b):", "def multiply(a:"]
-            ), "Expected to find multiply function in the file"
-            assert "return a * b" in content, (
-                "Expected to find return statement in the file"
+            assert any(x in content for x in ["def multiply(a, b):", "def multiply(a:"]), (
+                "Expected to find multiply function in the file"
             )
+            assert "return a * b" in content, "Expected to find return statement in the file"
 
             # Try to import and use the function
             import sys
@@ -891,16 +851,12 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
                     patch(
                         "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -909,9 +865,7 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
                 p.start()
 
             # Add __import__ patch for GitRepo
-            def mock_import_from(
-                name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-            ):
+            def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
                 if name == "aider.repo" and "GitRepo" in fromlist:
                     # Return a module-like object with a GitRepo attribute
                     class MockModule:
@@ -945,9 +899,7 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
                 if "math_add.py" in test_file:
                     # Addition
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement addition\n\ndef add(a, b):\n    return a + b\n"
-                        )
+                        f.write("# This file should implement addition\n\ndef add(a, b):\n    return a + b\n")
 
                     result = json.dumps(
                         {
@@ -959,9 +911,7 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
                 elif "math_subtract.py" in test_file:
                     # Subtraction
                     with open(test_file, "w") as f:
-                        f.write(
-                            "# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n"
-                        )
+                        f.write("# This file should implement subtraction\n\ndef subtract(a, b):\n    return a - b\n")
 
                     result = json.dumps(
                         {
@@ -1215,16 +1165,12 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
                     patch(
                         "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder
-                    ),
+                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -1233,9 +1179,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
                 p.start()
 
             # Add __import__ patch for GitRepo
-            def mock_import_from(
-                name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-            ):
+            def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
                 if name == "aider.repo" and "GitRepo" in fromlist:
                     # Return a module-like object with a GitRepo attribute
                     class MockModule:
@@ -1316,9 +1260,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
                 pytest.skip(f"All models failed to generate code: {last_error}")
 
         # Check that it succeeded
-        assert result_dict["success"] is True, (
-            "Expected code_with_aider with architect mode to succeed"
-        )
+        assert result_dict["success"] is True, "Expected code_with_aider with architect mode to succeed"
         assert "diff" in result_dict, "Expected diff to be in result"
 
         # Check that the file was modified correctly with expected elements
@@ -1326,9 +1268,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
             content = f.read()
 
         # Check for class definition and methods - relaxed assertions to accommodate type hints
-        assert "class Calculator" in content, (
-            "Expected to find Calculator class definition"
-        )
+        assert "class Calculator" in content, "Expected to find Calculator class definition"
         assert "add" in content, "Expected to find add method"
         assert "subtract" in content, "Expected to find subtract method"
         assert "multiply" in content, "Expected to find multiply method"

@@ -106,9 +106,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
         self._heartbeat_task = None
 
         # Get instance-specific logger
-        self.logger = get_logger_func(
-            f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}"
-        )
+        self.logger = get_logger_func(f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}")
         self.logger.info(
             f"AbstractTransportAdapter initialized with ID: {self.get_transport_id()}, Type: {self.get_transport_type()}"
         )
@@ -118,93 +116,63 @@ class AbstractTransportAdapter(TransportAdapterBase):
         Initializes the transport adapter. Registers with the coordinator and starts heartbeat.
         Should be called after the adapter is created.
         """
-        self.logger.info(
-            f"Initializing transport {self.get_transport_id()} ({self.get_transport_type()})..."
-        )
+        self.logger.info(f"Initializing transport {self.get_transport_id()} ({self.get_transport_type()})...")
         if self._coordinator:
             # Pass self, which conforms to TransportInterface
             await self._coordinator.register_transport(self.get_transport_id(), self)
-            self.logger.info(
-                f"Transport {self.get_transport_id()} registered with coordinator."
-            )
+            self.logger.info(f"Transport {self.get_transport_id()} registered with coordinator.")
 
             capabilities = self.get_capabilities()
             for event_type in capabilities:
                 # Handle both async and sync subscribe_to_event_type methods
-                if asyncio.iscoroutinefunction(
-                    self._coordinator.subscribe_to_event_type
-                ):
-                    await self._coordinator.subscribe_to_event_type(
-                        self.get_transport_id(), event_type
-                    )
+                if asyncio.iscoroutinefunction(self._coordinator.subscribe_to_event_type):
+                    await self._coordinator.subscribe_to_event_type(self.get_transport_id(), event_type)
                 else:
                     # Non-awaitable result, but we need to ensure it's used to avoid warnings
-                    result = self._coordinator.subscribe_to_event_type(
-                        self.get_transport_id(), event_type
-                    )
+                    result = self._coordinator.subscribe_to_event_type(self.get_transport_id(), event_type)
                     # If it's a coroutine (but detected incorrectly), await it
                     if asyncio.iscoroutine(result):
                         await result
-            self.logger.debug(
-                f"Transport {self.get_transport_id()} subscribed to default events: {capabilities}"
-            )
+            self.logger.debug(f"Transport {self.get_transport_id()} subscribed to default events: {capabilities}")
 
             if self._heartbeat_interval is not None and self._heartbeat_interval > 0:
                 self.logger.info(
                     f"Starting heartbeat task for transport {self.get_transport_id()} with interval {self._heartbeat_interval}s."
                 )
                 self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-                self._heartbeat_task.add_done_callback(
-                    self._heartbeat_task_done_callback
-                )
+                self._heartbeat_task.add_done_callback(self._heartbeat_task_done_callback)
             else:
-                self.logger.debug(
-                    f"Heartbeat disabled for transport {self.get_transport_id()}."
-                )
+                self.logger.debug(f"Heartbeat disabled for transport {self.get_transport_id()}.")
         else:
             self.logger.warning(
                 f"No coordinator provided for transport {self.get_transport_id()}. Registration and heartbeat skipped."
             )
-        self.logger.info(
-            f"Transport {self.get_transport_id()} initialization complete."
-        )
+        self.logger.info(f"Transport {self.get_transport_id()} initialization complete.")
 
     async def shutdown(self) -> None:
         """
         Shuts down the transport adapter. Unregisters from the coordinator and stops heartbeat.
         Should be called before the adapter is discarded.
         """
-        self.logger.info(
-            f"Shutting down transport {self.get_transport_id()} ({self.get_transport_type()})..."
-        )
+        self.logger.info(f"Shutting down transport {self.get_transport_id()} ({self.get_transport_type()})...")
 
         if self._heartbeat_task and not self._heartbeat_task.done():
-            self.logger.debug(
-                f"Cancelling heartbeat task for transport {self.get_transport_id()}."
-            )
+            self.logger.debug(f"Cancelling heartbeat task for transport {self.get_transport_id()}.")
             self._heartbeat_task.cancel()
             try:
                 await asyncio.wait_for(self._heartbeat_task, timeout=5.0)
             except asyncio.CancelledError:
-                self.logger.debug(
-                    f"Heartbeat task for {self.get_transport_id()} cancelled."
-                )
+                self.logger.debug(f"Heartbeat task for {self.get_transport_id()} cancelled.")
             except asyncio.TimeoutError:
-                self.logger.warning(
-                    f"Timeout waiting for heartbeat task {self.get_transport_id()} to cancel."
-                )
+                self.logger.warning(f"Timeout waiting for heartbeat task {self.get_transport_id()} to cancel.")
             except Exception as e:
-                self.logger.error(
-                    f"Error cancelling heartbeat task for {self.get_transport_id()}: {e}"
-                )
+                self.logger.error(f"Error cancelling heartbeat task for {self.get_transport_id()}: {e}")
             finally:
                 self._heartbeat_task = None
 
         if self._coordinator:
             await self._coordinator.unregister_transport(self.get_transport_id())
-            self.logger.info(
-                f"Transport {self.get_transport_id()} unregistered from coordinator."
-            )
+            self.logger.info(f"Transport {self.get_transport_id()} unregistered from coordinator.")
         else:
             self.logger.warning(
                 f"No coordinator available for transport {self.get_transport_id()}. Unregistration skipped."
@@ -243,34 +211,22 @@ class AbstractTransportAdapter(TransportAdapterBase):
                         f"Coordinator not available in heartbeat loop for transport {self.get_transport_id()}."
                     )
         except asyncio.CancelledError:
-            self.logger.debug(
-                f"Heartbeat loop for transport {self.get_transport_id()} cancelled."
-            )
+            self.logger.debug(f"Heartbeat loop for transport {self.get_transport_id()} cancelled.")
             raise
         except Exception as e:
-            self.logger.error(
-                f"Error in heartbeat loop for transport {self.get_transport_id()}: {e}"
-            )
+            self.logger.error(f"Error in heartbeat loop for transport {self.get_transport_id()}: {e}")
         finally:
-            self.logger.debug(
-                f"Heartbeat loop for transport {self.get_transport_id()} stopped."
-            )
+            self.logger.debug(f"Heartbeat loop for transport {self.get_transport_id()} stopped.")
 
     def _heartbeat_task_done_callback(self, task: asyncio.Task[Any]) -> None:
         """Callback executed when the heartbeat task finishes."""
         try:
             task.result()
-            self.logger.debug(
-                f"Heartbeat task for transport {self.get_transport_id()} finished normally."
-            )
+            self.logger.debug(f"Heartbeat task for transport {self.get_transport_id()} finished normally.")
         except asyncio.CancelledError:
-            self.logger.debug(
-                f"Heartbeat task for transport {self.get_transport_id()} was cancelled."
-            )
+            self.logger.debug(f"Heartbeat task for transport {self.get_transport_id()} was cancelled.")
         except Exception as e:
-            self.logger.error(
-                f"Heartbeat task for transport {self.get_transport_id()} finished with exception: {e}"
-            )
+            self.logger.error(f"Heartbeat task for transport {self.get_transport_id()} finished with exception: {e}")
         finally:
             if self._heartbeat_task is task:
                 self._heartbeat_task = None
@@ -302,9 +258,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
         }
 
     @abc.abstractmethod
-    def validate_request_security(
-        self, request_data: RequestParameters
-    ) -> SecurityContext:
+    def validate_request_security(self, request_data: RequestParameters) -> SecurityContext:
         """
         Validates security information provided in the incoming request data
         and returns the SecurityContext applicable to this specific request.
@@ -329,9 +283,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
         Default implementation is a no-op. Override in transport implementations
         that need to actively listen for connections (e.g., WebSocket server).
         """
-        self.logger.debug(
-            f"start_listening called for {self.get_transport_id()} (no-op)"
-        )
+        self.logger.debug(f"start_listening called for {self.get_transport_id()} (no-op)")
         pass
 
     def get_transport_id(self) -> str:

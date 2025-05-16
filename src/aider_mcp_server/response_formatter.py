@@ -26,9 +26,7 @@ class ResponseFormatter:
         """
         self._logger = logger_factory(__name__)
 
-    def format_success_response(
-        self, request_id: str, transport_id: str, result: Dict[str, Any]
-    ) -> OperationResult:
+    def format_success_response(self, request_id: str, transport_id: str, result: Dict[str, Any]) -> OperationResult:
         """
         Format a successful response.
 
@@ -70,9 +68,7 @@ class ResponseFormatter:
         Returns:
             Formatted operation result with error information
         """
-        self._logger.debug(
-            f"Formatting error response for request {request_id}: {error_message}"
-        )
+        self._logger.debug(f"Formatting error response for request {request_id}: {error_message}")
 
         error_data: Dict[str, Any] = {
             "message": error_message,
@@ -93,9 +89,7 @@ class ResponseFormatter:
 
         return error_response
 
-    def get_transport_specific_formatter(
-        self, transport_type: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_transport_specific_formatter(self, transport_type: str) -> Optional[Dict[str, Any]]:
         """
         Get transport-specific formatting configurations.
 

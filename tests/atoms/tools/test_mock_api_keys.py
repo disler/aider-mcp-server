@@ -66,26 +66,15 @@ class MockCoder:
                     # Add mock implementation based on prompt
                     if "add" in prompt.lower() and "math_add.py" in file_path:
                         new_content = content + "\n\ndef add(a, b):\n    return a + b\n"
-                    elif (
-                        "subtract" in prompt.lower() and "math_subtract.py" in file_path
-                    ):
-                        new_content = (
-                            content + "\n\ndef subtract(a, b):\n    return a - b\n"
-                        )
-                    elif (
-                        "multiply" in prompt.lower() and "math_multiply.py" in file_path
-                    ):
-                        new_content = (
-                            content + "\n\ndef multiply(a, b):\n    return a * b\n"
-                        )
+                    elif "subtract" in prompt.lower() and "math_subtract.py" in file_path:
+                        new_content = content + "\n\ndef subtract(a, b):\n    return a - b\n"
+                    elif "multiply" in prompt.lower() and "math_multiply.py" in file_path:
+                        new_content = content + "\n\ndef multiply(a, b):\n    return a * b\n"
                     elif "divide" in prompt.lower() and "math_divide.py" in file_path:
                         new_content = (
-                            content
-                            + "\n\ndef divide(a, b):\n    if b == 0:\n        return None\n    return a / b\n"
+                            content + "\n\ndef divide(a, b):\n    if b == 0:\n        return None\n    return a / b\n"
                         )
-                    elif (
-                        "calculator" in prompt.lower() and "calculator.py" in file_path
-                    ):
+                    elif "calculator" in prompt.lower() and "calculator.py" in file_path:
                         new_content = (
                             content
                             + "\n\nclass Calculator:\n    def __init__(self):\n        self.memory = 0\n        self.history = []\n\n"
@@ -168,18 +157,14 @@ def setup_mock_aider(monkeypatch):
     monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel)
 
     # Mock aider.io.InputOutput
-    monkeypatch.setattr(
-        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput", MockInputOutput
-    )
+    monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.InputOutput", MockInputOutput)
 
     # Mock aider.coders.Coder
     monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder)
 
     # Patch the try/except block for importing GitRepo in the implementation
     # Use a modified __import__ to return our mock when it tries to import GitRepo from aider.repo
-    def mock_import_from(
-        name, globals_dict=None, locals_dict=None, fromlist=(), level=0
-    ):
+    def mock_import_from(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
         if name == "aider.repo" and "GitRepo" in fromlist:
             # Return a module-like object with a GitRepo attribute
             class MockModule:

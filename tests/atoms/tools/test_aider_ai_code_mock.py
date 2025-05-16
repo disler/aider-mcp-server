@@ -32,9 +32,7 @@ def temp_dir() -> Generator[str, None, None]:
 
     # Create a basic README file to simulate a git repo
     with open(os.path.join(tmp_dir, "README.md"), "w") as f:
-        f.write(
-            "# Test Repository\nThis is a test repository for Aider MCP Server tests."
-        )
+        f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
 
     yield tmp_dir
 
@@ -69,9 +67,7 @@ def test_configure_model() -> None:
     assert isinstance(model.model_name, str)
 
     # Test with architect mode
-    model = _configure_model(
-        "gemini/gemini-pro", editor_model="openai/gpt-3.5-turbo", architect_mode=True
-    )
+    model = _configure_model("gemini/gemini-pro", editor_model="openai/gpt-3.5-turbo", architect_mode=True)
     assert model is not None
     assert model.editor_model is not None
 
@@ -112,9 +108,7 @@ async def test_addition_mock(temp_dir: str) -> None:
             content = f.read()
 
         assert "def add(a, b):" in content, "Expected to find add function in the file"
-        assert "return a + b" in content, (
-            "Expected to find return statement in the file"
-        )
+        assert "return a + b" in content, "Expected to find return statement in the file"
 
         # Try to import and use the function
         import sys
@@ -163,12 +157,8 @@ async def test_subtraction_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def subtract(a, b):" in content, (
-            "Expected to find subtract function in the file"
-        )
-        assert "return a - b" in content, (
-            "Expected to find return statement in the file"
-        )
+        assert "def subtract(a, b):" in content, "Expected to find subtract function in the file"
+        assert "return a - b" in content, "Expected to find return statement in the file"
 
         # Try to import and use the function
         import sys
@@ -217,12 +207,8 @@ async def test_multiplication_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def multiply(a, b):" in content, (
-            "Expected to find multiply function in the file"
-        )
-        assert "return a * b" in content, (
-            "Expected to find return statement in the file"
-        )
+        assert "def multiply(a, b):" in content, "Expected to find multiply function in the file"
+        assert "return a * b" in content, "Expected to find return statement in the file"
 
         # Try to import and use the function
         import sys
@@ -271,9 +257,7 @@ async def test_division_mock(temp_dir: str) -> None:
         with open(test_file, "r") as f:
             content = f.read()
 
-        assert "def divide(a, b):" in content, (
-            "Expected to find divide function in the file"
-        )
+        assert "def divide(a, b):" in content, "Expected to find divide function in the file"
         assert "return" in content, "Expected to find return statement in the file"
 
         # Try to import and use the function
@@ -339,13 +323,9 @@ async def test_failure_case_mock(temp_dir: str) -> None:
 
         # Any of these patterns is acceptable - we're testing the high-level behavior,
         # not the specific error message format
-        pattern_found = any(
-            pattern in result_dict["diff"] for pattern in expected_patterns
-        )
+        pattern_found = any(pattern in result_dict["diff"] for pattern in expected_patterns)
         if not pattern_found:
-            print(
-                f"WARNING: Expected one of {expected_patterns} in diff, but got: {result_dict['diff']}"
-            )
+            print(f"WARNING: Expected one of {expected_patterns} in diff, but got: {result_dict['diff']}")
 
     except asyncio.TimeoutError:
         # If the test times out, consider it a pass with a warning
@@ -407,9 +387,7 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
             content = f.read()
 
         # Check for class definition and methods
-        assert "class Calculator" in content, (
-            "Expected to find Calculator class definition"
-        )
+        assert "class Calculator" in content, "Expected to find Calculator class definition"
         assert "add" in content, "Expected to find add method"
         assert "subtract" in content, "Expected to find subtract method"
         assert "multiply" in content, "Expected to find multiply method"

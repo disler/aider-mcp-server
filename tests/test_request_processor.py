@@ -45,9 +45,7 @@ def handler_registry():
         }
 
     handler_registry_mock.get_handler = AsyncMock()
-    handler_registry_mock.get_required_permission = AsyncMock(
-        return_value=Permissions.EXECUTE_AIDER
-    )
+    handler_registry_mock.get_required_permission = AsyncMock(return_value=Permissions.EXECUTE_AIDER)
     handler_registry_mock.register_handler = AsyncMock()
 
     return handler_registry_mock
@@ -57,9 +55,7 @@ def handler_registry():
 def response_formatter():
     response_formatter_mock = MagicMock()
 
-    async def format_success_response(
-        request_id: str, transport_id: str, result: dict
-    ) -> OperationResult:
+    async def format_success_response(request_id: str, transport_id: str, result: dict) -> OperationResult:
         return {
             "success": True,
             "request_id": request_id,
@@ -91,12 +87,8 @@ def response_formatter():
             "error": error_data,
         }
 
-    response_formatter_mock.format_success_response = AsyncMock(
-        side_effect=format_success_response
-    )
-    response_formatter_mock.format_error_response = AsyncMock(
-        side_effect=format_error_response
-    )
+    response_formatter_mock.format_success_response = AsyncMock(side_effect=format_success_response)
+    response_formatter_mock.format_error_response = AsyncMock(side_effect=format_error_response)
 
     return response_formatter_mock
 
@@ -132,9 +124,7 @@ async def test_fail_request(request_processor, handler_registry, response_format
     ) -> OperationResult:
         raise Exception("Test Error")
 
-    await handler_registry.register_handler(
-        "test_operation", test_handler, Permissions.EXECUTE_AIDER
-    )
+    await handler_registry.register_handler("test_operation", test_handler, Permissions.EXECUTE_AIDER)
 
     # Set a specific return value for response_formatter.format_error_response
     response_formatter.format_error_response.return_value = {
@@ -145,9 +135,7 @@ async def test_fail_request(request_processor, handler_registry, response_format
     }
 
     # Directly call fail_request since process_request will run in the background
-    await request_processor.fail_request(
-        "123", "test_operation", "Error Message", "Error Details", "transport_id"
-    )
+    await request_processor.fail_request("123", "test_operation", "Error Message", "Error Details", "transport_id")
 
     # Check that send_event_to_transport was called with appropriate error info
     request_processor._event_coordinator.send_event_to_transport.assert_any_call(
@@ -179,13 +167,9 @@ async def test_register_handler(request_processor, handler_registry):
             "result": {"message": "Test Result"},
         }
 
-    await handler_registry.register_handler(
-        "test_operation", test_handler, Permissions.EXECUTE_AIDER
-    )
+    await handler_registry.register_handler("test_operation", test_handler, Permissions.EXECUTE_AIDER)
 
-    handler_registry.register_handler.assert_called_once_with(
-        "test_operation", test_handler, Permissions.EXECUTE_AIDER
-    )
+    handler_registry.register_handler.assert_called_once_with("test_operation", test_handler, Permissions.EXECUTE_AIDER)
 
 
 @pytest.mark.asyncio
@@ -193,9 +177,7 @@ async def test_process_request(request_processor, handler_registry):
     # Test processing a request
     request_data = {"parameters": {"param1": "value1", "param2": "value2"}}
 
-    await request_processor.process_request(
-        "123", "transport_id", "test_operation", request_data
-    )
+    await request_processor.process_request("123", "transport_id", "test_operation", request_data)
 
     handler_registry.get_handler.assert_called_once_with("test_operation")
 

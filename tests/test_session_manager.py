@@ -56,15 +56,9 @@ async def test_check_permission(session_manager):
     await session_manager.get_or_create_session(transport_id)
     await session_manager.set_permissions(transport_id, permissions)
 
-    has_execute_aider_permission = await session_manager.check_permission(
-        transport_id, Permissions.EXECUTE_AIDER
-    )
-    has_view_config_permission = await session_manager.check_permission(
-        transport_id, Permissions.VIEW_CONFIG
-    )
-    has_list_models_permission = await session_manager.check_permission(
-        transport_id, Permissions.LIST_MODELS
-    )
+    has_execute_aider_permission = await session_manager.check_permission(transport_id, Permissions.EXECUTE_AIDER)
+    has_view_config_permission = await session_manager.check_permission(transport_id, Permissions.VIEW_CONFIG)
+    has_list_models_permission = await session_manager.check_permission(transport_id, Permissions.LIST_MODELS)
 
     assert has_execute_aider_permission
     assert has_view_config_permission
@@ -76,9 +70,7 @@ async def test_cleanup_expired_sessions(session_manager):
     # Test cleaning up expired sessions
     transport_id = "test_transport_id"
     session = await session_manager.get_or_create_session(transport_id)
-    session.last_accessed_time = session.creation_time - timedelta(
-        seconds=session_manager.session_timeout + 1
-    )
+    session.last_accessed_time = session.creation_time - timedelta(seconds=session_manager.session_timeout + 1)
 
     # Manually call the cleanup method instead of waiting for the task
     await session_manager.cleanup_expired_sessions(run_once=True)

@@ -43,11 +43,7 @@ try:
     mcp_json_paths = [
         ".rate-limit-fallback.json",
         os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                )
-            ),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
             ".rate-limit-fallback.json",
         ),
     ]

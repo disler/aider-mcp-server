@@ -76,9 +76,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self._host = host
         self._port = port
         self._sse_queue_size = sse_queue_size
-        self._active_connections: Dict[
-            str, asyncio.Queue[Union[str, Dict[str, str]]]
-        ] = {}
+        self._active_connections: Dict[str, asyncio.Queue[Union[str, Dict[str, str]]]] = {}
         self._server: Optional[Any] = None  # Starlette/Uvicorn server
         self._monitor_connections: Set[str] = set()
         self.monitor_stdio_transport_id: Optional[str] = None
@@ -91,9 +89,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         Sets up the Starlette app with SSE endpoints and prepares it for serving.
         """
-        self.logger.info(
-            f"Initializing SSE transport adapter on {self._host}:{self._port}"
-        )
+        self.logger.info(f"Initializing SSE transport adapter on {self._host}:{self._port}")
         # Call parent initialization
         await super().initialize()
 
@@ -195,22 +191,16 @@ class SSETransportAdapter(AbstractTransportAdapter):
         for conn_id in connection_ids:
             queue = self._active_connections.get(conn_id)
             if queue is None:
-                self.logger.debug(
-                    f"Connection {conn_id} removed before sending event {event_type.value}"
-                )
+                self.logger.debug(f"Connection {conn_id} removed before sending event {event_type.value}")
                 continue  # Connection was removed concurrently
 
             try:
                 # Use put_nowait as expected by tests
                 queue.put_nowait(sse_message)
             except asyncio.QueueFull:
-                self.logger.warning(
-                    f"Queue full for connection {conn_id}. Event {event_type.value} dropped."
-                )
+                self.logger.warning(f"Queue full for connection {conn_id}. Event {event_type.value} dropped.")
             except Exception as e:
-                self.logger.error(
-                    f"Error putting event into queue for connection {conn_id}: {e}"
-                )
+                self.logger.error(f"Error putting event into queue for connection {conn_id}: {e}")
                 # Consider removing the connection if it's consistently failing
 
     async def handle_sse_request(self, request: Any) -> Any:
@@ -231,18 +221,14 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         # Create a connection ID for this client
         client_id = f"client_{uuid.uuid4()}"
-        queue: asyncio.Queue[Union[str, Dict[str, str]]] = asyncio.Queue(
-            maxsize=self._sse_queue_size
-        )
+        queue: asyncio.Queue[Union[str, Dict[str, str]]] = asyncio.Queue(maxsize=self._sse_queue_size)
 
         # Register this connection
         self._active_connections[client_id] = queue
         self.logger.info(f"SSE connection established: {client_id}")
 
         # Define the event stream generator
-        async def event_generator() -> typing.AsyncGenerator[
-            Union[str, Dict[str, str]], None
-        ]:
+        async def event_generator() -> typing.AsyncGenerator[Union[str, Dict[str, str]], None]:
             """
             Generates SSE events for clients.
 
@@ -265,9 +251,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
                         if isinstance(message, str):
                             if message == "CLOSE_CONNECTION":
-                                self.logger.debug(
-                                    f"Received close signal for connection {client_id}. Closing stream."
-                                )
+                                self.logger.debug(f"Received close signal for connection {client_id}. Closing stream.")
                                 break
                             else:
                                 # Yield the pre-formatted SSE message string directly
@@ -284,9 +268,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
                             "data": json.dumps({"timestamp": time.time()}),
                         }
                     except Exception as e:
-                        self.logger.error(
-                            f"Error in SSE event stream for {client_id}: {e}"
-                        )
+                        self.logger.error(f"Error in SSE event stream for {client_id}: {e}")
                         break
 
             except asyncio.CancelledError:
@@ -342,24 +324,17 @@ class SSETransportAdapter(AbstractTransportAdapter):
         if self.monitor_stdio_transport_id and data.get("transport_origin"):
             origin = data["transport_origin"]
             if origin.get("transport_id") == self.monitor_stdio_transport_id:
-                self.logger.debug(
-                    f"SSE accepting event from monitored stdio transport: {event_type.value}"
-                )
+                self.logger.debug(f"SSE accepting event from monitored stdio transport: {event_type.value}")
                 return True
 
         # Skip events that originated from us to prevent loops
-        if (
-            data.get("transport_origin", {}).get("transport_id")
-            == self.get_transport_id()
-        ):
+        if data.get("transport_origin", {}).get("transport_id") == self.get_transport_id():
             return False
 
         # All other events should be received
         return True
 
-    def validate_request_security(
-        self, request_details: Dict[str, Any]
-    ) -> SecurityContext:
+    def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext:
         """
         Validate the security of an incoming request.
 

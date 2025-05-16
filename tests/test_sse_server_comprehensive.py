@@ -108,6 +108,4 @@ async def test_sse_transport_adapter_send_event_error_handling():
 
         with patch.object(sse_adapter, "_active_connections", {}):
             with patch.object(sse_adapter, "logger"):
-                await sse_adapter.send_event(
-                    EventTypes.STATUS, {"message": "Test status message"}
-                )
+                await sse_adapter.send_event(EventTypes.STATUS, {"message": "Test status message"})

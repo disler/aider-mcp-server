@@ -23,16 +23,10 @@ def test_logger_creation_and_file_output(tmp_path: Path) -> None:
     logger.info("Initial log message.")
 
     # Verify log directory and file exist
-    assert log_dir.exists(), (
-        f"Log directory should be created by get_logger at {log_dir}"
-    )
+    assert log_dir.exists(), f"Log directory should be created by get_logger at {log_dir}"
     assert log_dir.is_dir(), "Log path created by get_logger should be a directory"
-    assert expected_log_file.exists(), (
-        f"Log file should be created by get_logger at {expected_log_file}"
-    )
-    assert expected_log_file.is_file(), (
-        "Log path created by get_logger should point to a file"
-    )
+    assert expected_log_file.exists(), f"Log file should be created by get_logger at {expected_log_file}"
+    assert expected_log_file.is_file(), "Log path created by get_logger should point to a file"
 
 
 def test_log_levels_and_output(tmp_path: Path) -> None:
@@ -72,12 +66,8 @@ def test_log_levels_and_output(tmp_path: Path) -> None:
     for level, msg in messages.items():
         level_name = logging.getLevelName(level)
         assert msg in file_content, f"Message '{msg}' not found in file content"
-        assert level_name in file_content, (
-            f"Level '{level_name}' not found in file content"
-        )
-        assert logger_name in file_content, (
-            f"Logger name '{logger_name}' not found in file content"
-        )
+        assert level_name in file_content, f"Level '{level_name}' not found in file content"
+        assert logger_name in file_content, f"Logger name '{logger_name}' not found in file content"
 
 
 def test_log_level_filtering(tmp_path: Path) -> None:
@@ -98,9 +88,7 @@ def test_log_level_filtering(tmp_path: Path) -> None:
     info_msg = "This info message should NOT appear."
     warning_msg = "This warning message SHOULD appear."
     error_msg = "This error message SHOULD appear."
-    critical_msg = (
-        "This critical message SHOULD appear."  # Add critical for completeness
-    )
+    critical_msg = "This critical message SHOULD appear."  # Add critical for completeness
 
     logger.debug(debug_msg)
     logger.info(info_msg)
@@ -118,24 +106,12 @@ def test_log_level_filtering(tmp_path: Path) -> None:
     assert warning_msg in file_content, "Warning message should appear in file"
     assert error_msg in file_content, "Error message should appear in file"
     assert critical_msg in file_content, "Critical message should appear in file"
-    assert logging.getLevelName(logging.DEBUG) not in file_content, (
-        "DEBUG level indicator should be filtered from file"
-    )
-    assert logging.getLevelName(logging.INFO) not in file_content, (
-        "INFO level indicator should be filtered from file"
-    )
-    assert logging.getLevelName(logging.WARNING) in file_content, (
-        "WARNING level indicator should appear in file"
-    )
-    assert logging.getLevelName(logging.ERROR) in file_content, (
-        "ERROR level indicator should appear in file"
-    )
-    assert logging.getLevelName(logging.CRITICAL) in file_content, (
-        "CRITICAL level indicator should appear in file"
-    )
-    assert logger_name in file_content, (
-        f"Logger name '{logger_name}' should appear in file content"
-    )
+    assert logging.getLevelName(logging.DEBUG) not in file_content, "DEBUG level indicator should be filtered from file"
+    assert logging.getLevelName(logging.INFO) not in file_content, "INFO level indicator should be filtered from file"
+    assert logging.getLevelName(logging.WARNING) in file_content, "WARNING level indicator should appear in file"
+    assert logging.getLevelName(logging.ERROR) in file_content, "ERROR level indicator should appear in file"
+    assert logging.getLevelName(logging.CRITICAL) in file_content, "CRITICAL level indicator should appear in file"
+    assert logger_name in file_content, f"Logger name '{logger_name}' should appear in file content"
 
 
 def test_log_appending(tmp_path: Path) -> None:
@@ -169,10 +145,6 @@ def test_log_appending(tmp_path: Path) -> None:
     file_content = expected_log_file.read_text()
 
     assert message1 in file_content, "First message not found in appended log file"
-    assert logger_name_1 in file_content, (
-        "First logger name not found in appended log file"
-    )
+    assert logger_name_1 in file_content, "First logger name not found in appended log file"
     assert message2 in file_content, "Second message not found in appended log file"
-    assert logger_name_2 in file_content, (
-        "Second logger name not found in appended log file"
-    )
+    assert logger_name_2 in file_content, "Second logger name not found in appended log file"

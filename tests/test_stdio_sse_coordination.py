@@ -93,9 +93,7 @@ class MockSSETransportAdapter(SSETransportAdapter):
 
 @pytest.mark.asyncio
 @pytest.mark.skip("Test needs fixing with proper mocks")
-async def test_stdio_registration_with_coordinator(
-    coordinator_with_discovery, mock_input_output
-):
+async def test_stdio_registration_with_coordinator(coordinator_with_discovery, mock_input_output):
     """Test registering a stdio transport with an existing coordinator."""
     coordinator, discovery_file = coordinator_with_discovery
     input_stream, output_stream = mock_input_output
@@ -109,9 +107,7 @@ async def test_stdio_registration_with_coordinator(
     await stdio_adapter.initialize()
 
     # Verify registration was called
-    coordinator.register_transport.assert_called_once_with(
-        stdio_adapter.transport_id, stdio_adapter
-    )
+    coordinator.register_transport.assert_called_once_with(stdio_adapter.transport_id, stdio_adapter)
 
     await stdio_adapter.shutdown()
 
@@ -148,9 +144,7 @@ async def test_stdio_find_and_connect(coordinator_with_discovery, mock_input_out
 
 @pytest.mark.asyncio
 @pytest.mark.skip("Test needs fixing with proper mocks")
-async def test_stdio_to_sse_event_forwarding(
-    coordinator_with_discovery, mock_input_output
-):
+async def test_stdio_to_sse_event_forwarding(coordinator_with_discovery, mock_input_output):
     """Test that events from stdio are properly forwarded to SSE."""
     coordinator, discovery_file = coordinator_with_discovery
     input_stream, output_stream = mock_input_output

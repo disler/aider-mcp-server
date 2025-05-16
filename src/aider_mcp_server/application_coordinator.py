@@ -30,9 +30,7 @@ class ApplicationCoordinator:
         self._request_processor: Optional[RequestProcessor] = None
 
     @classmethod
-    async def getInstance(
-        cls, logger_factory: LoggerFactory
-    ) -> "ApplicationCoordinator":
+    async def getInstance(cls, logger_factory: LoggerFactory) -> "ApplicationCoordinator":
         if cls._instance is None:
             async with cls._creation_lock:
                 if cls._instance is None:
@@ -48,31 +46,21 @@ class ApplicationCoordinator:
                                 timeout=10.0,  # 10 second timeout
                             )
                         except asyncio.TimeoutError:
-                            raise RuntimeError(
-                                "Timeout while initializing TransportAdapterRegistry"
-                            ) from None
+                            raise RuntimeError("Timeout while initializing TransportAdapterRegistry") from None
                         except Exception as e:
-                            raise RuntimeError(
-                                f"Failed to initialize TransportAdapterRegistry: {e}"
-                            ) from e
+                            raise RuntimeError(f"Failed to initialize TransportAdapterRegistry: {e}") from e
 
                         if transport_registry is None:
-                            raise RuntimeError(
-                                "TransportAdapterRegistry initialization returned None"
-                            )
+                            raise RuntimeError("TransportAdapterRegistry initialization returned None")
 
                         # Set the transport registry and initialize dependent components
                         instance._transport_registry = transport_registry
 
                         try:
                             # Initialize EventCoordinator with error handling
-                            instance._event_coordinator = EventCoordinator(
-                                transport_registry, logger_factory
-                            )
+                            instance._event_coordinator = EventCoordinator(transport_registry, logger_factory)
                         except Exception as e:
-                            raise RuntimeError(
-                                f"Failed to initialize EventCoordinator: {e}"
-                            ) from e
+                            raise RuntimeError(f"Failed to initialize EventCoordinator: {e}") from e
 
                         try:
                             # Re-initialize the request processor with all dependencies
@@ -84,26 +72,20 @@ class ApplicationCoordinator:
                                 instance._response_formatter,
                             )
                         except Exception as e:
-                            raise RuntimeError(
-                                f"Failed to initialize RequestProcessor: {e}"
-                            ) from e
+                            raise RuntimeError(f"Failed to initialize RequestProcessor: {e}") from e
 
                         # Only set the instance if all initialization steps completed successfully
                         cls._instance = instance
                     except Exception as e:
                         # Log the initialization error
                         logger = logger_factory("ApplicationCoordinator")
-                        logger.error(
-                            f"Failed to initialize ApplicationCoordinator: {e}"
-                        )
+                        logger.error(f"Failed to initialize ApplicationCoordinator: {e}")
                         # Re-raise the exception to inform the caller
                         raise e
 
         return cls._instance
 
-    async def register_transport(
-        self, transport_id: str, transport: Type[ITransportAdapter]
-    ) -> None:
+    async def register_transport(self, transport_id: str, transport: Type[ITransportAdapter]) -> None:
         # This is a placeholder since TransportAdapterRegistry doesn't have register_transport method
         # Instead, it uses register_adapter_class, but that expects different parameters
         # For now, just log that this method was called
@@ -120,9 +102,7 @@ class ApplicationCoordinator:
         handler: Type[Any],
         required_permission: Optional[Permissions] = None,
     ) -> None:
-        await self._handler_registry.register_handler(
-            operation_name, handler, required_permission
-        )
+        await self._handler_registry.register_handler(operation_name, handler, required_permission)
 
     async def unregister_handler(self, operation_name: str) -> None:
         await self._handler_registry.unregister_handler(operation_name)
@@ -135,9 +115,7 @@ class ApplicationCoordinator:
         request_data: Dict[str, Any],
     ) -> None:
         if self._request_processor:
-            await self._request_processor.process_request(
-                request_id, transport_id, operation_name, request_data
-            )
+            await self._request_processor.process_request(request_id, transport_id, operation_name, request_data)
 
     async def fail_request(
         self,
@@ -165,37 +143,21 @@ class ApplicationCoordinator:
         exclude_transport_id: Optional[str] = None,
     ) -> None:
         if self._event_coordinator:
-            await self._event_coordinator.broadcast_event(
-                event_type, data, exclude_transport_id
-            )
+            await self._event_coordinator.broadcast_event(event_type, data, exclude_transport_id)
 
-    async def send_event_to_transport(
-        self, transport_id: str, event_type: EventTypes, data: Dict[str, Any]
-    ) -> None:
+    async def send_event_to_transport(self, transport_id: str, event_type: EventTypes, data: Dict[str, Any]) -> None:
         if self._event_coordinator:
-            await self._event_coordinator.send_event_to_transport(
-                transport_id, event_type, data
-            )
+            await self._event_coordinator.send_event_to_transport(transport_id, event_type, data)
 
-    async def subscribe_to_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         if self._event_coordinator:
-            await self._event_coordinator.subscribe_to_event_type(
-                transport_id, event_type
-            )
+            await self._event_coordinator.subscribe_to_event_type(transport_id, event_type)
 
-    async def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         if self._event_coordinator:
-            await self._event_coordinator.unsubscribe_from_event_type(
-                transport_id, event_type
-            )
+            await self._event_coordinator.unsubscribe_from_event_type(transport_id, event_type)
 
-    async def get_transport(
-        self, transport_id: str
-    ) -> Optional[Type[ITransportAdapter]]:
+    async def get_transport(self, transport_id: str) -> Optional[Type[ITransportAdapter]]:
         if self._transport_registry:
             # Transport registry may not have get_transport implemented yet
             # Return None for now

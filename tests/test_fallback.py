@@ -23,9 +23,7 @@ def test_detect_rate_limit_error() -> bool:
     # Print the DEFAULT_FALLBACK_CONFIG to see what's loaded
     from aider_mcp_server.atoms.utils.fallback_config import DEFAULT_FALLBACK_CONFIG
 
-    print(
-        f"DEFAULT_FALLBACK_CONFIG['gemini']: {DEFAULT_FALLBACK_CONFIG.get('gemini', {})}"
-    )
+    print(f"DEFAULT_FALLBACK_CONFIG['gemini']: {DEFAULT_FALLBACK_CONFIG.get('gemini', {})}")
 
     # Test one provider at a time
     test_cases: List[Dict[str, Any]] = [
@@ -64,9 +62,7 @@ def test_detect_rate_limit_error() -> bool:
             error = Exception(error_message)
 
             result = detect_rate_limit_error(error, provider)
-            print(
-                f"Error: '{error_message}', Should detect: {should_detect}, Result: {result}"
-            )
+            print(f"Error: '{error_message}', Should detect: {should_detect}, Result: {result}")
 
             if result != should_detect:
                 print(f"❌ Test failed! Expected {should_detect}, got {result}")
@@ -95,19 +91,11 @@ def test_get_fallback_model() -> None:
     assert get_fallback_model("gpt-3.5-turbo", "openai") == "gpt-3.5-turbo-16k"
 
     # Anthropic fallback model
-    assert (
-        get_fallback_model("claude-3-opus-20240229", "anthropic")
-        == "claude-3-sonnet-20240229"
-    )
-    assert (
-        get_fallback_model("claude-3-sonnet-20240229", "anthropic")
-        == "claude-3-haiku-20240307"
-    )
+    assert get_fallback_model("claude-3-opus-20240229", "anthropic") == "claude-3-sonnet-20240229"
+    assert get_fallback_model("claude-3-sonnet-20240229", "anthropic") == "claude-3-haiku-20240307"
 
     # Gemini fallback model
-    assert (
-        get_fallback_model("gemini-2.5-pro-preview-03-25", "gemini") == "gemini-1.5-pro"
-    )
+    assert get_fallback_model("gemini-2.5-pro-preview-03-25", "gemini") == "gemini-1.5-pro"
     assert get_fallback_model("gemini-pro", "gemini") == "gemini-1.5-pro"
 
     # Test cycling back to the beginning after last model

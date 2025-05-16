@@ -87,9 +87,7 @@ def test_setup_aider_coder_architect_mode(mock_coder):
 
         # When architect_mode is False, it should not activate architect mode
         assert kwargs["edit_format"] is None
-        assert (
-            kwargs["auto_accept_architect"] is True
-        )  # Default is True when not in architect mode
+        assert kwargs["auto_accept_architect"] is True  # Default is True when not in architect mode
 
     # Test default behavior (no architect mode)
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -104,18 +102,14 @@ def test_setup_aider_coder_architect_mode(mock_coder):
         assert call_args is not None
         kwargs = call_args[1]
         assert kwargs["edit_format"] is None
-        assert (
-            kwargs["auto_accept_architect"] is True
-        )  # Default is True when not in architect mode
+        assert kwargs["auto_accept_architect"] is True  # Default is True when not in architect mode
 
 
 @pytest.mark.asyncio
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-async def test_code_with_aider_architect_mode(
-    mock_run_aider, mock_setup_coder, mock_configure_model
-):
+async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, mock_configure_model):
     """Test code_with_aider function with architect mode parameters."""
     # Setup mocks
     mock_model = MagicMock()
@@ -158,9 +152,7 @@ async def test_code_with_aider_architect_mode(
         # It's called with positional arguments
         assert len(args) == 6
         assert args[4] is True  # architect_mode (0-based index 4 is 5th argument)
-        assert (
-            args[5] is True
-        )  # auto_accept_architect (0-based index 5 is 6th argument)
+        assert args[5] is True  # auto_accept_architect (0-based index 5 is 6th argument)
 
         # Check that the result is correct
         result_data = json.loads(result)
@@ -173,9 +165,7 @@ async def test_code_with_aider_architect_mode(
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
 @patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-async def test_code_with_aider_default_mode(
-    mock_run_aider, mock_setup_coder, mock_configure_model
-):
+async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mock_configure_model):
     """Test code_with_aider function with default (non-architect) mode."""
     # Setup mocks
     mock_model = MagicMock()
@@ -214,9 +204,7 @@ async def test_code_with_aider_default_mode(
         # It's called with positional arguments
         assert len(args) == 6
         assert args[4] is False  # architect_mode (0-based index 4 is 5th argument)
-        assert (
-            args[5] is True
-        )  # auto_accept_architect (0-based index 5 is 6th argument)
+        assert args[5] is True  # auto_accept_architect (0-based index 5 is 6th argument)
 
         # Check that the result is correct
         result_data = json.loads(result)

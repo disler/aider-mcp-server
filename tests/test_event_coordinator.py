@@ -86,49 +86,32 @@ async def test_subscribe_to_event_type(event_coordinator, mock_transport_adapter
     # Test subscribing to an event type
     await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
     assert "transport_id" in event_coordinator._transport_subscriptions
-    assert (
-        EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
-    )
+    assert EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
 
 
 @pytest.mark.asyncio
 async def test_unsubscribe_from_event_type(event_coordinator, mock_transport_adapter):
     # Test unsubscribing from an event type
     await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
-    await event_coordinator.unsubscribe_from_event_type(
-        "transport_id", EventTypes.STATUS
-    )
+    await event_coordinator.unsubscribe_from_event_type("transport_id", EventTypes.STATUS)
     assert "transport_id" in event_coordinator._transport_subscriptions
-    assert (
-        EventTypes.STATUS
-        not in event_coordinator._transport_subscriptions["transport_id"]
-    )
+    assert EventTypes.STATUS not in event_coordinator._transport_subscriptions["transport_id"]
 
 
 @pytest.mark.asyncio
 async def test_update_transport_capabilities(event_coordinator, mock_transport_adapter):
     # Test updating transport capabilities
-    await event_coordinator.update_transport_capabilities(
-        "transport_id", {EventTypes.STATUS}
-    )
+    await event_coordinator.update_transport_capabilities("transport_id", {EventTypes.STATUS})
     assert "transport_id" in event_coordinator._transport_capabilities
-    assert (
-        EventTypes.STATUS in event_coordinator._transport_capabilities["transport_id"]
-    )
+    assert EventTypes.STATUS in event_coordinator._transport_capabilities["transport_id"]
 
 
 @pytest.mark.asyncio
-async def test_update_transport_subscriptions(
-    event_coordinator, mock_transport_adapter
-):
+async def test_update_transport_subscriptions(event_coordinator, mock_transport_adapter):
     # Test updating transport subscriptions
-    await event_coordinator.update_transport_subscriptions(
-        "transport_id", {EventTypes.STATUS}
-    )
+    await event_coordinator.update_transport_subscriptions("transport_id", {EventTypes.STATUS})
     assert "transport_id" in event_coordinator._transport_subscriptions
-    assert (
-        EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
-    )
+    assert EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
 
 
 @pytest.mark.asyncio
@@ -143,41 +126,29 @@ async def test_broadcast_event(event_coordinator, mock_transport_adapter):
     # Mock setup for the transport adapter
     event_coordinator._transport_registry.list_adapter_types.return_value = ["sse"]
     event_coordinator._transport_registry.get_adapter_class.return_value = True
-    event_coordinator._transport_registry.get_cached_adapter.return_value = (
-        mock_transport_adapter
-    )
+    event_coordinator._transport_registry.get_cached_adapter.return_value = mock_transport_adapter
 
     # Add a method to mock_transport_adapter for should_receive_event
     mock_transport_adapter.should_receive_event = AsyncMock(return_value=True)
 
     # Broadcast the event - use test_mode=True for direct awaiting
-    await event_coordinator.broadcast_event(
-        EventTypes.STATUS, {"data": "test"}, test_mode=True
-    )
+    await event_coordinator.broadcast_event(EventTypes.STATUS, {"data": "test"}, test_mode=True)
 
     # Verify the mock transport's send_event was called
-    mock_transport_adapter.send_event.assert_awaited_once_with(
-        EventTypes.STATUS, {"data": "test"}
-    )
+    mock_transport_adapter.send_event.assert_awaited_once_with(EventTypes.STATUS, {"data": "test"})
 
 
 @pytest.mark.asyncio
 async def test_send_event_to_transport(event_coordinator, mock_transport_adapter):
     # Test sending an event to a specific transport
     # Update the get_cached_adapter mock to return our mock_transport_adapter
-    event_coordinator._transport_registry.get_cached_adapter.return_value = (
-        mock_transport_adapter
-    )
+    event_coordinator._transport_registry.get_cached_adapter.return_value = mock_transport_adapter
 
     # Call the method under test with test_mode=True for direct awaiting
-    await event_coordinator.send_event_to_transport(
-        "transport_id", EventTypes.STATUS, {"data": "test"}, test_mode=True
-    )
+    await event_coordinator.send_event_to_transport("transport_id", EventTypes.STATUS, {"data": "test"}, test_mode=True)
 
     # Verify the mock was called correctly
-    mock_transport_adapter.send_event.assert_awaited_once_with(
-        EventTypes.STATUS, {"data": "test"}
-    )
+    mock_transport_adapter.send_event.assert_awaited_once_with(EventTypes.STATUS, {"data": "test"})
 
 
 @pytest.mark.asyncio
@@ -185,6 +156,4 @@ async def test_is_subscribed(event_coordinator, mock_transport_adapter):
     # Test checking if a transport is subscribed to an event type
     await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
     assert await event_coordinator.is_subscribed("transport_id", EventTypes.STATUS)
-    assert not await event_coordinator.is_subscribed(
-        "other_transport_id", EventTypes.STATUS
-    )
+    assert not await event_coordinator.is_subscribed("other_transport_id", EventTypes.STATUS)

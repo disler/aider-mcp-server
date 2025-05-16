@@ -15,15 +15,11 @@ try:
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:
 
-    def fallback_get_logger(
-        name: str, *args: typing.Any, **kwargs: typing.Any
-    ) -> LoggerProtocol:
+    def fallback_get_logger(name: str, *args: typing.Any, **kwargs: typing.Any) -> LoggerProtocol:
         logger = logging.getLogger(name)
         if not logger.hasHandlers():
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             logger.addHandler(handler)
             if logger.level == logging.NOTSET:
@@ -62,9 +58,7 @@ class TransportRegistry:
         self.subscriptions_by_event: Dict[EventTypes, Set[str]] = {}
         self.subscriptions_by_transport: Dict[str, Set[EventTypes]] = {}
 
-    def register_transport(
-        self, transport_id: str, transport: ITransportAdapter
-    ) -> None:
+    def register_transport(self, transport_id: str, transport: ITransportAdapter) -> None:
         self.transports[transport_id] = transport
         self.capabilities[transport_id] = set()
         self.subscriptions_by_transport[transport_id] = set()
@@ -75,39 +69,25 @@ class TransportRegistry:
             del self.capabilities[transport_id]
             del self.subscriptions_by_transport[transport_id]
 
-    def update_transport_capabilities(
-        self, transport_id: str, capabilities: Set[EventTypes]
-    ) -> None:
+    def update_transport_capabilities(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
         if transport_id in self.capabilities:
             self.capabilities[transport_id] = capabilities
 
-    def update_transport_subscriptions(
-        self, transport_id: str, subscriptions: Set[EventTypes]
-    ) -> None:
+    def update_transport_subscriptions(self, transport_id: str, subscriptions: Set[EventTypes]) -> None:
         if transport_id in self.subscriptions_by_transport:
             self.subscriptions_by_transport[transport_id] = subscriptions
 
-    def subscribe_to_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         if event_type not in self.subscriptions_by_event:
             self.subscriptions_by_event[event_type] = set()
         self.subscriptions_by_event[event_type].add(transport_id)
 
-    def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
-        if (
-            event_type in self.subscriptions_by_event
-            and transport_id in self.subscriptions_by_event[event_type]
-        ):
+    def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
+        if event_type in self.subscriptions_by_event and transport_id in self.subscriptions_by_event[event_type]:
             self.subscriptions_by_event[event_type].remove(transport_id)
 
     def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
-        return (
-            event_type in self.subscriptions_by_event
-            and transport_id in self.subscriptions_by_event[event_type]
-        )
+        return event_type in self.subscriptions_by_event and transport_id in self.subscriptions_by_event[event_type]
 
     def get_transport(self, transport_id: str) -> Optional[ITransportAdapter]:
         return self.transports.get(transport_id)

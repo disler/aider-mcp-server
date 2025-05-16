@@ -10,14 +10,10 @@ from aider_mcp_server.sse_server import serve_sse
 async def test_serve_sse_startup_and_run():
     # Create patch context for all mocks
     with (
-        patch(
-            "aider_mcp_server.sse_server.is_git_repository", return_value=(True, None)
-        ),
+        patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, None)),
         patch("aider_mcp_server.sse_server.asyncio.Event") as mock_event_cls,
         patch("aider_mcp_server.sse_server.SSETransportAdapter") as mock_adapter_cls,
-        patch(
-            "aider_mcp_server.sse_server.ApplicationCoordinator"
-        ) as mock_coordinator_cls,
+        patch("aider_mcp_server.sse_server.ApplicationCoordinator") as mock_coordinator_cls,
     ):
         # Set up mock event
         mock_event = MagicMock()

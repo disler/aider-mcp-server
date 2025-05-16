@@ -25,15 +25,11 @@ try:
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:
 
-    def fallback_get_logger(
-        name: str, *args: typing.Any, **kwargs: typing.Any
-    ) -> LoggerProtocol:
+    def fallback_get_logger(name: str, *args: typing.Any, **kwargs: typing.Any) -> LoggerProtocol:
         logger = logging.getLogger(name)
         if not logger.hasHandlers():
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             logger.addHandler(handler)
             if logger.level == logging.NOTSET:
@@ -123,9 +119,7 @@ class EventSystem:
         if self._is_shutting_down:
             return
 
-        logger.debug(
-            f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}"
-        )
+        logger.debug(f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}")
 
         # Extract potential request details (parameters) if available in data for filtering
         request_params = data.get("details", {}).get("parameters")
@@ -255,9 +249,7 @@ class EventSystem:
             An asyncio task that will send the event
         """
         request_id = data.get("request_id", uuid.uuid4())
-        logger.debug(
-            f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})"
-        )
+        logger.debug(f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})")
         return self._loop.create_task(
             transport.send_event(event_type, data),
             name=f"send-{event_type.value}-{transport_id}-{request_id}",
@@ -284,12 +276,8 @@ class EventSystem:
             subscriptions: Dictionary mapping transport IDs to subscribed event types
         """
         request_id = data.get("request_id", "N/A")
-        origin_subscribed = event_type in subscriptions.get(
-            originating_transport_id, set()
-        )
-        origin_exists = any(
-            t_id == originating_transport_id for t_id, _ in transports_to_notify
-        )
+        origin_subscribed = event_type in subscriptions.get(originating_transport_id, set())
+        origin_exists = any(t_id == originating_transport_id for t_id, _ in transports_to_notify)
 
         if origin_exists and not origin_subscribed:
             logger.warning(
@@ -323,22 +311,16 @@ class EventSystem:
                 if len(parts) >= 4 and parts[0] == "send":
                     log_transport_id = parts[2]
             except Exception:
-                logger.warning(
-                    f"Failed to parse transport ID from task name {task_name}"
-                )
+                logger.warning(f"Failed to parse transport ID from task name {task_name}")
 
             # Avoid logging CancelledError stack traces unless debugging needed
-            log_exc_info = (
-                result if not isinstance(result, asyncio.CancelledError) else None
-            )
+            log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
             logger.error(
                 f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}",
                 exc_info=log_exc_info,
             )
 
-    async def subscribe_to_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """
         Subscribe a transport to a specific event type.
 
@@ -348,14 +330,10 @@ class EventSystem:
         """
         # Implementation would typically update an in-memory registry of subscriptions
         # For now, log the request but don't implement subscription tracking
-        logger.debug(
-            f"Transport {transport_id} subscribing to event type {event_type.value}"
-        )
+        logger.debug(f"Transport {transport_id} subscribing to event type {event_type.value}")
         # Dummy implementation - subscription handling would be added here
 
-    async def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """
         Unsubscribe a transport from a specific event type.
 
@@ -365,14 +343,10 @@ class EventSystem:
         """
         # Implementation would typically update an in-memory registry of subscriptions
         # For now, log the request but don't implement subscription tracking
-        logger.debug(
-            f"Transport {transport_id} unsubscribing from event type {event_type.value}"
-        )
+        logger.debug(f"Transport {transport_id} unsubscribing from event type {event_type.value}")
         # Dummy implementation - unsubscription handling would be added here
 
-    async def update_transport_capabilities(
-        self, transport_id: str, capabilities: Set[EventTypes]
-    ) -> None:
+    async def update_transport_capabilities(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
         """
         Update the capabilities of a transport.
 
@@ -382,14 +356,10 @@ class EventSystem:
         """
         # Implementation would typically update an in-memory registry of capabilities
         # For now, log the request but don't implement capability tracking
-        logger.debug(
-            f"Updating capabilities for transport {transport_id}: {[c.value for c in capabilities]}"
-        )
+        logger.debug(f"Updating capabilities for transport {transport_id}: {[c.value for c in capabilities]}")
         # Dummy implementation - capability handling would be added here
 
-    async def update_transport_subscriptions(
-        self, transport_id: str, subscriptions: Set[EventTypes]
-    ) -> None:
+    async def update_transport_subscriptions(self, transport_id: str, subscriptions: Set[EventTypes]) -> None:
         """
         Update the subscriptions of a transport.
 
@@ -399,9 +369,7 @@ class EventSystem:
         """
         # Implementation would typically update an in-memory registry of subscriptions
         # For now, log the request but don't implement subscription tracking
-        logger.debug(
-            f"Updating subscriptions for transport {transport_id}: {[s.value for s in subscriptions]}"
-        )
+        logger.debug(f"Updating subscriptions for transport {transport_id}: {[s.value for s in subscriptions]}")
         # Dummy implementation - subscription handling would be added here
 
     async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
@@ -417,9 +385,7 @@ class EventSystem:
         """
         # Implementation would typically check an in-memory registry of subscriptions
         # For now, assume all transports are subscribed to all events
-        logger.debug(
-            f"Checking if transport {transport_id} is subscribed to event type {event_type.value}"
-        )
+        logger.debug(f"Checking if transport {transport_id} is subscribed to event type {event_type.value}")
         return True  # Dummy implementation - always return True for now
 
     async def _get_transports_map(self) -> Dict[str, ITransportAdapter]:
@@ -437,9 +403,7 @@ class EventSystem:
             if adapter_class:
                 # Dummy ID for example
                 adapter_id = f"{adapter_type}_dummy_id"
-                cached_adapter = self._transport_registry.get_cached_adapter(
-                    adapter_type, adapter_id
-                )
+                cached_adapter = self._transport_registry.get_cached_adapter(adapter_type, adapter_id)
                 if cached_adapter:
                     transports[adapter_id] = cached_adapter
         return transports
@@ -488,11 +452,7 @@ class EventSystem:
             )
 
             if should_send:
-                tasks.append(
-                    self._create_send_event_task(
-                        transport, transport_id, event_type, data
-                    )
-                )
+                tasks.append(self._create_send_event_task(transport, transport_id, event_type, data))
                 sent_to.add(transport_id)
 
         return tasks, sent_to
@@ -537,9 +497,7 @@ class EventSystem:
         # Log if no transports received the event
         if not sent_to:
             # Avoid logging warning if it was a STATUS event only meant for origin and origin wasn't subscribed/found
-            is_status_for_origin_only = (
-                event_type == EventTypes.STATUS and originating_transport_id is not None
-            )
+            is_status_for_origin_only = event_type == EventTypes.STATUS and originating_transport_id is not None
             if not is_status_for_origin_only:
                 logger.debug(
                     f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})"
@@ -551,9 +509,7 @@ class EventSystem:
         data: Dict[str, Any],
         originating_transport_id: Optional[str] = None,
         exclude_transport_id: Optional[str] = None,
-        request_details: Optional[
-            Dict[str, Any]
-        ] = None,  # Original request params for filtering
+        request_details: Optional[Dict[str, Any]] = None,  # Original request params for filtering
         test_mode: bool = False,  # Added for testing - directly awaits send_event calls
     ) -> None:
         """
@@ -597,9 +553,7 @@ class EventSystem:
                 )
 
                 if should_send:
-                    logger.debug(
-                        f"Test mode: Directly sending event {event_type.value} to transport {transport_id}"
-                    )
+                    logger.debug(f"Test mode: Directly sending event {event_type.value} to transport {transport_id}")
                     try:
                         await transport.send_event(event_type, data)
                     except Exception as e:

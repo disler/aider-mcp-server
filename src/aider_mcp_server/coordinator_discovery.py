@@ -180,14 +180,10 @@ class CoordinatorDiscovery:
         # Start the heartbeat task
         self._start_heartbeat_task()
 
-        logger.info(
-            f"Registered coordinator {coordinator_id} at {host}:{port} ({transport_type})"
-        )
+        logger.info(f"Registered coordinator {coordinator_id} at {host}:{port} ({transport_type})")
         return coordinator_id
 
-    async def discover_coordinators(
-        self, max_age_seconds: float = 30.0
-    ) -> List[CoordinatorInfo]:
+    async def discover_coordinators(self, max_age_seconds: float = 30.0) -> List[CoordinatorInfo]:
         """
         Discover active coordinators from the registry.
 
@@ -205,19 +201,13 @@ class CoordinatorDiscovery:
 
                 # Read the registry file
                 registry_data = json.loads(self.discovery_file.read_text())
-                coordinators = [
-                    CoordinatorInfo.from_dict(data) for data in registry_data
-                ]
+                coordinators = [CoordinatorInfo.from_dict(data) for data in registry_data]
 
                 # Filter for active coordinators
-                active_coordinators = [
-                    coord for coord in coordinators if coord.is_active(max_age_seconds)
-                ]
+                active_coordinators = [coord for coord in coordinators if coord.is_active(max_age_seconds)]
 
                 if len(active_coordinators) < len(coordinators):
-                    logger.debug(
-                        f"Filtered out {len(coordinators) - len(active_coordinators)} inactive coordinators"
-                    )
+                    logger.debug(f"Filtered out {len(coordinators) - len(active_coordinators)} inactive coordinators")
 
                 return active_coordinators
         except Exception as e:
@@ -256,14 +246,10 @@ class CoordinatorDiscovery:
                     try:
                         registry_data = json.loads(self.discovery_file.read_text())
                     except json.JSONDecodeError:
-                        logger.warning(
-                            f"Invalid JSON in discovery file {self.discovery_file}, starting fresh"
-                        )
+                        logger.warning(f"Invalid JSON in discovery file {self.discovery_file}, starting fresh")
 
                 # Convert to CoordinatorInfo objects
-                coordinators = [
-                    CoordinatorInfo.from_dict(data) for data in registry_data
-                ]
+                coordinators = [CoordinatorInfo.from_dict(data) for data in registry_data]
 
                 # Update the specific coordinator if provided
                 if info:
@@ -278,9 +264,7 @@ class CoordinatorDiscovery:
                         coordinators.append(info)
 
                 # Filter out inactive coordinators
-                active_coordinators = [
-                    coord for coord in coordinators if coord.is_active()
-                ]
+                active_coordinators = [coord for coord in coordinators if coord.is_active()]
 
                 # Write back to the file
                 registry_data = [coord.to_dict() for coord in active_coordinators]
@@ -295,15 +279,11 @@ class CoordinatorDiscovery:
                 if self._registered_coordinator:
                     self._registered_coordinator.update_heartbeat()
                     await self._update_registry(self._registered_coordinator)
-                    logger.debug(
-                        f"Updated heartbeat for coordinator {self._registered_coordinator.coordinator_id}"
-                    )
+                    logger.debug(f"Updated heartbeat for coordinator {self._registered_coordinator.coordinator_id}")
 
                 try:
                     # Wait with timeout for shutdown event
-                    await asyncio.wait_for(
-                        self._shutdown_event.wait(), self.heartbeat_interval
-                    )
+                    await asyncio.wait_for(self._shutdown_event.wait(), self.heartbeat_interval)
                 except asyncio.TimeoutError:
                     # This is expected, just continue the loop
                     pass
@@ -315,9 +295,7 @@ class CoordinatorDiscovery:
     def _start_heartbeat_task(self) -> None:
         """Start the background heartbeat task."""
         if self._heartbeat_task is None or self._heartbeat_task.done():
-            self._heartbeat_task = asyncio.create_task(
-                self._heartbeat_loop(), name="coordinator_heartbeat"
-            )
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="coordinator_heartbeat")
             logger.debug("Started coordinator heartbeat task")
 
     async def shutdown(self) -> None:
@@ -339,24 +317,17 @@ class CoordinatorDiscovery:
                 async with self._file_lock:
                     if self.discovery_file.exists():
                         registry_data = json.loads(self.discovery_file.read_text())
-                        coordinators = [
-                            CoordinatorInfo.from_dict(data) for data in registry_data
-                        ]
+                        coordinators = [CoordinatorInfo.from_dict(data) for data in registry_data]
                         # Remove our coordinator
                         coordinators = [
                             coord
                             for coord in coordinators
-                            if coord.coordinator_id
-                            != self._registered_coordinator.coordinator_id
+                            if coord.coordinator_id != self._registered_coordinator.coordinator_id
                         ]
                         # Write back to the file
                         registry_data = [coord.to_dict() for coord in coordinators]
-                        self.discovery_file.write_text(
-                            json.dumps(registry_data, indent=2)
-                        )
-                        logger.info(
-                            f"Removed coordinator {self._registered_coordinator.coordinator_id} from registry"
-                        )
+                        self.discovery_file.write_text(json.dumps(registry_data, indent=2))
+                        logger.info(f"Removed coordinator {self._registered_coordinator.coordinator_id} from registry")
             except Exception as e:
                 logger.error(f"Error removing coordinator from registry: {e}")
 

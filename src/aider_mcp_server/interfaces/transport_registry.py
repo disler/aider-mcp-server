@@ -59,9 +59,7 @@ class TransportAdapterRegistry:
         # await self._discover_plugin_adapters()
 
         self._initialized = True
-        logger.info(
-            f"Transport adapter registry initialized with {len(self._adapter_classes)} adapter classes"
-        )
+        logger.info(f"Transport adapter registry initialized with {len(self._adapter_classes)} adapter classes")
 
     def _discover_built_in_adapters(self) -> None:
         """Discover built-in transport adapters."""
@@ -70,16 +68,10 @@ class TransportAdapterRegistry:
 
         # Register known adapter implementations
         # We use cast to handle the type compatibility with Protocol
-        self.register_adapter_class(
-            "sse", cast(Type[ITransportAdapter], SSETransportAdapter)
-        )
-        self.register_adapter_class(
-            "stdio", cast(Type[ITransportAdapter], StdioTransportAdapter)
-        )
+        self.register_adapter_class("sse", cast(Type[ITransportAdapter], SSETransportAdapter))
+        self.register_adapter_class("stdio", cast(Type[ITransportAdapter], StdioTransportAdapter))
 
-    async def _discover_plugin_adapters(
-        self, plugin_dir: Optional[Path] = None
-    ) -> None:
+    async def _discover_plugin_adapters(self, plugin_dir: Optional[Path] = None) -> None:
         """
         Discover plugin transport adapters.
 
@@ -89,9 +81,7 @@ class TransportAdapterRegistry:
         # This is a stub for future implementation
         pass
 
-    def register_adapter_class(
-        self, adapter_type: str, adapter_class: Type[ITransportAdapter]
-    ) -> None:
+    def register_adapter_class(self, adapter_type: str, adapter_class: Type[ITransportAdapter]) -> None:
         """
         Register a transport adapter class.
 
@@ -104,14 +94,10 @@ class TransportAdapterRegistry:
 
         # Verify that the class implements ITransportAdapter
         if not issubclass(adapter_class, ITransportAdapter):
-            raise TypeError(
-                f"Class {adapter_class.__name__} does not implement ITransportAdapter"
-            )
+            raise TypeError(f"Class {adapter_class.__name__} does not implement ITransportAdapter")
 
         self._adapter_classes[adapter_type] = adapter_class
-        logger.debug(
-            f"Registered adapter class '{adapter_class.__name__}' for type '{adapter_type}'"
-        )
+        logger.debug(f"Registered adapter class '{adapter_class.__name__}' for type '{adapter_type}'")
 
     def unregister_adapter_class(self, adapter_type: str) -> None:
         """
@@ -163,9 +149,7 @@ class TransportAdapterRegistry:
             return None
 
         # Try to get capabilities from class method if available
-        if hasattr(adapter_class, "get_default_capabilities") and callable(
-            adapter_class.get_default_capabilities
-        ):
+        if hasattr(adapter_class, "get_default_capabilities") and callable(adapter_class.get_default_capabilities):
             capabilities: Set[EventTypes] = adapter_class.get_default_capabilities()
             return capabilities
 
@@ -203,19 +187,13 @@ class TransportAdapterRegistry:
             cache_key = f"{adapter_type}:{instance_id}"
             self._adapter_cache[cache_key] = adapter_instance
 
-            logger.info(
-                f"Created adapter instance of type '{adapter_type}' with ID '{instance_id}'"
-            )
+            logger.info(f"Created adapter instance of type '{adapter_type}' with ID '{instance_id}'")
             return adapter_instance
         except Exception as e:
-            logger.error(
-                f"Failed to create adapter of type '{adapter_type}': {e}", exc_info=True
-            )
+            logger.error(f"Failed to create adapter of type '{adapter_type}': {e}", exc_info=True)
             return None
 
-    def get_cached_adapter(
-        self, adapter_type: str, transport_id: str
-    ) -> Optional[ITransportAdapter]:
+    def get_cached_adapter(self, adapter_type: str, transport_id: str) -> Optional[ITransportAdapter]:
         """
         Get a cached adapter instance by type and ID.
 
