@@ -1,5 +1,6 @@
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -86,3 +87,35 @@ def temp_git_repo() -> Generator[str, None, None]:
         )
 
         yield tmp_dir
+
+
+@pytest.fixture
+def free_port() -> int:
+    """Get a free port on the system."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
+
+@pytest.fixture
+def server_process():
+    """Fixture to manage server subprocess lifecycle."""
+    process = None
+
+    def _start_process(*args, **kwargs):
+        nonlocal process
+        process = subprocess.Popen(*args, **kwargs)  # noqa: S603
+        return process
+
+    yield _start_process
+
+    # Cleanup
+    if process and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
