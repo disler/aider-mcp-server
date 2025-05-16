@@ -57,10 +57,10 @@ try:
         # Try the current working directory
         mcp_json_path = os.path.join(os.getcwd(), ".rate-limit-fallback.json")
 
-    logger.info(f"Loading fallback config from: {mcp_json_path}")
+    logger.debug(f"Loading fallback config from: {mcp_json_path}")
     with open(mcp_json_path, "r") as f:
         fallback_config = json.load(f)["fallback_config"]
-    logger.info("Successfully loaded fallback configuration")
+    logger.debug("Successfully loaded fallback configuration")
 except Exception as e:
     logger.warning(f"Error loading fallback config: {e}")
     # Use default fallback configuration

@@ -128,7 +128,6 @@ class ApplicationCoordinator:
             register_in_discovery: Whether to register this coordinator in the discovery system
             discovery_file: Custom path to the discovery file
         """
-        logger.info("Initializing ApplicationCoordinator singleton...")
         self._transports: Dict[str, TransportInterface] = {}
         self._handlers: Dict[str, Tuple[HandlerFunc, Optional[Permissions]]] = {}
         self._active_requests: Dict[str, RequestParameters] = {}
@@ -170,7 +169,6 @@ class ApplicationCoordinator:
         # Mark as initialized *after* setup is complete
         ApplicationCoordinator._initialized = True
         self._initialized_event.set()  # Signal that initialization is done
-        logger.info("ApplicationCoordinator initialized successfully.")
 
     @classmethod
     async def find_existing_coordinator(cls, discovery_file: Optional[Path] = None) -> Optional[CoordinatorInfo]:
@@ -274,7 +272,7 @@ class ApplicationCoordinator:
                     )
 
         await self.wait_for_initialization()
-        logger.debug("ApplicationCoordinator context entered.")
+        # Context entry logged only at DEBUG level
         return self
 
     async def __aexit__(
@@ -284,7 +282,7 @@ class ApplicationCoordinator:
         exc_tb: Optional[Any],  # Traceback type is complex, use Any
     ) -> None:
         """Exit the async context, triggering shutdown."""
-        logger.debug(f"ApplicationCoordinator context exiting (exception: {exc_type}).")
+        # Context exit logged only at DEBUG level
         await self.shutdown()
 
     # --- Transport Management ---
@@ -293,9 +291,9 @@ class ApplicationCoordinator:
         """Registers a new transport adapter."""
         async with self._transports_lock:
             if transport_id in self._transports:
-                logger.warning(f"Transport {transport_id} already registered. Overwriting.")
+                logger.debug(f"Transport {transport_id} already registered. Overwriting.")
             self._transports[transport_id] = transport
-            logger.info(f"Transport registered: {transport_id} ({transport.get_transport_type()})")
+            # Transport registration logged only at DEBUG level
         # Update capabilities and default subscriptions (outside transports_lock)
         await self.update_transport_capabilities(transport_id, transport.get_capabilities())
 
@@ -306,7 +304,7 @@ class ApplicationCoordinator:
             if transport_id in self._transports:
                 del self._transports[transport_id]
                 transport_exists = True
-                logger.info(f"Transport unregistered: {transport_id}")
+                logger.debug(f"Transport unregistered: {transport_id}")
             else:
                 logger.warning(f"Attempted to unregister non-existent transport: {transport_id}")
 
@@ -323,7 +321,7 @@ class ApplicationCoordinator:
         """Updates the capabilities of a registered transport."""
         async with self._transport_capabilities_lock:
             self._transport_capabilities[transport_id] = capabilities
-            logger.debug(f"Updated capabilities for {transport_id}: {capabilities}")
+            # Capability updates logged only at DEBUG level
         # By default, subscribe to all capabilities when capabilities are updated
         await self.update_transport_subscriptions(transport_id, capabilities)
 
@@ -338,7 +336,7 @@ class ApplicationCoordinator:
         async with self._transport_subscriptions_lock:
             # Validate that subscriptions are a subset of capabilities? Optional.
             self._transport_subscriptions[transport_id] = subscriptions
-            logger.debug(f"Updated subscriptions for {transport_id}: {subscriptions}")
+            # Subscription updates logged only at DEBUG level
 
     # --- Subscription Management (for test compatibility) ---
 

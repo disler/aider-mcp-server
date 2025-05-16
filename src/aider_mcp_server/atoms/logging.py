@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -10,7 +11,7 @@ class Logger:
         self,
         name: str,
         log_dir: Optional[Union[str, Path]] = None,
-        level: int = logging.INFO,
+        level: Optional[int] = None,
     ):
         """
         Initialize the logger.
@@ -18,9 +19,22 @@ class Logger:
         Args:
             name: Logger name
             log_dir: Directory to store log files (defaults to ./logs)
-            level: Logging level
+            level: Logging level (defaults to INFO, or DEBUG if MCP_LOG_LEVEL=DEBUG)
         """
         self.name = name
+
+        # Check environment variable for log level
+        env_log_level = os.environ.get("MCP_LOG_LEVEL", "").upper()
+        if level is None:
+            if env_log_level == "DEBUG":
+                level = logging.DEBUG
+            elif env_log_level == "WARNING":
+                level = logging.WARNING
+            elif env_log_level == "ERROR":
+                level = logging.ERROR
+            else:
+                level = logging.INFO
+
         self.level = level
 
         # Set up the logger
@@ -32,11 +46,17 @@ class Logger:
         if self.logger.handlers:
             self.logger.handlers.clear()
 
-        # Define a standard formatter
-        log_formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        # Define a standard formatter - compact for non-debug levels
+        if level == logging.DEBUG:
+            log_formatter = logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        else:
+            log_formatter = logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(message)s",
+                datefmt="%H:%M:%S",
+            )
 
         # Add console handler with standard formatting
         console_handler = logging.StreamHandler()
@@ -62,7 +82,8 @@ class Logger:
             self.logger.addHandler(file_handler)
 
             self.log_file_path = log_file_path
-            self.logger.info(f"Logging to: {log_file_path}")
+            # Commented out to reduce verbosity
+            # self.logger.info(f"Logging to: {log_file_path}")
 
     def debug(self, message: str, **kwargs: Any) -> None:
         """Log a debug message."""
@@ -92,7 +113,7 @@ class Logger:
 def get_logger(
     name: str,
     log_dir: Optional[Union[str, Path]] = None,
-    level: int = logging.INFO,
+    level: Optional[int] = None,
 ) -> Logger:
     """
     Get a configured logger instance.
@@ -100,7 +121,7 @@ def get_logger(
     Args:
         name: Logger name
         log_dir: Directory to store log files (defaults to ./logs)
-        level: Logging level
+        level: Logging level (optional, will check MCP_LOG_LEVEL env var)
 
     Returns:
         Configured Logger instance

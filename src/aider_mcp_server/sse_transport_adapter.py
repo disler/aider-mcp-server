@@ -99,20 +99,17 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         Sets up the Starlette app with SSE endpoints and prepares it for serving.
         """
-        self.logger.info(f"Initializing SSE transport adapter on {self._host}:{self._port}")
         # Call parent initialization
         await super().initialize()
 
         # Initialize FastMCP if coordinator is available
         if hasattr(self, "_coordinator") and self._coordinator:
-            self.logger.info("Initializing FastMCP server")
             self._initialize_fastmcp()
         else:
             self.logger.warning("No coordinator available, FastMCP will not be initialized")
 
         # Create the Starlette app with SSE endpoints
         await self._create_app()
-        self.logger.info("SSE transport adapter initialized")
 
     def _initialize_fastmcp(self) -> None:
         """Initialize the FastMCP server with tools from the coordinator."""
@@ -138,7 +135,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         ) -> dict[str, Any]:
             """Run Aider to perform AI coding tasks"""
             try:
-                self.logger.info(f"aider_ai_code called with prompt: {ai_coding_prompt}")
+                self.logger.debug(f"aider_ai_code called with prompt: {ai_coding_prompt[:50]}...")
 
                 # Create request parameters
                 params = {
@@ -170,7 +167,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         async def list_models(substring: Optional[str] = None) -> list[str]:
             """List available models that match the provided substring"""
             try:
-                self.logger.info(f"list_models called with substring: {substring}")
+                self.logger.debug(f"list_models called with substring: {substring}")
 
                 # Create request parameters
                 params = {"substring": substring} if substring else {}
@@ -198,7 +195,6 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 return []
 
         self._fastmcp_initialized = True
-        self.logger.info("FastMCP initialized with tools")
 
     async def _create_app(self) -> None:
         """Create the Starlette application with SSE endpoints."""
@@ -223,7 +219,6 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
     async def start_listening(self) -> None:
         """Start listening for SSE connections."""
-        self.logger.info(f"Starting SSE transport on {self._host}:{self._port}")
 
         # Import here to avoid circular dependency issues
         import uvicorn
@@ -249,11 +244,11 @@ class SSETransportAdapter(AbstractTransportAdapter):
         # Wait a moment for the server to start
         await asyncio.sleep(0.5)
 
-        self.logger.info(f"SSE transport started on {self._host}:{self._port}")
+        self.logger.debug(f"SSE server ready on http://{self._host}:{self._port}")
 
     async def shutdown(self) -> None:
         """Shutdown the SSE transport adapter."""
-        self.logger.info("Shutting down SSE transport adapter")
+        self.logger.debug("Shutting down SSE transport adapter")
 
         # Close all active connections by sending a close signal
         for client_id, queue in list(self._active_connections.items()):
@@ -285,7 +280,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         # Call parent shutdown
         await super().shutdown()
-        self.logger.info("SSE transport adapter shut down")
+        self.logger.debug("SSE transport adapter shut down")
 
     def get_capabilities(self) -> Set[EventTypes]:
         """
@@ -340,15 +335,15 @@ class SSETransportAdapter(AbstractTransportAdapter):
         """
         from starlette.responses import Response
 
-        self.logger.info("Handling SSE connection")
+        self.logger.debug("Handling SSE connection")
         try:
             if self._mcp_transport and self._mcp_server:
                 async with self._mcp_transport.connect_sse(request.scope, request.receive, request._send) as streams:
-                    self.logger.info("Running MCP server for SSE connection")
+                    self.logger.debug("Running MCP server for SSE connection")
                     await self._mcp_server._mcp_server.run(
                         streams[0], streams[1], self._mcp_server._mcp_server.create_initialization_options()
                     )
-                    self.logger.info("SSE connection completed")
+                    self.logger.debug("SSE connection completed")
 
                 # Return empty response after successful handling
                 return Response()
@@ -357,7 +352,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 return Response("Server not properly initialized", status_code=500)
 
         except asyncio.CancelledError:
-            self.logger.info("SSE connection cancelled (client disconnect)")
+            self.logger.debug("SSE connection cancelled (client disconnect)")
             return Response()
         except Exception as e:
             self.logger.error(f"Error handling SSE connection: {e}")
@@ -378,7 +373,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
             connection_id: The connection ID to register as a monitor
         """
         self._monitor_connections.add(connection_id)
-        self.logger.info(f"Registered monitor connection: {connection_id}")
+        self.logger.debug(f"Registered monitor connection: {connection_id}")
 
     def should_receive_event(
         self,
@@ -405,7 +400,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         if self.monitor_stdio_transport_id and data.get("transport_origin"):
             origin = data["transport_origin"]
             if origin.get("transport_id") == self.monitor_stdio_transport_id:
-                self.logger.debug(f"SSE accepting event from monitored stdio transport: {event_type.value}")
+                # SSE accepting event from monitored stdio transport
                 return True
 
         # Skip events that originated from us to prevent loops
