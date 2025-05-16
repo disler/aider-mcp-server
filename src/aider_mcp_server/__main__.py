@@ -195,7 +195,7 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
                 )
             )
         elif args.server_mode == "sse":
-            log.info(f"Starting in SSE server mode (http://{args.host}:{args.port})")
+            # Log message moved to SSE server when actually ready
             asyncio.run(
                 serve_sse(
                     host=args.host,

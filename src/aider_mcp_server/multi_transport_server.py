@@ -107,7 +107,8 @@ def _setup_logger(log_dir: Optional[Union[str, Path]]) -> None:
         log_dir_path = None
 
     logger = get_logger("multi_transport_server", log_dir=log_dir_path)
-    logger.info(f"Logging to: {log_dir_path or 'console'}")
+    # Commented out to reduce verbosity
+    # logger.info(f"Logging to: {log_dir_path or 'console'}")
 
 
 def _validate_working_directory(current_working_dir: str) -> Path:

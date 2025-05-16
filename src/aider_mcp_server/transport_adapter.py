@@ -107,7 +107,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
 
         # Get instance-specific logger
         self.logger = get_logger_func(f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}")
-        self.logger.info(
+        self.logger.debug(
             f"AbstractTransportAdapter initialized with ID: {self.get_transport_id()}, Type: {self.get_transport_type()}"
         )
 
@@ -116,11 +116,11 @@ class AbstractTransportAdapter(TransportAdapterBase):
         Initializes the transport adapter. Registers with the coordinator and starts heartbeat.
         Should be called after the adapter is created.
         """
-        self.logger.info(f"Initializing transport {self.get_transport_id()} ({self.get_transport_type()})...")
+        self.logger.debug(f"Initializing transport {self.get_transport_id()} ({self.get_transport_type()})...")
         if self._coordinator:
             # Pass self, which conforms to TransportInterface
             await self._coordinator.register_transport(self.get_transport_id(), self)
-            self.logger.info(f"Transport {self.get_transport_id()} registered with coordinator.")
+            self.logger.debug(f"Transport {self.get_transport_id()} registered with coordinator.")
 
             capabilities = self.get_capabilities()
             for event_type in capabilities:
@@ -136,7 +136,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
             self.logger.debug(f"Transport {self.get_transport_id()} subscribed to default events: {capabilities}")
 
             if self._heartbeat_interval is not None and self._heartbeat_interval > 0:
-                self.logger.info(
+                self.logger.debug(
                     f"Starting heartbeat task for transport {self.get_transport_id()} with interval {self._heartbeat_interval}s."
                 )
                 self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
@@ -147,7 +147,7 @@ class AbstractTransportAdapter(TransportAdapterBase):
             self.logger.warning(
                 f"No coordinator provided for transport {self.get_transport_id()}. Registration and heartbeat skipped."
             )
-        self.logger.info(f"Transport {self.get_transport_id()} initialization complete.")
+        self.logger.debug(f"Transport {self.get_transport_id()} initialization complete.")
 
     async def shutdown(self) -> None:
         """
