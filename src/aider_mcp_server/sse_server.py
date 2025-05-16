@@ -2,17 +2,10 @@ import asyncio
 import signal
 from pathlib import Path
 from types import FrameType
-from typing import Any, Callable, Coroutine, Dict, Optional
-
-from starlette.responses import JSONResponse
-from starlette.routing import Route
+from typing import Any, Callable, Coroutine, Optional
 
 from aider_mcp_server.atoms.logging import Logger, get_logger
-from aider_mcp_server.mcp_types import (
-    OperationResult,
-    RequestParameters,
-)
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.server import is_git_repository
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
@@ -122,55 +115,95 @@ def _create_shutdown_task_wrapper(
     return sync_wrapper
 
 
-# Handler functions that will be registered with the coordinator
-async def _aider_ai_code_handler(
-    request_id: str,
-    transport_id: str,
-    parameters: RequestParameters,
-    security_context: SecurityContext,
-    use_diff_cache: bool = True,
-    clear_cached_for_unchanged: bool = False,
-) -> OperationResult:
-    """Handler for aider_ai_code operation.
+async def run_sse_server(
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    security_context: Optional[SecurityContext] = None,
+    log_level: str = "INFO",
+    editor_model: str = "",
+    current_working_dir: str = "",
+) -> None:
+    """
+    Run an SSE server using the official MCP SDK approach.
 
     Args:
-        request_id: Unique identifier for the request
-        transport_id: Identifier for the transport that made the request
-        parameters: Request parameters
-        security_context: Security context for the request
-        use_diff_cache: Whether to use diff caching
-        clear_cached_for_unchanged: Whether to clear cache entries for unchanged files
-
-    Returns:
-        Dict containing the operation result
+        host: Host address to listen on
+        port: Port to listen on
+        security_context: Security context for the server
+        log_level: Logging level
+        editor_model: Model identifier to use for editing operations
+        current_working_dir: Working directory (must be a git repository)
     """
-    return {"success": True}
+    # Validate working directory if provided
+    if current_working_dir:
+        logger.info(f"Validating working directory: {current_working_dir}")
+        is_repo, error_msg = is_git_repository(Path(current_working_dir))
+        if not is_repo:
+            error_message = (
+                f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_msg}"
+            )
+            logger.critical(error_message)
+            raise ValueError(error_message)
+        logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
+
+    # Get coordinator instance
+    coordinator = await ApplicationCoordinator.getInstance(get_logger)
+
+    # Use the coordinator in async context
+    async with coordinator:
+        logger.info("Coordinator context entered")
+
+        # Create the SSE adapter with coordinator
+        sse_adapter = SSETransportAdapter(coordinator=coordinator, host=host, port=port, get_logger=get_logger)
+
+        # Initialize the adapter (this will create the FastMCP server)
+        await sse_adapter.initialize()
+
+        # Register the adapter with the coordinator
+        await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
+        logger.info("Registered SSE transport with coordinator")
+
+        # Start the SSE server
+        await sse_adapter.start_listening()
+        logger.info(f"SSE server listening on {host}:{port}")
+
+        # Setup shutdown event
+        shutdown_event = asyncio.Event()
+
+        async def handle_shutdown() -> None:
+            """Handle graceful shutdown"""
+            logger.info("Initiating graceful shutdown...")
+            shutdown_event.set()
+
+        # Setup signal handlers
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+
+            def create_handler(s: int = sig) -> None:
+                asyncio.create_task(handle_shutdown())
+
+            loop.add_signal_handler(sig, create_handler)
+
+        # Wait for shutdown signal and server task
+        try:
+            # Get the server task from the adapter if available
+            server_task = getattr(sse_adapter, "_server_task", None)
+            if server_task:
+                await asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True)
+            else:
+                await shutdown_event.wait()
+            logger.info("Shutdown event received. Closing SSE server...")
+        except asyncio.CancelledError:
+            logger.info("Server tasks cancelled")
+        except Exception as e:
+            logger.error(f"Error during server operation: {e}")
+        finally:
+            # Shutdown the adapter
+            await sse_adapter.shutdown()
+            logger.info("SSE server shutdown complete")
 
 
-async def _list_models_handler(
-    request_id: str,
-    transport_id: str,
-    parameters: RequestParameters,
-    security_context: SecurityContext,
-    use_diff_cache: bool = False,
-    clear_cached_for_unchanged: bool = False,
-) -> OperationResult:
-    """Handler for list_models operation.
-
-    Args:
-        request_id: Unique identifier for the request
-        transport_id: Identifier for the transport that made the request
-        parameters: Request parameters
-        security_context: Security context for the request
-        use_diff_cache: Whether to use diff caching (not applicable for this operation)
-        clear_cached_for_unchanged: Whether to clear cache entries (not applicable for this operation)
-
-    Returns:
-        Dict containing the list of available models
-    """
-    return {"success": True, "models": []}
-
-
+# Keep the old function signature for compatibility
 async def serve_sse(
     host: str,
     port: int,
@@ -179,99 +212,6 @@ async def serve_sse(
     heartbeat_interval: float = 15.0,
 ) -> None:
     """
-    Start an SSE server with the specified parameters.
-
-    Args:
-        host: Host address to listen on
-        port: Port to listen on
-        editor_model: Model identifier to use for editing operations
-        current_working_dir: Working directory (must be a git repository)
-        heartbeat_interval: Interval between heartbeat signals
+    Compatibility wrapper for the old serve_sse function.
     """
-    logger.info(f"Validating working directory: {current_working_dir}")
-    is_repo, error_msg = is_git_repository(Path(current_working_dir))
-    if not is_repo:
-        error_message = (
-            f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_msg}"
-        )
-        logger.critical(error_message)
-        raise ValueError(error_message)
-    logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
-
-    # Setup signal handling
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-
-    actual_shutdown_handler = _test_handle_shutdown_signal or handle_shutdown_signal
-    sync_signal_handlers: Dict[int, Callable[[], None]] = {}
-
-    for sig_num in (signal.SIGINT, signal.SIGTERM):
-        sync_wrapper = _create_shutdown_task_wrapper(sig_num, actual_shutdown_handler, shutdown_event)
-        sync_signal_handlers[sig_num] = sync_wrapper
-        try:
-            loop.add_signal_handler(sig_num, sync_wrapper)
-            logger.info(f"Registered signal handler for {signal.Signals(sig_num).name} using loop.add_signal_handler.")
-        except Exception as e:
-            logger.error(f"Error setting signal handler for {signal.Signals(sig_num).name}: {e}")
-
-    try:
-        # Get coordinator instance
-        coordinator = await ApplicationCoordinator.getInstance(get_logger)
-
-        # Use the coordinator in async context
-        async with coordinator:
-            logger.info("Coordinator context entered")
-
-            # Create and initialize SSE adapter
-            sse_adapter = SSETransportAdapter(coordinator=coordinator, heartbeat_interval=heartbeat_interval)
-            await sse_adapter.initialize()
-
-            # Register the SSE adapter with the coordinator
-            await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
-
-            # Register handlers with the coordinator
-            await coordinator.register_handler(
-                "aider_ai_code",
-                _aider_ai_code_handler,
-                required_permission=Permissions.EXECUTE_AIDER,
-            )
-            logger.info("Registered 'aider_ai_code' handler.")
-
-            await coordinator.register_handler("list_models", _list_models_handler)
-            logger.info("Registered 'list_models' handler.")
-
-            # Set up routes (basic implementation, not used in tests)
-            [
-                Route("/sse", endpoint=lambda request: JSONResponse({"status": "ok"})),
-                Route(
-                    "/message",
-                    endpoint=lambda request: JSONResponse({"status": "ok"}),
-                    methods=["POST"],
-                ),
-            ]
-            # app = Starlette(routes=routes)
-
-            # In a real implementation, we would start the server here:
-            # config = uvicorn.Config(app=app, host=host, port=port, log_level="info")
-            # server = uvicorn.Server(config)
-            # await server.serve()
-
-            # For testing, we'll just wait for the shutdown event
-            logger.info(f"SSE server setup complete. Configured for {host}:{port}")
-            await shutdown_event.wait()
-            logger.info("Shutdown event received. Closing SSE server...")
-
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred during server setup or runtime: {e}")
-
-    finally:
-        # Clean up signal handlers
-        for sig_value, _handler in sync_signal_handlers.items():
-            try:
-                if loop.is_running() and not loop.is_closed():
-                    # Use the integer value directly, not the enum
-                    loop.remove_signal_handler(sig_value)
-            except Exception as e:
-                logger.error(f"Error removing signal handler: {e}")
-
-        logger.info("SSE server shutdown complete.")
+    await run_sse_server(host=host, port=port, editor_model=editor_model, current_working_dir=current_working_dir)

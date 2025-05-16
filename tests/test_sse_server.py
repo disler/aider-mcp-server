@@ -55,10 +55,6 @@ async def test_serve_sse_startup_and_run():
         mock_adapter.initialize.assert_awaited_once()
         mock_coordinator.register_transport.assert_awaited_once()
 
-        # Verify handlers were registered
-        assert mock_coordinator.register_handler.await_count >= 2
-        # Check specific handlers (order doesn't matter)
-        call_args_list = mock_coordinator.register_handler.call_args_list
-        handler_names = [args[0][0] for args in call_args_list]
-        assert "aider_ai_code" in handler_names
-        assert "list_models" in handler_names
+        # Verify that handlers are no longer directly registered with the coordinator
+        # as they are now registered through FastMCP in the SSE transport adapter
+        assert mock_coordinator.register_handler.await_count == 0
