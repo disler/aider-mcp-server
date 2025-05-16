@@ -155,50 +155,59 @@ async def run_sse_server(
             raise ValueError(error_message)
         logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
 
-    # Create the SSE adapter with coordinator
-    coordinator = await ApplicationCoordinator.getInstance(get_logger)  
-    sse_adapter = SSETransportAdapter(
-        coordinator=coordinator,
-        host=host,
-        port=port,
-        get_logger=get_logger
-    )
+    # Get coordinator instance
+    coordinator = await ApplicationCoordinator.getInstance(get_logger)
     
-    # Initialize the adapter (this will create the FastMCP server)
-    await sse_adapter.initialize()
-    
-    # Register the adapter with the coordinator
-    await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
-    
-    # Start the SSE server
-    await sse_adapter.start_listening()
-    
-    # Setup shutdown event
-    shutdown_event = asyncio.Event()
-    
-    async def handle_shutdown() -> None:
-        """Handle graceful shutdown"""
-        logger.info("Initiating graceful shutdown...")
-        shutdown_event.set()
-    
-    # Setup signal handlers
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        def create_handler(s: int = sig) -> None:
-            asyncio.create_task(handle_shutdown())
-        loop.add_signal_handler(sig, create_handler)
-    
-    # Wait for shutdown signal
-    try:
-        await shutdown_event.wait()
-    except asyncio.CancelledError:
-        logger.info("Server tasks cancelled")
-    except Exception as e:
-        logger.error(f"Error during server operation: {e}")
-    finally:
-        # Shutdown the adapter
-        await sse_adapter.shutdown()
-        logger.info("SSE server shutdown complete")
+    # Use the coordinator in async context
+    async with coordinator:
+        logger.info("Coordinator context entered")
+        
+        # Create the SSE adapter with coordinator
+        sse_adapter = SSETransportAdapter(
+            coordinator=coordinator,
+            host=host,
+            port=port,
+            get_logger=get_logger
+        )
+        
+        # Initialize the adapter (this will create the FastMCP server)
+        await sse_adapter.initialize()
+        
+        # Register the adapter with the coordinator
+        await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
+        logger.info(f"Registered SSE transport with coordinator")
+        
+        # Start the SSE server
+        await sse_adapter.start_listening()
+        logger.info(f"SSE server listening on {host}:{port}")
+        
+        # Setup shutdown event
+        shutdown_event = asyncio.Event()
+        
+        async def handle_shutdown() -> None:
+            """Handle graceful shutdown"""
+            logger.info("Initiating graceful shutdown...")
+            shutdown_event.set()
+        
+        # Setup signal handlers
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            def create_handler(s: int = sig) -> None:
+                asyncio.create_task(handle_shutdown())
+            loop.add_signal_handler(sig, create_handler)
+        
+        # Wait for shutdown signal
+        try:
+            await shutdown_event.wait()
+            logger.info("Shutdown event received. Closing SSE server...")
+        except asyncio.CancelledError:
+            logger.info("Server tasks cancelled")
+        except Exception as e:
+            logger.error(f"Error during server operation: {e}")
+        finally:
+            # Shutdown the adapter
+            await sse_adapter.shutdown()
+            logger.info("SSE server shutdown complete")
 
 
 # Keep the old function signature for compatibility
