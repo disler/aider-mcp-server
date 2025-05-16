@@ -84,6 +84,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self.monitor_stdio_transport_id: Optional[str] = None
         self._app: Optional[Any] = None  # Starlette app instance
         self._server_instance: Optional[Any] = None  # Uvicorn server instance
+        self._server_task: Optional[asyncio.Task] = None  # Server background task
         self._mcp_transport: Optional[SseServerTransport] = None  # MCP SSE transport
         self._mcp_server: Optional[FastMCP] = None  # FastMCP server instance
         self._fastmcp_initialized = False  # Track FastMCP initialization
@@ -240,8 +241,12 @@ class SSETransportAdapter(AbstractTransportAdapter):
         # Create and start server
         self._server_instance = uvicorn.Server(config)
 
-        # Run server in background task
-        asyncio.create_task(self._server_instance.serve())
+        # Run server in background task and give it time to start
+        self._server_task = asyncio.create_task(self._server_instance.serve())
+        
+        # Wait a moment for the server to start
+        await asyncio.sleep(0.5)
+        
         self.logger.info(f"SSE transport started on {self._host}:{self._port}")
 
     async def shutdown(self) -> None:
@@ -265,8 +270,16 @@ class SSETransportAdapter(AbstractTransportAdapter):
         # Shutdown the server if it's running
         if self._server_instance:
             self.logger.debug("Shutting down Uvicorn server")
-            await self._server_instance.shutdown()
+            self._server_instance.should_exit = True
+            if self._server_task:
+                try:
+                    await asyncio.wait_for(self._server_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    self.logger.warning("Server shutdown timed out")
+                except asyncio.CancelledError:
+                    pass
             self._server_instance = None
+            self._server_task = None
 
         # Call parent shutdown
         await super().shutdown()
