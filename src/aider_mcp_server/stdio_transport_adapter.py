@@ -41,6 +41,33 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     4. Finding and connecting to existing coordinators via discovery
     """
 
+    @property
+    def transport_id(self) -> str:
+        """
+        Property for accessing the transport ID.
+        Used for compatibility with code that expects a transport_id attribute.
+        """
+        return self._transport_id
+
+    @classmethod
+    def get_default_capabilities(cls) -> Set[EventTypes]:
+        """
+        Get the default capabilities for this transport adapter class without instantiation.
+
+        This allows the TransportAdapterRegistry to determine capabilities
+        without instantiating the adapter.
+
+        Returns:
+            A set of event types that this adapter supports by default.
+        """
+        # Stdio typically doesn't need heartbeats, but can receive other events
+        return {
+            EventTypes.STATUS,
+            EventTypes.PROGRESS,
+            EventTypes.TOOL_RESULT,
+            # Exclude HEARTBEAT unless specifically needed/handled
+        }
+
     _read_task: Optional[AsyncTask[None]]
     _input: TextIO
     _output: TextIO
@@ -107,9 +134,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
 
         try:
             # Find existing coordinator using discovery
-            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(
-                discovery_file=discovery_path
-            )
+            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(discovery_file=discovery_path)
 
             if not coordinator_info:
                 return None
@@ -153,7 +178,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # For now, we'll use the singleton ApplicationCoordinator instance
             # In a networked implementation, this would involve creating a client connection
 
-            self._coordinator = await ApplicationCoordinator.getInstance()
+            # Get logger factory from the transport coordinator module
+            from aider_mcp_server.atoms.logging import get_logger
+
+            self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
             await self.initialize()
 
             return True
@@ -181,19 +209,13 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             self.logger.debug(f"Cancelling stdin read task for {self.transport_id}.")
             self._read_task.cancel()
             try:
-                await asyncio.wait_for(
-                    self._read_task, timeout=1.0
-                )  # Shorter timeout for stdio
+                await asyncio.wait_for(self._read_task, timeout=1.0)  # Shorter timeout for stdio
             except asyncio.CancelledError:
                 self.logger.debug(f"Stdin read task for {self.transport_id} cancelled.")
             except asyncio.TimeoutError:
-                self.logger.warning(
-                    f"Timeout waiting for stdin read task {self.transport_id} to cancel."
-                )
+                self.logger.warning(f"Timeout waiting for stdin read task {self.transport_id} to cancel.")
             except Exception as e:
-                self.logger.error(
-                    f"Error cancelling stdin read task for {self.transport_id}: {e}"
-                )
+                self.logger.error(f"Error cancelling stdin read task for {self.transport_id}: {e}")
             finally:
                 self._read_task = None
 
@@ -235,9 +257,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             json_str = json.dumps(message)
             # Use async write via executor to avoid blocking
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(
-                None, lambda: print(json_str, file=self._output, flush=True)
-            )
+            await loop.run_in_executor(None, lambda: print(json_str, file=self._output, flush=True))
             # self.logger.debug(f"Sent {event.value} event to stdout")
         except Exception as e:
             self.logger.error(f"Error sending {event.value} event to stdout: {e}")
@@ -248,9 +268,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         This method should be called after initialization.
         """
         if self._read_task is not None and not self._read_task.done():
-            self.logger.warning(
-                f"Stdin read task for {self.transport_id} is already running."
-            )
+            self.logger.warning(f"Stdin read task for {self.transport_id} is already running.")
             return
 
         self.logger.info(f"Starting stdin read task for {self.transport_id}...")
@@ -274,9 +292,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     continue
 
                 if not line:
-                    self.logger.info(
-                        f"Stdin for {self.transport_id} appears closed or empty. Stopping read loop."
-                    )
+                    self.logger.info(f"Stdin for {self.transport_id} appears closed or empty. Stopping read loop.")
                     break
 
                 line = line.strip()
@@ -287,16 +303,12 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     message: RequestParameters = json.loads(line)
                     asyncio.create_task(self._handle_stdin_message(message))
                 except json.JSONDecodeError:
-                    self.logger.error(
-                        f"Invalid JSON received on stdin: {line[:100]}..."
-                    )
+                    self.logger.error(f"Invalid JSON received on stdin: {line[:100]}...")
                 except Exception as e:
                     self.logger.error(f"Error scheduling stdin message handling: {e}")
 
         except asyncio.CancelledError:
-            self.logger.debug(
-                f"Stdin read loop for {self.transport_id} received cancellation."
-            )
+            self.logger.debug(f"Stdin read loop for {self.transport_id} received cancellation.")
             # Do not re-raise here, let finally block execute
         except Exception as e:
             self.logger.error(f"Error in stdin read loop for {self.transport_id}: {e}")
@@ -312,15 +324,11 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         """Callback executed when the stdin read task finishes."""
         try:
             task.result()
-            self.logger.debug(
-                f"Stdin read task for {self.transport_id} finished normally."
-            )
+            self.logger.debug(f"Stdin read task for {self.transport_id} finished normally.")
         except asyncio.CancelledError:
             self.logger.debug(f"Stdin read task for {self.transport_id} was cancelled.")
         except Exception as e:
-            self.logger.error(
-                f"Stdin read task for {self.transport_id} finished with exception: {e}"
-            )
+            self.logger.error(f"Stdin read task for {self.transport_id} finished with exception: {e}")
         finally:
             if self._read_task is task:
                 self._read_task = None
@@ -336,9 +344,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             request_id: str = raw_request_id
         else:
             request_id = str(uuid.uuid4())
-            log_level = (
-                self.logger.warning if raw_request_id is not None else self.logger.debug
-            )
+            log_level = self.logger.warning if raw_request_id is not None else self.logger.debug
             log_level(
                 f"Missing or invalid 'request_id' in stdin message. Using generated ID: {request_id}. Original value: {raw_request_id!r}"
             )
@@ -369,9 +375,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # Handle parameters - the `.get()` might return a non-dict which we need to validate
             parameters_raw = message.get("parameters", {})
             if not isinstance(parameters_raw, dict):
-                error_msg = (
-                    "Invalid 'parameters' field in stdin message. Expected dictionary."
-                )
+                error_msg = "Invalid 'parameters' field in stdin message. Expected dictionary."
                 self.logger.error(error_msg)
                 await self._coordinator.fail_request(
                     request_id=request_id,
@@ -403,13 +407,9 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     originating_transport_id=self.transport_id,
                 )
             else:
-                self.logger.error(
-                    f"Coordinator not available to report error for request {request_id}."
-                )
+                self.logger.error(f"Coordinator not available to report error for request {request_id}.")
 
-    def validate_request_security(
-        self, request_data: RequestParameters
-    ) -> SecurityContext:
+    def validate_request_security(self, request_data: RequestParameters) -> SecurityContext:
         """
         Validates security for stdio requests.
         Returns the predefined anonymous security context.

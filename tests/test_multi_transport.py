@@ -1,6 +1,4 @@
-def _setup_mock_reporter_context_for_reporter(
-    coordinator, request_id_val, operation_name_val
-):
+def _setup_mock_reporter_context_for_reporter(coordinator, request_id_val, operation_name_val):
     """Set up mock reporter context for reporter handler test."""
     mock_reporter_context = coordinator.get_progress_reporter.return_value
 
@@ -22,9 +20,7 @@ def _setup_mock_reporter_context_for_reporter(
 
     async def reporter_aexit_side_effect(exc_type, exc_val, exc_tb):
         if exc_type is None:
-            await coordinator.update_request(
-                request_id_val, "completed", "Operation completed successfully.", None
-            )
+            await coordinator.update_request(request_id_val, "completed", "Operation completed successfully.", None)
         else:
             error_msg = f"Operation '{operation_name_val}' failed: {exc_val}"
             await coordinator.update_request(

@@ -36,13 +36,9 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         self,
         coordinator: "ApplicationCoordinator",  # Coordinator is now the first argument and mandatory
         request_id: str,
-        operation_name: Optional[
-            str
-        ] = None,  # Operation name can be optional if fetched later
+        operation_name: Optional[str] = None,  # Operation name can be optional if fetched later
         initial_message: Optional[str] = None,  # Added initial_message
-        initial_details: Optional[
-            Dict[str, Any]
-        ] = None,  # Added initial_details (contains parameters)
+        initial_details: Optional[Dict[str, Any]] = None,  # Added initial_details (contains parameters)
     ) -> None:
         """
         Initialize the ProgressReporter.
@@ -59,9 +55,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         # Coordinator is now mandatory and passed first
         self.coordinator = coordinator
         self.request_id = request_id
-        self.operation_name = (
-            operation_name if operation_name else "unknown_operation"
-        )  # Use a default if None
+        self.operation_name = operation_name if operation_name else "unknown_operation"  # Use a default if None
         # Store initial message and details
         self.initial_message = initial_message
         # Ensure initial_details is always a dict, defaulting to empty if None is passed
@@ -81,15 +75,15 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
             f"ProgressReporter initialized for '{self.operation_name}'. Request ID: {self.request_id}. Mode: {self.mode}. Initial Details (Params): {log_params}"
         )
 
-    async def _send_progress(
-        self, status: str, message: str, details: Optional[Dict[str, Any]] = None
-    ) -> None:
+    async def _send_progress(self, status: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Sends a progress update message via Coordinator."""
         log_level = logging.ERROR if status == "error" else logging.INFO
 
         # Details passed here will be merged by coordinator.update_request
         # with the original request parameters stored by the coordinator.
-        log_message = f"Progress [{self.operation_name} - {status}]: {message} {details or ''} (Req ID: {self.request_id})"
+        log_message = (
+            f"Progress [{self.operation_name} - {status}]: {message} {details or ''} (Req ID: {self.request_id})"
+        )
 
         # Always send via Coordinator
         try:
@@ -100,9 +94,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
                 message=message,
                 details=details,  # Pass provided details directly
             )
-            logger.debug(
-                f"Sent progress update via Coordinator: {status} - {message} (Req ID: {self.request_id})"
-            )
+            logger.debug(f"Sent progress update via Coordinator: {status} - {message} (Req ID: {self.request_id})")
         except Exception as e:
             logger.error(
                 f"Error sending progress update via Coordinator for '{self.operation_name}' (Req ID: {self.request_id}): {e}. Update lost."
@@ -137,9 +129,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
                     # Decide if coordinator should be considered inactive based on error type
 
             except asyncio.CancelledError:
-                logger.info(
-                    f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled."
-                )
+                logger.info(f"Heartbeat task for '{self.operation_name}' (Req ID: {self.request_id}) cancelled.")
                 break
             except Exception as e:
                 logger.error(
@@ -151,9 +141,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
     async def start(self) -> None:
         """Signal the start of the operation and start heartbeat."""
         start_message = (
-            self.initial_message
-            if self.initial_message is not None
-            else f"Operation '{self.operation_name}' started."
+            self.initial_message if self.initial_message is not None else f"Operation '{self.operation_name}' started."
         )
         logger.info(
             f"Operation '{self.operation_name}' starting (Req ID: {self.request_id}). Message: '{start_message}'"
@@ -163,9 +151,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         # Start coordinator-based heartbeat task
         if self._heartbeat_task is None:
             self._heartbeat_task = asyncio.create_task(self._heartbeat())
-            logger.info(
-                f"Coordinator heartbeat task started for '{self.operation_name}' (Req ID: {self.request_id})."
-            )
+            logger.info(f"Coordinator heartbeat task started for '{self.operation_name}' (Req ID: {self.request_id}).")
 
     async def update(
         self,
@@ -185,9 +171,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Signal the successful completion of the operation."""
-        logger.info(
-            f"Operation '{self.operation_name}' completed (Req ID: {self.request_id})."
-        )
+        logger.info(f"Operation '{self.operation_name}' completed (Req ID: {self.request_id}).")
         await self._stop_heartbeat()  # Stop heartbeat task
         # Send the final "completed" progress update.
         # Pass details directly; coordinator merges parameters.
@@ -198,13 +182,9 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
             final_details.update(details)
         await self._send_progress("completed", message, final_details)
 
-    async def error(
-        self, error_message: str, details: Optional[Dict[str, Any]] = None
-    ) -> None:
+    async def error(self, error_message: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Signal that the operation failed."""
-        logger.error(
-            f"Operation '{self.operation_name}' failed: {error_message} (Req ID: {self.request_id})"
-        )
+        logger.error(f"Operation '{self.operation_name}' failed: {error_message} (Req ID: {self.request_id})")
         await self._stop_heartbeat()  # Stop heartbeat task
         # Send the final "error" progress update.
         # Pass details directly; coordinator merges parameters.
@@ -240,9 +220,7 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
         self,
         exc_type: Optional[Type[BaseException]],
         exc_val: Optional[BaseException],
-        exc_tb: Optional[
-            Any
-        ],  # TracebackType not easily available without types module import
+        exc_tb: Optional[Any],  # TracebackType not easily available without types module import
     ) -> Optional[bool]:
         """Exit the async context, reporting completion or error."""
         await self._stop_heartbeat()  # Ensure heartbeat is stopped first

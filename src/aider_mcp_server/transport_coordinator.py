@@ -21,13 +21,15 @@ from typing import (
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
+
+# Import the interface directly for runtime
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface
 from aider_mcp_server.mcp_types import (
     AsyncTask,
     LoggerFactory,
     LoggerProtocol,
     OperationResult,
     RequestParameters,
-    TransportInterface,
 )
 from aider_mcp_server.security import Permissions, SecurityContext
 
@@ -51,9 +53,7 @@ except ImportError:
         # Ensure logger has handlers if none are configured (basic setup)
         if not logger.hasHandlers():
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             logger.addHandler(handler)
             # Set a default level if not configured
@@ -101,16 +101,12 @@ class ApplicationCoordinator:
         Initializes the ApplicationCoordinator. Should only be called via getInstance.
         """
         if ApplicationCoordinator._initialized:
-            logger.warning(
-                "ApplicationCoordinator already initialized. Skipping re-initialization."
-            )
+            logger.warning("ApplicationCoordinator already initialized. Skipping re-initialization.")
             return
 
         # Only set up basic attributes here
         # Full initialization happens in _initialize_coordinator
-        self._initialized_event = (
-            asyncio.Event()
-        )  # Event to signal initialization completion
+        self._initialized_event = asyncio.Event()  # Event to signal initialization completion
         self._shutdown_event = asyncio.Event()  # Event to signal shutdown
         self._coordinator_id: Optional[str] = None
         self._discovery: Optional[CoordinatorDiscovery] = None
@@ -141,9 +137,7 @@ class ApplicationCoordinator:
 
         # Locks for async safety
         self._transports_lock = asyncio.Lock()
-        self._handlers_lock = (
-            asyncio.Lock()
-        )  # Use sync lock for sync handler registration
+        self._handlers_lock = asyncio.Lock()  # Use sync lock for sync handler registration
         self._active_requests_lock = asyncio.Lock()
         self._transport_capabilities_lock = asyncio.Lock()
         self._transport_subscriptions_lock = asyncio.Lock()
@@ -153,9 +147,7 @@ class ApplicationCoordinator:
             self._loop = asyncio.get_running_loop()
         except RuntimeError:
             # This should generally not happen if initialized within an async context
-            logger.error(
-                "No running event loop found during ApplicationCoordinator initialization!"
-            )
+            logger.error("No running event loop found during ApplicationCoordinator initialization!")
             # We'll try to get the current event loop or create one, but we won't set it globally
             # as that can cause issues in tests and other environments
             self._loop = asyncio.get_event_loop_policy().get_event_loop()
@@ -170,9 +162,7 @@ class ApplicationCoordinator:
                     transport_type="sse",  # Default to SSE for now
                     metadata={"version": "1.0.0"},  # Add metadata as needed
                 )
-                logger.info(
-                    f"Registered coordinator {self._coordinator_id} in discovery system"
-                )
+                logger.info(f"Registered coordinator {self._coordinator_id} in discovery system")
             except Exception as e:
                 logger.error(f"Failed to register coordinator in discovery: {e}")
                 self._discovery = None
@@ -183,9 +173,7 @@ class ApplicationCoordinator:
         logger.info("ApplicationCoordinator initialized successfully.")
 
     @classmethod
-    async def find_existing_coordinator(
-        cls, discovery_file: Optional[Path] = None
-    ) -> Optional[CoordinatorInfo]:
+    async def find_existing_coordinator(cls, discovery_file: Optional[Path] = None) -> Optional[CoordinatorInfo]:
         """
         Attempts to find an existing coordinator in the discovery system.
 
@@ -203,11 +191,14 @@ class ApplicationCoordinator:
             return None
 
     @classmethod
-    async def getInstance(cls) -> "ApplicationCoordinator":
+    async def getInstance(cls, logger_factory: Optional[LoggerFactory] = None) -> "ApplicationCoordinator":
         """
         Gets the singleton instance of the ApplicationCoordinator.
 
         Uses double-checked locking with asyncio.Lock for async-safe initialization.
+
+        Args:
+            logger_factory: Factory function to create loggers. If None, uses default.
 
         Returns:
             ApplicationCoordinator: The singleton instance.
@@ -216,12 +207,35 @@ class ApplicationCoordinator:
             async with cls._creation_lock:
                 # Double-check inside the lock
                 if cls._instance is None:
+                    # Use provided logger_factory or default to get_logger_func (already defined)
                     cls._instance = cls()
         return cls._instance
 
-    async def wait_for_initialization(self) -> None:
-        """Waits until the coordinator's asyncio components are fully initialized."""
-        await self._initialized_event.wait()
+    async def wait_for_initialization(self, timeout: Optional[float] = 30.0) -> None:
+        """
+        Waits until the coordinator's asyncio components are fully initialized.
+
+        Args:
+            timeout: Maximum time (in seconds) to wait for initialization.
+                   Set to None for no timeout. Defaults to 30 seconds.
+
+        Raises:
+            asyncio.TimeoutError: If initialization doesn't complete within the timeout period.
+            RuntimeError: If coordinator is shutting down during initialization wait.
+        """
+        if self._shutdown_event.is_set():
+            raise RuntimeError("Cannot wait for initialization while coordinator is shutting down")
+
+        if timeout is not None:
+            # Use wait_for with timeout
+            try:
+                await asyncio.wait_for(self._initialized_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.error(f"Coordinator initialization timed out after {timeout} seconds")
+                raise
+        else:
+            # Wait indefinitely
+            await self._initialized_event.wait()
 
     def is_shutting_down(self) -> bool:
         """Checks if the coordinator shutdown process has been initiated."""
@@ -250,9 +264,7 @@ class ApplicationCoordinator:
         if not ApplicationCoordinator._initialized:
             async with ApplicationCoordinator._creation_lock:
                 if not ApplicationCoordinator._initialized:
-                    ApplicationCoordinator._instance = (
-                        self  # Assign self if called directly
-                    )
+                    ApplicationCoordinator._instance = self  # Assign self if called directly
                     # Initialize explicitly instead of calling __init__ directly
                     await self._initialize_coordinator(
                         host=host,
@@ -277,23 +289,15 @@ class ApplicationCoordinator:
 
     # --- Transport Management ---
 
-    async def register_transport(
-        self, transport_id: str, transport: "TransportInterface"
-    ) -> None:
+    async def register_transport(self, transport_id: str, transport: "TransportInterface") -> None:
         """Registers a new transport adapter."""
         async with self._transports_lock:
             if transport_id in self._transports:
-                logger.warning(
-                    f"Transport {transport_id} already registered. Overwriting."
-                )
+                logger.warning(f"Transport {transport_id} already registered. Overwriting.")
             self._transports[transport_id] = transport
-            logger.info(
-                f"Transport registered: {transport_id} ({transport.transport_type})"
-            )
+            logger.info(f"Transport registered: {transport_id} ({transport.get_transport_type()})")
         # Update capabilities and default subscriptions (outside transports_lock)
-        await self.update_transport_capabilities(
-            transport_id, transport.get_capabilities()
-        )
+        await self.update_transport_capabilities(transport_id, transport.get_capabilities())
 
     async def unregister_transport(self, transport_id: str) -> None:
         """Unregisters a transport adapter."""
@@ -304,9 +308,7 @@ class ApplicationCoordinator:
                 transport_exists = True
                 logger.info(f"Transport unregistered: {transport_id}")
             else:
-                logger.warning(
-                    f"Attempted to unregister non-existent transport: {transport_id}"
-                )
+                logger.warning(f"Attempted to unregister non-existent transport: {transport_id}")
 
         if transport_exists:
             # Clean up capabilities and subscriptions (outside transports_lock)
@@ -317,9 +319,7 @@ class ApplicationCoordinator:
                 if transport_id in self._transport_subscriptions:
                     del self._transport_subscriptions[transport_id]
 
-    async def update_transport_capabilities(
-        self, transport_id: str, capabilities: Set[EventTypes]
-    ) -> None:
+    async def update_transport_capabilities(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
         """Updates the capabilities of a registered transport."""
         async with self._transport_capabilities_lock:
             self._transport_capabilities[transport_id] = capabilities
@@ -327,16 +327,12 @@ class ApplicationCoordinator:
         # By default, subscribe to all capabilities when capabilities are updated
         await self.update_transport_subscriptions(transport_id, capabilities)
 
-    async def update_transport_subscriptions(
-        self, transport_id: str, subscriptions: Set[EventTypes]
-    ) -> None:
+    async def update_transport_subscriptions(self, transport_id: str, subscriptions: Set[EventTypes]) -> None:
         """Updates the event types a transport is subscribed to (replaces existing)."""
         # Check if transport exists first (read lock)
         transport_exists = await self._transport_exists(transport_id)
         if not transport_exists:
-            logger.warning(
-                f"Attempted to update subscriptions for non-existent transport: {transport_id}"
-            )
+            logger.warning(f"Attempted to update subscriptions for non-existent transport: {transport_id}")
             return
 
         async with self._transport_subscriptions_lock:
@@ -346,15 +342,11 @@ class ApplicationCoordinator:
 
     # --- Subscription Management (for test compatibility) ---
 
-    async def subscribe_to_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """Subscribes a transport to a specific event type."""
         transport_exists = await self._transport_exists(transport_id)
         if not transport_exists:
-            logger.warning(
-                f"Attempted to subscribe non-existent transport {transport_id} to {event_type.value}"
-            )
+            logger.warning(f"Attempted to subscribe non-existent transport {transport_id} to {event_type.value}")
             return
 
         async with self._transport_subscriptions_lock:
@@ -363,16 +355,12 @@ class ApplicationCoordinator:
             self._transport_subscriptions[transport_id].add(event_type)
             logger.debug(f"Transport {transport_id} subscribed to {event_type.value}")
 
-    async def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """Unsubscribes a transport from a specific event type."""
         async with self._transport_subscriptions_lock:
             if transport_id in self._transport_subscriptions:
                 self._transport_subscriptions[transport_id].discard(event_type)
-                logger.debug(
-                    f"Transport {transport_id} unsubscribed from {event_type.value}"
-                )
+                logger.debug(f"Transport {transport_id} unsubscribed from {event_type.value}")
             # else: No warning needed if transport exists but wasn't subscribed
 
     async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
@@ -392,9 +380,7 @@ class ApplicationCoordinator:
         """Registers a handler function for a specific operation."""
         async with self._handlers_lock:
             if operation_name in self._handlers:
-                logger.warning(
-                    f"Handler for operation '{operation_name}' already registered. Overwriting."
-                )
+                logger.warning(f"Handler for operation '{operation_name}' already registered. Overwriting.")
             self._handlers[operation_name] = (handler, required_permission)
             logger.info(f"Handler registered for operation: '{operation_name}'")
 
@@ -405,9 +391,7 @@ class ApplicationCoordinator:
                 del self._handlers[operation_name]
                 logger.info(f"Handler unregistered for operation: '{operation_name}'")
             else:
-                logger.warning(
-                    f"Attempted to unregister non-existent handler: '{operation_name}'"
-                )
+                logger.warning(f"Attempted to unregister non-existent handler: '{operation_name}'")
 
     # --- Handler Retrieval (for test compatibility) ---
 
@@ -416,9 +400,7 @@ class ApplicationCoordinator:
         handler_info = await self._get_handler_info(operation_name)
         return handler_info[0] if handler_info else None
 
-    async def get_required_permission(
-        self, operation_name: str
-    ) -> Optional[Permissions]:
+    async def get_required_permission(self, operation_name: str) -> Optional[Permissions]:
         """Gets the required permission for a specific operation name."""
         handler_info = await self._get_handler_info(operation_name)
         return handler_info[1] if handler_info else None
@@ -439,29 +421,21 @@ class ApplicationCoordinator:
         """
         await self.wait_for_initialization()  # Ensure coordinator is ready
         if self.is_shutting_down():
-            logger.warning(
-                f"Coordinator is shutting down. Rejecting request {request_id}."
-            )
+            logger.warning(f"Coordinator is shutting down. Rejecting request {request_id}.")
             # Optionally inform the transport if possible/needed
             return
 
-        logger.info(
-            f"Starting request {request_id} for operation '{operation_name}' from transport {transport_id}"
-        )
+        logger.info(f"Starting request {request_id} for operation '{operation_name}' from transport {transport_id}")
 
         transport = await self._get_transport(transport_id)
         if not transport:
-            logger.error(
-                f"Cannot start request {request_id}: Transport {transport_id} not found."
-            )
+            logger.error(f"Cannot start request {request_id}: Transport {transport_id} not found.")
             # Cannot send error back as transport is gone.
             return
 
         # Extract diff cache settings from request data
         use_diff_cache = request_data.get("use_diff_cache", True)
-        clear_cached_for_unchanged = request_data.get(
-            "clear_cached_for_unchanged", True
-        )
+        clear_cached_for_unchanged = request_data.get("clear_cached_for_unchanged", True)
 
         # 1. Validate Security Context (outside locks)
         try:
@@ -497,9 +471,7 @@ class ApplicationCoordinator:
         # 2. Find Handler and Check Permissions (read handler lock)
         handler_info = await self._get_handler_info(operation_name)
         if not handler_info:
-            logger.warning(
-                f"No handler found for operation '{operation_name}' (request {request_id})."
-            )
+            logger.warning(f"No handler found for operation '{operation_name}' (request {request_id}).")
             # Fail request needs original params
             request_params = request_data.get("parameters", {})
             await self.fail_request(
@@ -513,9 +485,7 @@ class ApplicationCoordinator:
             return
 
         handler, required_permission = handler_info
-        if required_permission and not security_context.has_permission(
-            required_permission
-        ):
+        if required_permission and not security_context.has_permission(required_permission):
             logger.warning(
                 f"Permission denied for operation '{operation_name}' (request {request_id}). User '{security_context.user_id}' lacks permission '{required_permission.name}'."
             )
@@ -545,15 +515,11 @@ class ApplicationCoordinator:
         request_params = request_data.get("parameters", {})
         async with self._active_requests_lock:
             if request_id in self._active_requests:
-                logger.warning(
-                    f"Request ID {request_id} already active. Overwriting state."
-                )
+                logger.warning(f"Request ID {request_id} already active. Overwriting state.")
                 # Consider cancelling the previous task if it exists?
                 existing_task = self._active_requests[request_id].get("task")
                 if existing_task and not existing_task.done():
-                    logger.warning(
-                        f"Cancelling previous task for duplicate request ID {request_id}."
-                    )
+                    logger.warning(f"Cancelling previous task for duplicate request ID {request_id}.")
                     existing_task.cancel()
 
             # Create the task first
@@ -616,17 +582,11 @@ class ApplicationCoordinator:
                 use_diff_cache,
                 clear_cached_for_unchanged,
             )
-            handler_completed_normally = (
-                True  # Mark success before potential result processing issues
-            )
-            logger.info(
-                f"Handler for '{operation_name}' (request {request_id}) completed successfully."
-            )
+            handler_completed_normally = True  # Mark success before potential result processing issues
+            logger.info(f"Handler for '{operation_name}' (request {request_id}) completed successfully.")
 
             # Log whether the diff was cached
-            if isinstance(result_data, dict) and result_data.get(
-                "is_cached_diff", False
-            ):
+            if isinstance(result_data, dict) and result_data.get("is_cached_diff", False):
                 logger.info(f"Received cached diff for request {request_id}.")
             else:
                 logger.info(f"Received full diff for request {request_id}.")
@@ -646,9 +606,7 @@ class ApplicationCoordinator:
                 result_data = {"success": True, "result": result_data}  # Basic wrapping
 
         except asyncio.CancelledError:
-            logger.warning(
-                f"Handler task for '{operation_name}' (request {request_id}) was cancelled."
-            )
+            logger.warning(f"Handler task for '{operation_name}' (request {request_id}) was cancelled.")
             # Don't call fail_request here, cancellation is often initiated externally (e.g., shutdown)
             # Cleanup will happen in the finally block. If cancellation needs a specific error sent,
             # the cancelling code should handle it or call fail_request before cancelling.
@@ -733,9 +691,7 @@ class ApplicationCoordinator:
         if not request_info:
             # This can happen normally if the request finishes/fails between the handler
             # yielding and the update call, or if update is called after cleanup.
-            logger.debug(
-                f"Cannot update request {request_id}: Not found or already completed."
-            )
+            logger.debug(f"Cannot update request {request_id}: Not found or already completed.")
             return
 
         operation_name = request_info.get("operation", "unknown_operation")
@@ -748,9 +704,7 @@ class ApplicationCoordinator:
         # Update with any new details provided
         if details:
             # Avoid overwriting 'parameters' key if present in 'details'
-            new_details_filtered = {
-                k: v for k, v in details.items() if k != "parameters"
-            }
+            new_details_filtered = {k: v for k, v in details.items() if k != "parameters"}
             merged_details.update(new_details_filtered)
 
         # Determine event type based on status (PROGRESS or STATUS)
@@ -803,15 +757,11 @@ class ApplicationCoordinator:
             "operation": operation_name,
             "status": status,
             # Ensure message is not None, provide a default if needed
-            "message": message
-            if message is not None
-            else f"Status updated to {status}",
+            "message": message if message is not None else f"Status updated to {status}",
             "details": merged_details,  # Send merged details including parameters
         }
 
-        logger.debug(
-            f"Sending update for request {request_id}: Status={status}, Event={event_type.value}"
-        )
+        logger.debug(f"Sending update for request {request_id}: Status={status}, Event={event_type.value}")
         await self._send_event_to_transports(
             event_type,
             event_data,
@@ -835,9 +785,7 @@ class ApplicationCoordinator:
         request_id: str,
         operation_name: str,
         error: str,
-        error_details: Optional[
-            Union[str, Dict[str, Any]]
-        ] = None,  # Allow dict for structured errors
+        error_details: Optional[Union[str, Dict[str, Any]]] = None,  # Allow dict for structured errors
         originating_transport_id: Optional[str] = None,
         request_details: Optional[Dict[str, Any]] = None,  # Original parameters
     ) -> None:
@@ -849,41 +797,31 @@ class ApplicationCoordinator:
             return  # Avoid sending failures during shutdown chaos
 
         await self.wait_for_initialization()
-        logger.error(
-            f"Failing request {request_id} (Operation: {operation_name}): {error} - {error_details}"
-        )
+        logger.error(f"Failing request {request_id} (Operation: {operation_name}): {error} - {error_details}")
 
         # Check if request exists before sending failure event
         request_info = await self._get_request_info(request_id)
         if not request_info:
-            logger.warning(
-                f"Attempted to fail already cleaned up request: {request_id}"
-            )
+            logger.warning(f"Attempted to fail already cleaned up request: {request_id}")
             return
 
         # If originating_transport_id wasn't provided, try to get it from request_info
         origin_tid = originating_transport_id or request_info.get("transport_id")
         # If request_details (params) weren't provided, try to get them from stored info
-        req_params = request_details or request_info.get("details", {}).get(
-            "parameters", {}
-        )
+        req_params = request_details or request_info.get("details", {}).get("parameters", {})
 
         # Structure the details field for the error result
         structured_error_details = {"parameters": req_params}
         if isinstance(error_details, dict):
             # Merge dict details, ensuring 'parameters' isn't overwritten if present
-            details_to_merge = {
-                k: v for k, v in error_details.items() if k != "parameters"
-            }
+            details_to_merge = {k: v for k, v in error_details.items() if k != "parameters"}
             structured_error_details.update(details_to_merge)
         elif isinstance(error_details, str):
             structured_error_details["message"] = error_details
         else:
             # Handle None or any other type (convert to string)
             structured_error_details["original_error"] = (
-                str(error_details)
-                if error_details is not None
-                else "No details provided"
+                str(error_details) if error_details is not None else "No details provided"
             )
 
         result_data = {
@@ -912,15 +850,11 @@ class ApplicationCoordinator:
         task_to_cancel: Optional[AsyncTask[Any]] = None
         async with self._active_requests_lock:
             if request_id in self._active_requests:
-                request_info = self._active_requests.pop(
-                    request_id
-                )  # Remove and get info
+                request_info = self._active_requests.pop(request_id)  # Remove and get info
                 task_to_cancel = request_info.get("task")
                 logger.info(f"Cleaned up state for request {request_id}")
             else:
-                logger.debug(
-                    f"Attempted to clean up already removed request: {request_id}"
-                )
+                logger.debug(f"Attempted to clean up already removed request: {request_id}")
                 return  # Nothing more to do
 
         # Cancel the task outside the lock
@@ -945,9 +879,7 @@ class ApplicationCoordinator:
         if self.is_shutting_down():
             return
         await self.wait_for_initialization()
-        logger.debug(
-            f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}"
-        )
+        logger.debug(f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}")
         # Extract potential request details (parameters) if available in data for filtering
         request_params = data.get("details", {}).get("parameters")
         await self._send_event_to_transports(
@@ -1019,14 +951,10 @@ class ApplicationCoordinator:
                 return False
 
         # Check transport-specific filtering
-        if hasattr(transport, "should_receive_event") and callable(
-            transport.should_receive_event
-        ):
+        if hasattr(transport, "should_receive_event") and callable(transport.should_receive_event):
             try:
                 # Pass original request parameters if available
-                if not transport.should_receive_event(
-                    event_type, data, request_details
-                ):
+                if not transport.should_receive_event(event_type, data, request_details):
                     logger.debug(
                         f"Transport {transport_id} filtered out event {event_type.value} for request {data.get('request_id', 'N/A')}"
                     )
@@ -1051,9 +979,7 @@ class ApplicationCoordinator:
         Create a task to send an event to a transport.
         """
         request_id = data.get("request_id", uuid.uuid4())
-        logger.debug(
-            f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})"
-        )
+        logger.debug(f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})")
         return self._loop.create_task(
             transport.send_event(event_type, data),
             name=f"send-{event_type.value}-{transport_id}-{request_id}",
@@ -1072,12 +998,8 @@ class ApplicationCoordinator:
         Log warnings if the originating transport didn't receive an event it might have expected.
         """
         request_id = data.get("request_id", "N/A")
-        origin_subscribed = event_type in subscriptions.get(
-            originating_transport_id, set()
-        )
-        origin_exists = any(
-            t_id == originating_transport_id for t_id, _ in transports_to_notify
-        )
+        origin_subscribed = event_type in subscriptions.get(originating_transport_id, set())
+        origin_exists = any(t_id == originating_transport_id for t_id, _ in transports_to_notify)
 
         if origin_exists and not origin_subscribed:
             logger.warning(
@@ -1107,14 +1029,10 @@ class ApplicationCoordinator:
                 if len(parts) >= 4 and parts[0] == "send":
                     log_transport_id = parts[2]
             except Exception:
-                logger.warning(
-                    f"Failed to parse transport ID from task name {task_name}"
-                )
+                logger.warning(f"Failed to parse transport ID from task name {task_name}")
 
             # Avoid logging CancelledError stack traces unless debugging needed
-            log_exc_info = (
-                result if not isinstance(result, asyncio.CancelledError) else None
-            )
+            log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
             logger.error(
                 f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}",
                 exc_info=log_exc_info,
@@ -1126,9 +1044,7 @@ class ApplicationCoordinator:
         data: Dict[str, Any],
         originating_transport_id: Optional[str] = None,
         exclude_transport_id: Optional[str] = None,
-        request_details: Optional[
-            Dict[str, Any]
-        ] = None,  # Original request params for filtering
+        request_details: Optional[Dict[str, Any]] = None,  # Original request params for filtering
     ) -> None:
         """
         Internal helper to send an event to relevant transports based on subscriptions.
@@ -1164,11 +1080,7 @@ class ApplicationCoordinator:
             )
 
             if should_send:
-                tasks.append(
-                    self._create_send_event_task(
-                        transport, transport_id, event_type, data
-                    )
-                )
+                tasks.append(self._create_send_event_task(transport, transport_id, event_type, data))
                 sent_to.add(transport_id)
 
         # Check if the originating transport should have received it but didn't
@@ -1189,9 +1101,7 @@ class ApplicationCoordinator:
         # Log if no transports received the event
         if not sent_to:
             # Avoid logging warning if it was a STATUS event only meant for origin and origin wasn't subscribed/found
-            is_status_for_origin_only = (
-                event_type == EventTypes.STATUS and originating_transport_id is not None
-            )
+            is_status_for_origin_only = event_type == EventTypes.STATUS and originating_transport_id is not None
             if not is_status_for_origin_only:
                 logger.debug(
                     f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})"
@@ -1214,9 +1124,7 @@ class ApplicationCoordinator:
         async with self._transports_lock:
             return transport_id in self._transports
 
-    async def _get_handler_info(
-        self, operation_name: str
-    ) -> Optional[Tuple[HandlerFunc, Optional[Permissions]]]:
+    async def _get_handler_info(self, operation_name: str) -> Optional[Tuple[HandlerFunc, Optional[Permissions]]]:
         """Safely gets handler function and required permission by operation name."""
         async with self._handlers_lock:
             return self._handlers.get(operation_name)
@@ -1232,9 +1140,7 @@ class ApplicationCoordinator:
 
     async def _cancel_active_request_handlers(self) -> None:
         """Cancel all active request handlers during shutdown."""
-        logger.info(
-            f"Cancelling active request handlers (timeout: {SHUTDOWN_TIMEOUT}s)..."
-        )
+        logger.info(f"Cancelling active request handlers (timeout: {SHUTDOWN_TIMEOUT}s)...")
         tasks_to_cancel: List[AsyncTask[Any]] = []
 
         # Get tasks to cancel
@@ -1245,9 +1151,7 @@ class ApplicationCoordinator:
                 task = self._active_requests.get(request_id, {}).get("task")
                 if task and not task.done():
                     tasks_to_cancel.append(task)
-                    logger.debug(
-                        f"Marking task for request {request_id} for cancellation."
-                    )
+                    logger.debug(f"Marking task for request {request_id} for cancellation.")
             self._active_requests.clear()  # Clear requests immediately
 
         # Cancel tasks and track results
@@ -1279,9 +1183,7 @@ class ApplicationCoordinator:
 
     async def _shutdown_transports(self) -> None:
         """Shutdown all registered transports during coordinator shutdown."""
-        logger.info(
-            f"Shutting down registered transports (timeout: {SHUTDOWN_TIMEOUT}s)..."
-        )
+        logger.info(f"Shutting down registered transports (timeout: {SHUTDOWN_TIMEOUT}s)...")
         transport_shutdown_tasks = []
         transports_to_shutdown: List["TransportInterface"] = []
 
@@ -1296,12 +1198,11 @@ class ApplicationCoordinator:
 
         # Create shutdown tasks
         for transport in transports_to_shutdown:
-            logger.debug(
-                f"Initiating shutdown for transport {transport.transport_id}..."
-            )
+            logger.debug(f"Initiating shutdown for transport {transport.get_transport_id()}...")
             transport_shutdown_tasks.append(
                 self._loop.create_task(
-                    transport.shutdown(), name=f"shutdown-{transport.transport_id}"
+                    transport.shutdown(),
+                    name=f"shutdown-{transport.get_transport_id()}",
                 )
             )
 
@@ -1315,14 +1216,8 @@ class ApplicationCoordinator:
         # Handle pending (timed out) tasks
         for task in pending:
             task_name = task.get_name()
-            transport_id = (
-                task_name.replace("shutdown-", "")
-                if task_name.startswith("shutdown-")
-                else "unknown"
-            )
-            logger.warning(
-                f"Transport {transport_id} shutdown timed out after {SHUTDOWN_TIMEOUT}s. Cancelling task."
-            )
+            transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
+            logger.warning(f"Transport {transport_id} shutdown timed out after {SHUTDOWN_TIMEOUT}s. Cancelling task.")
             task.cancel()
             # Await cancellation briefly
             with contextlib.suppress(asyncio.CancelledError):
@@ -1335,14 +1230,8 @@ class ApplicationCoordinator:
                 task.result()
             except Exception as e:
                 task_name = task.get_name()
-                transport_id = (
-                    task_name.replace("shutdown-", "")
-                    if task_name.startswith("shutdown-")
-                    else "unknown"
-                )
-                logger.error(
-                    f"Error shutting down transport {transport_id}: {e}", exc_info=e
-                )
+                transport_id = task_name.replace("shutdown-", "") if task_name.startswith("shutdown-") else "unknown"
+                logger.error(f"Error shutting down transport {transport_id}: {e}", exc_info=e)
                 exceptions.append(e)
 
         logger.info(
@@ -1365,9 +1254,7 @@ class ApplicationCoordinator:
             logger.info("Shutdown already in progress or completed.")
             return
 
-        logger.warning(
-            "Initiating ApplicationCoordinator shutdown..."
-        )  # Changed to warning
+        logger.warning("Initiating ApplicationCoordinator shutdown...")  # Changed to warning
         self._shutdown_event.set()  # Signal shutdown early
 
         # 1. Cancel all active request handlers
@@ -1397,9 +1284,7 @@ class ApplicationCoordinator:
         # self._initialized_event.clear()
         # self._shutdown_event.clear() # Keep shutdown signaled
 
-        logger.warning(
-            "ApplicationCoordinator shutdown complete."
-        )  # Changed to warning
+        logger.warning("ApplicationCoordinator shutdown complete.")  # Changed to warning
 
     # --- Context Manager for Progress Reporting ---
 
@@ -1428,17 +1313,13 @@ class ApplicationCoordinator:
                 "Failed to import ProgressReporter. Progress reporting unavailable.",
                 exc_info=True,
             )
-            raise ImportError(
-                "ProgressReporter class not found. Ensure it is installed correctly."
-            ) from e
+            raise ImportError("ProgressReporter class not found. Ensure it is installed correctly.") from e
 
         # Prepare initial details, ensuring parameters are included
         final_initial_details = {"parameters": parameters.copy() if parameters else {}}
         if initial_details:
             # Merge, avoiding overwriting 'parameters' key if present in initial_details
-            details_to_merge = {
-                k: v for k, v in initial_details.items() if k != "parameters"
-            }
+            details_to_merge = {k: v for k, v in initial_details.items() if k != "parameters"}
             final_initial_details.update(details_to_merge)
 
         # Operation name inference logic is removed; reporter should handle if needed.

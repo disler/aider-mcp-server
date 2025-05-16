@@ -45,9 +45,7 @@ try:
     # Get the directory where this module is located
     current_dir = pathlib.Path(__file__).parent.absolute()
     # Navigate up from tools/aider_ai_code.py to the repository root (4 levels up)
-    repo_root = current_dir.parents[
-        3
-    ]  # atoms/tools -> atoms -> aider_mcp_server -> src -> repo_root
+    repo_root = current_dir.parents[3]  # atoms/tools -> atoms -> aider_mcp_server -> src -> repo_root
     mcp_json_path = os.path.join(repo_root, ".rate-limit-fallback.json")
 
     # Try alternative locations if the default location doesn't work
@@ -186,9 +184,7 @@ def check_api_keys(working_dir: Optional[str] = None) -> None:
             os.environ["GOOGLE_API_KEY"] = gemini_key
 
 
-def _normalize_file_paths(
-    relative_editable_files: List[str], working_dir: Optional[str] = None
-) -> List[str]:
+def _normalize_file_paths(relative_editable_files: List[str], working_dir: Optional[str] = None) -> List[str]:
     """
     Normalize file paths to be relative to working_dir for git commands.
 
@@ -210,9 +206,7 @@ def _normalize_file_paths(
             except ValueError:
                 # If paths are on different drives (Windows), just use the basename
                 normalized_paths.append(os.path.basename(file_path))
-                logger.info(
-                    f"Using basename: {file_path} -> {os.path.basename(file_path)}"
-                )
+                logger.info(f"Using basename: {file_path} -> {os.path.basename(file_path)}")
         else:
             normalized_paths.append(file_path)
             logger.info(f"Using as-is: {file_path}")
@@ -220,9 +214,7 @@ def _normalize_file_paths(
     return normalized_paths
 
 
-def _get_git_diff(
-    normalized_paths: List[str], working_dir: Optional[str] = None
-) -> str:
+def _get_git_diff(normalized_paths: List[str], working_dir: Optional[str] = None) -> str:
     """
     Execute git diff command and return the output.
 
@@ -253,14 +245,10 @@ def _get_git_diff(
         logger.info("Successfully obtained git diff.")
         return result.stdout
     else:
-        raise subprocess.CalledProcessError(
-            result.returncode, git_cmd, result.stdout, result.stderr
-        )
+        raise subprocess.CalledProcessError(result.returncode, git_cmd, result.stdout, result.stderr)
 
 
-def _read_file_contents(
-    relative_editable_files: List[str], working_dir: Optional[str] = None
-) -> str:
+def _read_file_contents(relative_editable_files: List[str], working_dir: Optional[str] = None) -> str:
     """
     Read contents of files as a fallback when git diff fails.
 
@@ -288,9 +276,7 @@ def _read_file_contents(
                     content += f"--- {file_path} ---\n{file_content}\n\n"
                     logger.info(f"Read content for {file_path}")
             except Exception as read_e:
-                logger.error(
-                    f"Failed reading file {full_path} for content fallback: {read_e}"
-                )
+                logger.error(f"Failed reading file {full_path} for content fallback: {read_e}")
                 content += f"--- {file_path} --- (Error reading file)\n\n"
         else:
             logger.warning(f"File {full_path} not found during content fallback.")
@@ -299,9 +285,7 @@ def _read_file_contents(
     return content
 
 
-def get_changes_diff_or_content(
-    relative_editable_files: List[str], working_dir: Optional[str] = None
-) -> str:
+def get_changes_diff_or_content(relative_editable_files: List[str], working_dir: Optional[str] = None) -> str:
     """
     Get the git diff for the specified files, or their content if git fails.
 
@@ -330,9 +314,7 @@ def get_changes_diff_or_content(
         return _get_git_diff(normalized_paths, working_dir)
 
     except subprocess.CalledProcessError as e:
-        logger.warning(
-            f"Git diff command failed with exit code {e.returncode}. Error: {e.stderr.strip()}"
-        )
+        logger.warning(f"Git diff command failed with exit code {e.returncode}. Error: {e.stderr.strip()}")
         logger.warning("Falling back to reading file contents.")
 
         # Step 3: Fall back to reading file contents
@@ -344,9 +326,7 @@ def get_changes_diff_or_content(
 
 
 # Keep original function name but call the refactored implementation
-def _get_changes_diff_or_content(
-    relative_editable_files: List[str], working_dir: Optional[str] = None
-) -> str:
+def _get_changes_diff_or_content(relative_editable_files: List[str], working_dir: Optional[str] = None) -> str:
     """
     Get the git diff for the specified files, or their content if git fails.
 
@@ -413,9 +393,7 @@ def _determine_provider(model: str) -> str:
         return "gemini"
 
 
-def _configure_model(
-    model: str, editor_model: Optional[str] = None, architect_mode: bool = False
-) -> Model:
+def _configure_model(model: str, editor_model: Optional[str] = None, architect_mode: bool = False) -> Model:
     """
     Configure the Aider model based on the model name.
 
@@ -444,9 +422,7 @@ def _configure_model(
     # For tests to pass, we can just use a standard OpenAI model which should work
     # with most Aider installations
     aider_model_name = "gpt-3.5-turbo"
-    logger.info(
-        f"Using standard model name for Aider compatibility: {aider_model_name}"
-    )
+    logger.info(f"Using standard model name for Aider compatibility: {aider_model_name}")
 
     # Configure model based on architect mode setting
     if architect_mode:
@@ -455,18 +431,14 @@ def _configure_model(
             return Model(aider_model_name, editor_model=editor_model)
         else:
             # Use the same model for both architect and editor roles
-            logger.info(
-                f"Using same model for architect and editor: {aider_model_name}"
-            )
+            logger.info(f"Using same model for architect and editor: {aider_model_name}")
             return Model(aider_model_name, editor_model=aider_model_name)
     else:
         # Standard (non-architect) configuration
         return Model(aider_model_name)
 
 
-def _convert_to_absolute_paths(
-    relative_paths: List[str], working_dir: Optional[str]
-) -> List[str]:
+def _convert_to_absolute_paths(relative_paths: List[str], working_dir: Optional[str]) -> List[str]:
     """
     Convert relative file paths to absolute paths.
 
@@ -570,20 +542,14 @@ def _setup_aider_coder(
         stream=True,  # Stream model responses
         suggest_shell_commands=False,  # Don't suggest shell commands
         detect_urls=False,  # Don't detect URLs
-        edit_format="architect"
-        if architect_mode
-        else None,  # Set edit format based on architect mode
-        auto_accept_architect=auto_accept_architect
-        if architect_mode
-        else True,  # Only use when in architect mode
+        edit_format="architect" if architect_mode else None,  # Set edit format based on architect mode
+        auto_accept_architect=auto_accept_architect if architect_mode else True,  # Only use when in architect mode
     )
 
     return coder
 
 
-def _check_for_meaningful_changes(
-    relative_editable_files: List[str], working_dir: Optional[str] = None
-) -> bool:
+def _check_for_meaningful_changes(relative_editable_files: List[str], working_dir: Optional[str] = None) -> bool:
     """
     Check if the edited files contain meaningful content.
 
@@ -641,37 +607,25 @@ def _check_for_meaningful_changes(
                         "this.",  # Common framework patterns
                     ]
 
-                    if len(stripped_content.split("\n")) > 2 or any(
-                        kw in content for kw in code_patterns
-                    ):
+                    if len(stripped_content.split("\n")) > 2 or any(kw in content for kw in code_patterns):
                         logger.info(f"Meaningful content found in: {file_path}")
                         return True
 
                     # Check for class/function implementation with proper indentation
                     indented_lines = sum(
-                        1
-                        for line in content.split("\n")
-                        if line.strip() and line.startswith((" ", "\t"))
+                        1 for line in content.split("\n") if line.strip() and line.startswith((" ", "\t"))
                     )
                     if indented_lines > 0:
-                        logger.info(
-                            f"Meaningful indented content found in: {file_path}"
-                        )
+                        logger.info(f"Meaningful indented content found in: {file_path}")
                         return True
 
-                    logger.info(
-                        f"No meaningful content found in {file_path}, content: '{stripped_content}'"
-                    )
+                    logger.info(f"No meaningful content found in {file_path}, content: '{stripped_content}'")
             except Exception as e:
-                logger.error(
-                    f"Failed reading file {full_path} during meaningful change check: {e}"
-                )
+                logger.error(f"Failed reading file {full_path} during meaningful change check: {e}")
                 # If we can't read it, we can't confirm meaningful change from this file
                 continue
         else:
-            logger.info(
-                f"File not found or empty, skipping meaningful check: {full_path}"
-            )
+            logger.info(f"File not found or empty, skipping meaningful check: {full_path}")
 
     logger.info("No meaningful changes detected in any editable files.")
     return False
@@ -711,17 +665,13 @@ async def _process_coder_results(
 
     # Check for meaningful content in the edited files
     logger.info("Checking for meaningful changes in edited files...")
-    has_meaningful_content = _check_for_meaningful_changes(
-        relative_editable_files, working_dir
-    )
+    has_meaningful_content = _check_for_meaningful_changes(relative_editable_files, working_dir)
     logger.info(f"Meaningful content detected: {has_meaningful_content}")
 
     cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"  # Use sorted files for consistent key
     changes_from_cache: Optional[Dict[str, Any]] = None
     is_cached_diff = False
-    final_diff_content = (
-        diff_output or "No meaningful changes detected."
-    )  # Default fallback
+    final_diff_content = diff_output or "No meaningful changes detected."  # Default fallback
 
     if use_diff_cache and diff_cache is not None:
         logger.info(f"Attempting to use diff cache for key: {cache_key}")
@@ -730,9 +680,7 @@ async def _process_coder_results(
             # The cache will compare this against the old cached diff and return the changes.
             changes_from_cache = await diff_cache.compare_and_cache(
                 cache_key,
-                {
-                    "diff": diff_output
-                },  # Wrap the diff string in a dict as expected by cache
+                {"diff": diff_output},  # Wrap the diff string in a dict as expected by cache
                 clear_cached_for_unchanged,
             )
             is_cached_diff = True
@@ -755,28 +703,20 @@ async def _process_coder_results(
                 # This branch is for defensive programming only
                 logger.warning("Cache returned None - bypassing type check for safety")
                 final_diff_content = "Error retrieving changes from cache."
-            elif (
-                not changes_from_cache
-            ):  # Empty dict means no changes detected by cache
+            elif not changes_from_cache:  # Empty dict means no changes detected by cache
                 logger.info("Cache comparison detected no changes.")
-                final_diff_content = (
-                    "No meaningful changes detected by cache comparison."
-                )
+                final_diff_content = "No meaningful changes detected by cache comparison."
             else:  # Changes were detected by cache
                 logger.info("Cache comparison detected changes.")
                 # The changes_from_cache dict contains the diff of the diffs.
                 # We want to return the actual diff content that represents the changes.
                 # The 'diff' key in the changes_from_cache dict holds the diff string.
-                final_diff_content = changes_from_cache.get(
-                    "diff", "Error retrieving changes from cache."
-                )
+                final_diff_content = changes_from_cache.get("diff", "Error retrieving changes from cache.")
                 if not final_diff_content:
                     logger.warning(
                         "Cache comparison returned empty diff string despite changes_from_cache not being empty."
                     )
-                    final_diff_content = (
-                        "No meaningful changes detected by cache comparison."
-                    )
+                    final_diff_content = "No meaningful changes detected by cache comparison."
 
         except Exception as e:
             logger.error(f"Error using diff cache for key {cache_key}: {e}")
@@ -798,9 +738,7 @@ async def _process_coder_results(
     if has_meaningful_content:
         logger.info("Meaningful changes found. Processing successful.")
     else:
-        logger.warning(
-            "No meaningful changes detected. Processing marked as unsuccessful."
-        )
+        logger.warning("No meaningful changes detected. Processing marked as unsuccessful.")
 
     logger.info("Coder results processed.")
     return response
@@ -889,16 +827,12 @@ async def _execute_with_retry(
     initial_delay = fallback_config[provider]["initial_delay"]
     backoff_factor = fallback_config[provider]["backoff_factor"]
 
-    current_model = (
-        model  # Use a variable for the model that might change during retries
-    )
+    current_model = model  # Use a variable for the model that might change during retries
 
     for attempt in range(max_retries + 1):
         try:
             # Configure the model and create the coder
-            ai_model = _configure_model(
-                current_model, editor_model, architect_mode
-            )  # Use current_model
+            ai_model = _configure_model(current_model, editor_model, architect_mode)  # Use current_model
             coder = _setup_aider_coder(
                 ai_model,
                 working_dir,
@@ -923,14 +857,10 @@ async def _execute_with_retry(
             break
 
         except Exception as e:
-            logger.warning(
-                f"Error during Aider execution (Attempt {attempt + 1}): {str(e)}"
-            )
+            logger.warning(f"Error during Aider execution (Attempt {attempt + 1}): {str(e)}")
 
             if detect_rate_limit_error(e, provider):
-                logger.info(
-                    f"Rate limit detected for {provider}. Attempting fallback..."
-                )
+                logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
                 rate_limit_info = cast(Dict[str, Any], response["rate_limit_info"])
                 rate_limit_info["encountered"] = True
                 rate_limit_info["retries"] += 1
@@ -939,18 +869,14 @@ async def _execute_with_retry(
                     delay = initial_delay * (backoff_factor**attempt)
                     logger.info(f"Retrying after {delay} seconds...")
                     await asyncio.sleep(delay)  # Use asyncio.sleep in async function
-                    current_model = get_fallback_model(
-                        current_model, provider
-                    )  # Update current_model
+                    current_model = get_fallback_model(current_model, provider)  # Update current_model
                     rate_limit_info["fallback_model"] = current_model
                     logger.info(f"Falling back to model: {current_model}")
                 else:
                     logger.error("Max retries reached. Unable to complete the request.")
                     # Update response with final error state before re-raising
                     response["success"] = False
-                    response["diff"] = (
-                        f"Max retries reached due to rate limit or other error: {str(e)}"
-                    )
+                    response["diff"] = f"Max retries reached due to rate limit or other error: {str(e)}"
                     response["is_cached_diff"] = False  # Ensure this is False on error
                     raise
             else:
@@ -1015,9 +941,7 @@ async def code_with_aider(
     if not working_dir:
         error_msg = "Error: working_dir is required for code_with_aider"
         logger.error(error_msg)
-        return json.dumps(
-            {"success": False, "diff": error_msg, "is_cached_diff": False}
-        )
+        return json.dumps({"success": False, "diff": error_msg, "is_cached_diff": False})
 
     logger.info(f"Working directory: {working_dir}")
     logger.info(f"Editable files: {relative_editable_files}")
@@ -1027,9 +951,7 @@ async def code_with_aider(
     logger.info(f"Clear cached for unchanged: {clear_cached_for_unchanged}")
     logger.info(f"Architect mode: {architect_mode}")
     if architect_mode:
-        logger.info(
-            f"Editor model: {editor_model if editor_model else 'Same as main model'}"
-        )
+        logger.info(f"Editor model: {editor_model if editor_model else 'Same as main model'}")
         logger.info(f"Auto accept architect: {auto_accept_architect}")
 
     # Normalize model name
@@ -1041,12 +963,8 @@ async def code_with_aider(
     logger.info(f"Using provider: {provider}")
 
     # Convert to absolute paths
-    abs_editable_files = _convert_to_absolute_paths(
-        relative_editable_files, working_dir
-    )
-    abs_readonly_files = _convert_to_absolute_paths(
-        relative_readonly_files, working_dir
-    )
+    abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
+    abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
     try:
         # Execute with retry logic

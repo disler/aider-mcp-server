@@ -42,9 +42,7 @@ class SecurityContext:
     def __init__(
         self,
         user_id: Optional[str] = None,
-        permissions: Optional[
-            Set[Union[Permissions, str]]
-        ] = None,  # Allow string permissions initially
+        permissions: Optional[Set[Union[Permissions, str]]] = None,  # Allow string permissions initially
         is_anonymous: bool = False,
         transport_id: Optional[str] = None,  # Added transport ID
     ):
@@ -78,9 +76,7 @@ class SecurityContext:
                         )
                         break  # No need to process further permissions if wildcard found
                     else:
-                        logger.warning(
-                            f"Ignoring unknown permission string '{perm}' during SecurityContext creation."
-                        )
+                        logger.warning(f"Ignoring unknown permission string '{perm}' during SecurityContext creation.")
         self.permissions: Set[Permissions] = processed_permissions
 
         if self.is_anonymous:
@@ -109,41 +105,29 @@ class SecurityContext:
         elif isinstance(required_permission, str):
             permission_to_check = Permissions.from_string(required_permission)
             if permission_to_check is None:
-                logger.warning(
-                    f"Attempted to check for unknown permission string: '{required_permission}'"
-                )
+                logger.warning(f"Attempted to check for unknown permission string: '{required_permission}'")
                 return False
         else:
             # This is needed only for ensuring exhaustive type checking
-            raise TypeError(
-                f"Invalid type for required_permission: {type(required_permission)}"
-            )
+            raise TypeError(f"Invalid type for required_permission: {type(required_permission)}")
 
         # Check if the specific permission exists in the user's granted permissions
         return permission_to_check in self.permissions
 
     def __repr__(self) -> str:
-        perm_str = ", ".join(
-            p.value for p in sorted(self.permissions, key=lambda x: x.value)
-        )
+        perm_str = ", ".join(p.value for p in sorted(self.permissions, key=lambda x: x.value))
         context_type = "Anonymous" if self.is_anonymous else f"User='{self.user_id}'"
-        transport_info = (
-            f", Transport='{self.transport_id}'" if self.transport_id else ""
-        )
+        transport_info = f", Transport='{self.transport_id}'" if self.transport_id else ""
         return f"SecurityContext({context_type}, Permissions={{{perm_str}}}{transport_info})"
 
 
 # Define a default anonymous security context
 # Provide a default transport_id or leave as None
-ANONYMOUS_SECURITY_CONTEXT = SecurityContext(
-    is_anonymous=True, transport_id="anonymous"
-)
+ANONYMOUS_SECURITY_CONTEXT = SecurityContext(is_anonymous=True, transport_id="anonymous")
 
 
 # Implement the `create_context_from_credentials` function
-def create_context_from_credentials(
-    credentials: Dict[str, Any], transport_id: Optional[str] = None
-) -> SecurityContext:
+def create_context_from_credentials(credentials: Dict[str, Any], transport_id: Optional[str] = None) -> SecurityContext:
     """
     Creates a SecurityContext based on the provided credentials dictionary.
 
@@ -184,18 +168,14 @@ def create_context_from_credentials(
             user_id = "admin_user"
             # Grant all permissions using wildcard - explicitly type to satisfy mypy with Union
             granted_permissions = {"*"}  # Use wildcard string
-            logger.info(
-                f"Successfully created admin context for user '{user_id}' from transport '{transport_id}'"
-            )
+            logger.info(f"Successfully created admin context for user '{user_id}' from transport '{transport_id}'")
             return SecurityContext(
                 user_id=user_id,
                 permissions=granted_permissions,
                 transport_id=transport_id,
             )
         else:
-            logger.warning(
-                f"Invalid auth_token provided from transport '{transport_id}'."
-            )
+            logger.warning(f"Invalid auth_token provided from transport '{transport_id}'.")
             # Fall through to return anonymous context
 
     # If no valid credentials found, return the anonymous context

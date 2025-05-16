@@ -83,9 +83,7 @@ async def test_compare_and_cache_clear_unchanged(diff_cache):
     }
 
     await diff_cache.set(file_paths, old_diff)
-    changes = await diff_cache.compare_and_cache(
-        file_paths, new_diff, clear_cached_for_unchanged=True
-    )
+    changes = await diff_cache.compare_and_cache(file_paths, new_diff, clear_cached_for_unchanged=True)
 
     assert changes == {"file1.txt": "new_content1", "file3.txt": "new_content3"}
     # With clear_cached_for_unchanged=True, only the changed files should be in the cache
@@ -159,9 +157,7 @@ async def test_lru_eviction(size_limited_cache):
 
     # Check that only the first entry was evicted
     # The exact threshold depends on the object size calculation
-    assert (
-        await size_limited_cache.get(f"{base_key}0") is None
-    )  # file0 should be evicted
+    assert await size_limited_cache.get(f"{base_key}0") is None  # file0 should be evicted
 
     # The other entries should still be in the cache
     assert await size_limited_cache.get(f"{base_key}1") is not None

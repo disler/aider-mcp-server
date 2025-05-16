@@ -35,12 +35,8 @@ def _validate_editable_files(
 ) -> Tuple[Optional[List[str]], Optional[OperationResult]]:
     """Validate the editable files parameter."""
     relative_editable_files_raw = params.get("relative_editable_files")
-    if not relative_editable_files_raw or not isinstance(
-        relative_editable_files_raw, list
-    ):
-        logger.error(
-            f"Request {request_id}: Missing or invalid 'relative_editable_files'. Expected list."
-        )
+    if not relative_editable_files_raw or not isinstance(relative_editable_files_raw, list):
+        logger.error(f"Request {request_id}: Missing or invalid 'relative_editable_files'. Expected list.")
         return None, {
             "success": False,
             "error": "Missing or invalid 'relative_editable_files' parameter. Expected list.",
@@ -48,9 +44,7 @@ def _validate_editable_files(
 
     # Ensure all items in the list are strings
     if not all(isinstance(f, str) for f in relative_editable_files_raw):
-        logger.error(
-            f"Request {request_id}: 'relative_editable_files' must contain only strings."
-        )
+        logger.error(f"Request {request_id}: 'relative_editable_files' must contain only strings.")
         return None, {
             "success": False,
             "error": "'relative_editable_files' must contain only strings.",
@@ -78,9 +72,7 @@ def _process_readonly_files(request_id: str, params: RequestParameters) -> List[
     return relative_readonly_files_raw
 
 
-def _determine_model(
-    request_id: str, params: RequestParameters, editor_model: str
-) -> str:
+def _determine_model(request_id: str, params: RequestParameters, editor_model: str) -> str:
     """Determine which model to use based on request parameters and defaults."""
     request_model = params.get("model")
 
@@ -116,9 +108,7 @@ async def _execute_aider_code(
         return _parse_aider_result(request_id, result_json_str)
 
     except Exception as e:
-        logger.exception(
-            f"Request {request_id}: Unhandled exception during code_with_aider execution: {e}"
-        )
+        logger.exception(f"Request {request_id}: Unhandled exception during code_with_aider execution: {e}")
         return {
             "success": False,
             "error": "An unexpected error occurred during AI coding",
@@ -133,9 +123,7 @@ def _parse_aider_result(request_id: str, result_json_str: str) -> OperationResul
 
         # Ensure the result is a dictionary
         if not isinstance(result_dict, dict):
-            raise json.JSONDecodeError(
-                "Result is not a JSON object", result_json_str, 0
-            )
+            raise json.JSONDecodeError("Result is not a JSON object", result_json_str, 0)
 
         # Ensure 'success' field exists in the final dictionary
         if "success" not in result_dict:
@@ -144,15 +132,11 @@ def _parse_aider_result(request_id: str, result_json_str: str) -> OperationResul
             )
             result_dict["success"] = False
 
-        logger.info(
-            f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}"
-        )
+        logger.info(f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}")
         return result_dict
 
     except json.JSONDecodeError as e:
-        logger.error(
-            f"Request {request_id}: Failed to parse JSON response from code_with_aider: {e}"
-        )
+        logger.error(f"Request {request_id}: Failed to parse JSON response from code_with_aider: {e}")
         logger.error(f"Request {request_id}: Received raw response: {result_json_str}")
         return {
             "success": False,
@@ -212,9 +196,7 @@ async def process_aider_ai_code_request(
     )
     logger.info(f"Request {request_id}: Editable files: {relative_editable_files}")
     logger.info(f"Request {request_id}: Readonly files: {relative_readonly_files}")
-    logger.info(
-        f"Request {request_id}: Model to use: {model_to_use} (Editor default: {editor_model})"
-    )
+    logger.info(f"Request {request_id}: Model to use: {model_to_use} (Editor default: {editor_model})")
     logger.info(f"Request {request_id}: Working directory: {current_working_dir}")
 
     # Execute the Aider code generation
@@ -272,14 +254,10 @@ async def process_list_models_request(
 
     try:
         models = list_models(substring)
-        logger.info(
-            f"Request {request_id}: Found {len(models)} models matching '{substring}'"
-        )
+        logger.info(f"Request {request_id}: Found {len(models)} models matching '{substring}'")
         return {"models": models, "success": True}
     except Exception as e:
-        logger.exception(
-            f"Request {request_id}: Error during list_models execution: {e}"
-        )
+        logger.exception(f"Request {request_id}: Error during list_models execution: {e}")
         return {
             "models": [],
             "success": False,

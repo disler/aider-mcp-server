@@ -128,9 +128,7 @@ def test_default_stdio_mode(monkeypatch: pytest.MonkeyPatch):
     mock_serve.assert_called_once()
     call_args, call_kwargs = mock_serve.call_args
     assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
-    assert call_kwargs.get("current_working_dir") == str(
-        cwd_path
-    )  # __main__ passes string path
+    assert call_kwargs.get("current_working_dir") == str(cwd_path)  # __main__ passes string path
     mock_serve_sse.assert_not_called()
     mock_serve_multi.assert_not_called()
     mock_exit.assert_not_called()
@@ -298,9 +296,7 @@ def test_multi_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
     "mode_args", [["--server-mode", "stdio"], ["--server-mode", "stdio"]]
 )  # Default is stdio, test explicit too
 @pytest.mark.parametrize("extra_args", [["--host", "1.1.1.1"], ["--port", "1234"]])
-def test_stdio_mode_host_port_warning(
-    monkeypatch: pytest.MonkeyPatch, mode_args: List[str], extra_args: List[str]
-):
+def test_stdio_mode_host_port_warning(monkeypatch: pytest.MonkeyPatch, mode_args: List[str], extra_args: List[str]):
     """Test warning when host/port are used with stdio mode."""
     args = mode_args + extra_args + ["--current-working-dir", "."]
     (
@@ -329,9 +325,7 @@ def test_custom_editor_model_stdio(monkeypatch: pytest.MonkeyPatch):
     """Test custom editor model parameter with stdio mode."""
     model = "test-editor-model"
     args = ["--editor-model", model, "--current-working-dir", "."]
-    mock_serve, _, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(
-        monkeypatch, args
-    )
+    mock_serve, _, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
 
     cwd_path = Path(".").resolve()
     mock_path_is_dir.assert_called_once()
@@ -354,9 +348,7 @@ def test_custom_editor_model_sse(monkeypatch: pytest.MonkeyPatch):
         "--current-working-dir",
         ".",
     ]
-    _, mock_serve_sse, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = (
-        run_main(monkeypatch, args)
-    )
+    _, mock_serve_sse, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
 
     cwd_path = Path(".").resolve()
     mock_path_is_dir.assert_called_once()
@@ -379,9 +371,7 @@ def test_custom_editor_model_multi(monkeypatch: pytest.MonkeyPatch):
         "--current-working-dir",
         ".",
     ]
-    _, _, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = (
-        run_main(monkeypatch, args)
-    )
+    _, _, mock_serve_multi, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
 
     cwd_path = Path(".").resolve()
     mock_path_is_dir.assert_called_once()
@@ -403,9 +393,7 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
         # Use os.path.abspath for basic resolution simulation
         abs_path_str = os.path.abspath(str(self))
         if abs_path_str == os.path.abspath(non_existent_dir_str) and strict:
-            raise FileNotFoundError(
-                f"[Errno 2] No such file or directory: '{abs_path_str}'"
-            )
+            raise FileNotFoundError(f"[Errno 2] No such file or directory: '{abs_path_str}'")
         # For other paths or non-strict calls, return a Path object
         return Path(abs_path_str)
 
@@ -449,10 +437,7 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     mock_logger_instance.critical.assert_called_once()
     error_message = mock_logger_instance.critical.call_args[0][0]
     # Check that the original path provided by the user is in the error message
-    assert (
-        f"Specified working directory does not exist: {non_existent_dir_str}"
-        in error_message
-    )
+    assert f"Specified working directory does not exist: {non_existent_dir_str}" in error_message
     mock_exit.assert_called_once_with(1)
     mock_serve.assert_not_called()
     mock_serve_sse.assert_not_called()
@@ -508,10 +493,7 @@ def test_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     mock_is_git_repo.assert_called_once_with(not_git_dir_resolved)
     mock_logger_instance.critical.assert_called_once()
     error_message = mock_logger_instance.critical.call_args[0][0]
-    assert (
-        f"Specified working directory is not a valid git repository: {not_git_dir_resolved}"
-        in error_message
-    )
+    assert f"Specified working directory is not a valid git repository: {not_git_dir_resolved}" in error_message
     assert git_error_message in error_message
     mock_exit.assert_called_once_with(1)
     mock_serve.assert_not_called()
@@ -551,16 +533,12 @@ def test_working_dir_valid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # Check validation calls happened correctly
     mock_path_is_dir.assert_called_once()
     # REMOVED: assert mock_path_is_dir.call_args[0][0] == valid_dir_resolved # Incorrect assertion
-    mock_is_git_repo.assert_called_once_with(
-        valid_dir_resolved
-    )  # Check Path object passed
+    mock_is_git_repo.assert_called_once_with(valid_dir_resolved)  # Check Path object passed
 
     # Check that the correct serve function (default stdio) was called
     mock_serve.assert_called_once()
     call_args, call_kwargs = mock_serve.call_args
-    assert call_kwargs.get("current_working_dir") == str(
-        valid_dir_resolved
-    )  # Passes string path
+    assert call_kwargs.get("current_working_dir") == str(valid_dir_resolved)  # Passes string path
     assert call_kwargs.get("editor_model") == DEFAULT_EDITOR_MODEL
     mock_logger_instance.critical.assert_not_called()  # Check critical log not called
     mock_exit.assert_not_called()

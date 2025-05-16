@@ -57,9 +57,7 @@ class Repo:
 class BaseCoder:
     """Stub for the aider.coders.base_coder.BaseCoder class."""
 
-    def __init__(
-        self, repo: Optional[Repo] = None, model: Optional[str] = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, repo: Optional[Repo] = None, model: Optional[str] = None, **kwargs: Any) -> None:
         """Initialize the BaseCoder."""
         pass
 
