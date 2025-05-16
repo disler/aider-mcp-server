@@ -2,17 +2,11 @@ import asyncio
 import signal
 from pathlib import Path
 from types import FrameType
-from typing import Any, Callable, Coroutine, Dict, Optional
+from typing import Any, Callable, Coroutine, Optional
 
-from starlette.responses import JSONResponse
-from starlette.routing import Route
 
 from aider_mcp_server.atoms.logging import Logger, get_logger
-from aider_mcp_server.mcp_types import (
-    OperationResult,
-    RequestParameters,
-)
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.server import is_git_repository
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
@@ -125,7 +119,7 @@ def _create_shutdown_task_wrapper(
 
 
 async def run_sse_server(
-    host: str = "0.0.0.0",
+    host: str = "127.0.0.1",
     port: int = 8765,
     security_context: Optional[SecurityContext] = None,
     log_level: str = "INFO",
@@ -175,7 +169,7 @@ async def run_sse_server(
         
         # Register the adapter with the coordinator
         await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
-        logger.info(f"Registered SSE transport with coordinator")
+        logger.info("Registered SSE transport with coordinator")
         
         # Start the SSE server
         await sse_adapter.start_listening()
@@ -196,9 +190,18 @@ async def run_sse_server(
                 asyncio.create_task(handle_shutdown())
             loop.add_signal_handler(sig, create_handler)
         
-        # Wait for shutdown signal
+        # Wait for shutdown signal and server task
         try:
-            await shutdown_event.wait()
+            # Get the server task from the adapter if available
+            server_task = getattr(sse_adapter, "_server_task", None)
+            if server_task:
+                await asyncio.gather(
+                    shutdown_event.wait(),
+                    server_task,
+                    return_exceptions=True
+                )
+            else:
+                await shutdown_event.wait()
             logger.info("Shutdown event received. Closing SSE server...")
         except asyncio.CancelledError:
             logger.info("Server tasks cancelled")

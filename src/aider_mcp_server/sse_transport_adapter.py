@@ -84,7 +84,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self.monitor_stdio_transport_id: Optional[str] = None
         self._app: Optional[Any] = None  # Starlette app instance
         self._server_instance: Optional[Any] = None  # Uvicorn server instance
-        self._server_task: Optional[asyncio.Task] = None  # Server background task
+        self._server_task: Optional[asyncio.Task[None]] = None  # Server background task
         self._mcp_transport: Optional[SseServerTransport] = None  # MCP SSE transport
         self._mcp_server: Optional[FastMCP] = None  # FastMCP server instance
         self._fastmcp_initialized = False  # Track FastMCP initialization
@@ -100,8 +100,11 @@ class SSETransportAdapter(AbstractTransportAdapter):
         await super().initialize()
 
         # Initialize FastMCP if coordinator is available
-        if hasattr(self, "coordinator") and self.coordinator:
+        if hasattr(self, "_coordinator") and self._coordinator:
+            self.logger.info("Initializing FastMCP server")
             self._initialize_fastmcp()
+        else:
+            self.logger.warning("No coordinator available, FastMCP will not be initialized")
 
         # Create the Starlette app with SSE endpoints
         await self._create_app()
@@ -141,59 +144,58 @@ class SSETransportAdapter(AbstractTransportAdapter):
                     "model": model
                 }
                 
-                # Use the coordinator's handler if available
-                if hasattr(self, "coordinator") and self.coordinator:
-                    # Create a mock request and security context for the handler
-                    request_id = f"sse_{uuid.uuid4()}"
-                    security_context = SecurityContext(
-                        user_id=None,
-                        permissions=set(),
-                        is_anonymous=True,
-                        transport_id=self.get_transport_id()
-                    )
-                    result = await process_aider_ai_code_request(
-                        request_id=request_id,
-                        transport_id=self.get_transport_id(),
-                        params=params,
-                        security_context=security_context,
-                        editor_model="",  # Will use default from coordinator
-                        current_working_dir=""  # Will use default from coordinator
-                    )
-                    return result
-                else:
-                    # Fallback implementation
-                    return {"error": "Coordinator not available"}
+                # Use the existing handler with required parameters
+                request_id = f"sse_{uuid.uuid4()}"
+                security_context = SecurityContext(
+                    user_id=None,
+                    permissions=set(),
+                    is_anonymous=True,
+                    transport_id=self.get_transport_id()
+                )
+                result = await process_aider_ai_code_request(
+                    request_id=request_id,
+                    transport_id=self.get_transport_id(),
+                    params=params,
+                    security_context=security_context
+                )
+                return result.result if hasattr(result, "result") else result
             except Exception as e:
                 self.logger.error(f"Error in aider_ai_code: {e}")
                 return {"error": str(e)}
 
         @self._mcp_server.tool()
-        async def list_models(substring: Optional[str] = None) -> dict[str, Any]:
+        async def list_models(substring: Optional[str] = None) -> list[str]:
             """List available models that match the provided substring"""
             try:
+                self.logger.info(f"list_models called with substring: {substring}")
+                
+                # Create request parameters
                 params = {"substring": substring} if substring else {}
-                if hasattr(self, "coordinator") and self.coordinator:
-                    # Create a mock request and security context for the handler
-                    request_id = f"sse_{uuid.uuid4()}"
-                    security_context = SecurityContext(
-                        user_id=None,
-                        permissions=set(),
-                        is_anonymous=True,
-                        transport_id=self.get_transport_id()
-                    )
-                    result = await process_list_models_request(
-                        request_id=request_id,
-                        transport_id=self.get_transport_id(),
-                        params=params,
-                        security_context=security_context
-                    )
-                    return result
-                else:
-                    # Fallback implementation
-                    return {"error": "Coordinator not available"}
+                
+                # Use the existing handler with required parameters
+                request_id = f"sse_{uuid.uuid4()}"
+                security_context = SecurityContext(
+                    user_id=None,
+                    permissions=set(),
+                    is_anonymous=True,
+                    transport_id=self.get_transport_id()
+                )
+                result = await process_list_models_request(
+                    request_id=request_id,
+                    transport_id=self.get_transport_id(),
+                    params=params,
+                    security_context=security_context
+                )
+                # Extract models list from the result
+                if isinstance(result, dict) and "models" in result:
+                    models = result.get("models", [])
+                    if isinstance(models, list):
+                        return models
+                return []
             except Exception as e:
                 self.logger.error(f"Error in list_models: {e}")
-                return {"error": str(e)}
+                # Return empty list on error for type consistency
+                return []
 
         self._fastmcp_initialized = True
         self.logger.info("FastMCP initialized with tools")
@@ -340,33 +342,28 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         self.logger.info("Handling SSE connection")
         try:
-            # Use the official MCP SDK transport's connect_sse method
-            if self._mcp_transport:
+            if self._mcp_transport and self._mcp_server:
                 async with self._mcp_transport.connect_sse(
                     request.scope, request.receive, request._send
                 ) as streams:
-                    # If we have a coordinator and MCP server, run the server
-                    if hasattr(self, "_mcp_server") and self._mcp_server:
-                        # Use the internal MCP server instance to run
-                        await self._mcp_server._mcp_server.run(
-                            streams[0], streams[1], 
-                            self._mcp_server._mcp_server.create_initialization_options()
-                        )
-                    else:
-                        # Just keep the connection open for testing
-                        await asyncio.Event().wait()
+                    self.logger.info("Running MCP server for SSE connection")
+                    await self._mcp_server._mcp_server.run(
+                        streams[0], streams[1], 
+                        self._mcp_server._mcp_server.create_initialization_options()
+                    )
+                    self.logger.info("SSE connection completed")
+                
+                # Return empty response after successful handling
+                return Response()
             else:
-                # Fallback to just returning a successful response
-                pass
+                self.logger.error("SSE transport or MCP server not initialized")
+                return Response("Server not properly initialized", status_code=500)
             
-            # Return empty response after successful handling
-            return Response()
         except asyncio.CancelledError:
             self.logger.info("SSE connection cancelled (client disconnect)")
             return Response()
         except Exception as e:
             self.logger.error(f"Error handling SSE connection: {e}")
-            # Return error response
             return Response(status_code=500)
 
     async def handle_message_request(self, request: Any) -> Any:
