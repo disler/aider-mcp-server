@@ -66,15 +66,25 @@ async def test_sse_transport_adapter_connection_handling():
     """
     Test the connection handling of the SSETransportAdapter.
     """
-    with patch("sse_starlette.sse.EventSourceResponse"):
+    with patch("starlette.responses.Response") as mock_response:
         with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
             sse_adapter = SSETransportAdapter()
+            
+            # Mock the MCP transport
+            mock_mcp_transport = MagicMock()
+            mock_mcp_transport.connect_sse = AsyncMock()
+            sse_adapter._mcp_transport = mock_mcp_transport
 
             with patch.object(sse_adapter, "logger"):
                 request = MagicMock()
+                request.scope = {}
+                request.receive = AsyncMock()
+                request._send = AsyncMock()
+                
                 response = await sse_adapter.handle_sse_request(request)
 
                 assert response is not None
+                mock_response.assert_called_once()
 
 
 @pytest.mark.asyncio

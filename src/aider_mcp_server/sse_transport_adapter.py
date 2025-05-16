@@ -9,8 +9,6 @@ from __future__ import annotations  # Ensure forward references work
 
 import asyncio
 import json
-import time
-import typing
 import uuid
 from typing import (
     TYPE_CHECKING,
@@ -34,6 +32,10 @@ from aider_mcp_server.transport_adapter import (
 if TYPE_CHECKING:
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
+# Add imports for official MCP SDK
+from mcp.server.fastmcp import FastMCP
+from mcp.server.sse import SseServerTransport
+
 
 class SSETransportAdapter(AbstractTransportAdapter):
     """SSE transport adapter for MCP server."""
@@ -42,7 +44,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self,
         coordinator: Optional["ApplicationCoordinator"] = None,
         host: str = "127.0.0.1",  # noqa: S104
-        port: int = 8808,
+        port: int = 8765,
         sse_queue_size: int = 10,
         get_logger: Optional[Any] = None,
         **kwargs: Any,  # Accept and ignore additional keyword arguments
@@ -53,7 +55,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         Args:
             coordinator: The coordinator to use for transport operations
             host: The hostname/IP to bind the SSE server to (default: "0.0.0.0")
-            port: The port to bind the SSE server to (default: 8808)
+            port: The port to bind the SSE server to (default: 8765)
             sse_queue_size: Maximum size of the SSE event queue (default: 10)
             get_logger: Function to create logger instance
             **kwargs: Additional keyword arguments (ignored)
@@ -82,6 +84,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self.monitor_stdio_transport_id: Optional[str] = None
         self._app: Optional[Any] = None  # Starlette app instance
         self._server_instance: Optional[Any] = None  # Uvicorn server instance
+        self._mcp_transport: Optional[SseServerTransport] = None  # MCP SSE transport
+        self._mcp_server: Optional[FastMCP] = None  # FastMCP server instance
+        self._fastmcp_initialized = False  # Track FastMCP initialization
 
     async def initialize(self) -> None:
         """
@@ -93,14 +98,113 @@ class SSETransportAdapter(AbstractTransportAdapter):
         # Call parent initialization
         await super().initialize()
 
+        # Initialize FastMCP if coordinator is available
+        if hasattr(self, "coordinator") and self.coordinator:
+            self._initialize_fastmcp()
+
         # Create the Starlette app with SSE endpoints
         await self._create_app()
         self.logger.info("SSE transport adapter initialized")
 
+    def _initialize_fastmcp(self) -> None:
+        """Initialize the FastMCP server with tools from the coordinator."""
+        if self._fastmcp_initialized:
+            return
+
+        # Create the FastMCP instance
+        self._mcp_server = FastMCP("aider-sse")
+
+        # Import handlers for registration
+        from aider_mcp_server.handlers import (
+            process_aider_ai_code_request,
+            process_list_models_request,
+        )
+
+        # Register tools with FastMCP
+        @self._mcp_server.tool()
+        async def aider_ai_code(
+            ai_coding_prompt: str,
+            relative_editable_files: list[str],
+            relative_readonly_files: Optional[list[str]] = None,
+            model: Optional[str] = None
+        ) -> dict[str, Any]:
+            """Run Aider to perform AI coding tasks"""
+            try:
+                self.logger.info(f"aider_ai_code called with prompt: {ai_coding_prompt}")
+                
+                # Create request parameters
+                params = {
+                    "ai_coding_prompt": ai_coding_prompt,
+                    "relative_editable_files": relative_editable_files,
+                    "relative_readonly_files": relative_readonly_files or [],
+                    "model": model
+                }
+                
+                # Use the coordinator's handler if available
+                if hasattr(self, "coordinator") and self.coordinator:
+                    # Create a mock request and security context for the handler
+                    request_id = f"sse_{uuid.uuid4()}"
+                    security_context = SecurityContext(
+                        user_id=None,
+                        permissions=set(),
+                        is_anonymous=True,
+                        transport_id=self.get_transport_id()
+                    )
+                    result = await process_aider_ai_code_request(
+                        request_id=request_id,
+                        transport_id=self.get_transport_id(),
+                        params=params,
+                        security_context=security_context,
+                        editor_model="",  # Will use default from coordinator
+                        current_working_dir=""  # Will use default from coordinator
+                    )
+                    return result
+                else:
+                    # Fallback implementation
+                    return {"error": "Coordinator not available"}
+            except Exception as e:
+                self.logger.error(f"Error in aider_ai_code: {e}")
+                return {"error": str(e)}
+
+        @self._mcp_server.tool()
+        async def list_models(substring: Optional[str] = None) -> dict[str, Any]:
+            """List available models that match the provided substring"""
+            try:
+                params = {"substring": substring} if substring else {}
+                if hasattr(self, "coordinator") and self.coordinator:
+                    # Create a mock request and security context for the handler
+                    request_id = f"sse_{uuid.uuid4()}"
+                    security_context = SecurityContext(
+                        user_id=None,
+                        permissions=set(),
+                        is_anonymous=True,
+                        transport_id=self.get_transport_id()
+                    )
+                    result = await process_list_models_request(
+                        request_id=request_id,
+                        transport_id=self.get_transport_id(),
+                        params=params,
+                        security_context=security_context
+                    )
+                    return result
+                else:
+                    # Fallback implementation
+                    return {"error": "Coordinator not available"}
+            except Exception as e:
+                self.logger.error(f"Error in list_models: {e}")
+                return {"error": str(e)}
+
+        self._fastmcp_initialized = True
+        self.logger.info("FastMCP initialized with tools")
+
     async def _create_app(self) -> None:
         """Create the Starlette application with SSE endpoints."""
         from starlette.applications import Starlette
-        from starlette.routing import Route
+        from starlette.routing import Route, Mount
+        from mcp.server.sse import SseServerTransport
+
+        # Create the MCP SSE transport with proper message endpoint
+        self._mcp_transport = SseServerTransport("/messages/")
 
         async def handle_sse(request: Any) -> Any:
             """Handle SSE connection requests."""
@@ -108,7 +212,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         self._app = Starlette(
             routes=[
-                Route("/sse", handle_sse),
+                Route("/sse/", handle_sse),  # Note: trailing slash for ClaudeCode compatibility
+                Mount("/messages/", app=self._mcp_transport.handle_post_message),
             ],
             debug=True,  # Enable debug mode for better error messages
         )
@@ -121,6 +226,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
         import uvicorn
 
         # Create server configuration
+        if self._app is None:
+            raise RuntimeError("App not initialized. Call _create_app() first.")
+            
         config = uvicorn.Config(
             app=self._app,
             host=self._host,
@@ -207,80 +315,46 @@ class SSETransportAdapter(AbstractTransportAdapter):
         """
         Handle a new SSE connection request from a client.
 
-        Creates a new connection ID, sets up an event queue, and returns an
-        EventSourceResponse that will send events to the client.
+        Uses the official MCP SDK's SSE transport to establish connections.
 
         Args:
             request: The Starlette/FastAPI request object
 
         Returns:
-            An EventSourceResponse object that will stream events to the client
+            A Response object as expected by ClaudeCode
         """
-        # Import the EventSourceResponse here to avoid potential circular imports
-        from sse_starlette.sse import EventSourceResponse
+        from starlette.responses import Response
 
-        # Create a connection ID for this client
-        client_id = f"client_{uuid.uuid4()}"
-        queue: asyncio.Queue[Union[str, Dict[str, str]]] = asyncio.Queue(maxsize=self._sse_queue_size)
-
-        # Register this connection
-        self._active_connections[client_id] = queue
-        self.logger.info(f"SSE connection established: {client_id}")
-
-        # Define the event stream generator
-        async def event_generator() -> typing.AsyncGenerator[Union[str, Dict[str, str]], None]:
-            """
-            Generates SSE events for clients.
-
-            Waits for messages from queue with a 30-second timeout.
-            If no messages are received within the timeout, sends a heartbeat event
-            to keep the connection alive and prevent client timeouts.
-            """
-            try:
-                # Send initial connection event
-                yield {
-                    "event": "connected",
-                    "data": json.dumps({"client_id": client_id}),
-                }
-
-                # Loop to pull messages from the queue
-                while True:
-                    try:
-                        # Wait for a message with a 30-second timeout
-                        message = await asyncio.wait_for(queue.get(), timeout=30.0)
-
-                        if isinstance(message, str):
-                            if message == "CLOSE_CONNECTION":
-                                self.logger.debug(f"Received close signal for connection {client_id}. Closing stream.")
-                                break
-                            else:
-                                # Yield the pre-formatted SSE message string directly
-                                # This matches the format expected by test_sse_adapter_handle_sse_request
-                                yield message
-                        elif isinstance(message, dict):
-                            # If it's a dict, yield it directly (for initial connection events)
-                            yield message
-                        queue.task_done()
-                    except asyncio.TimeoutError:
-                        # Heartbeat to keep connection alive
-                        yield {
-                            "event": "heartbeat",
-                            "data": json.dumps({"timestamp": time.time()}),
-                        }
-                    except Exception as e:
-                        self.logger.error(f"Error in SSE event stream for {client_id}: {e}")
-                        break
-
-            except asyncio.CancelledError:
-                # Client disconnected
-                self.logger.info(f"SSE connection closed: {client_id}")
-            finally:
-                # Clean up the connection
-                self._active_connections.pop(client_id, None)
-                self.logger.info(f"SSE connection cleaned up: {client_id}")
-
-        # Return the EventSourceResponse with our generator
-        return EventSourceResponse(event_generator())
+        self.logger.info("Handling SSE connection")
+        try:
+            # Use the official MCP SDK transport's connect_sse method
+            if self._mcp_transport:
+                async with self._mcp_transport.connect_sse(
+                    request.scope, request.receive, request._send
+                ) as streams:
+                    # If we have a coordinator and MCP server, run the server
+                    if hasattr(self, "_mcp_server") and self._mcp_server:
+                        # Use the internal MCP server instance to run
+                        await self._mcp_server._mcp_server.run(
+                            streams[0], streams[1], 
+                            self._mcp_server._mcp_server.create_initialization_options()
+                        )
+                    else:
+                        # Just keep the connection open for testing
+                        await asyncio.Event().wait()
+            else:
+                # Fallback to just returning a successful response
+                pass
+            
+            # Return empty response after successful handling
+            return Response()
+        except asyncio.CancelledError:
+            self.logger.info("SSE connection cancelled (client disconnect)")
+            return Response()
+        except Exception as e:
+            self.logger.error(f"Error handling SSE connection: {e}")
+            # Return error response
+            return Response(status_code=500)
 
     async def handle_message_request(self, request: Any) -> Any:
         """Handle incoming message requests."""
