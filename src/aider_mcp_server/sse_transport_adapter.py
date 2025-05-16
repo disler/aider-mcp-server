@@ -25,14 +25,13 @@ from typing import (
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.mcp_types import (
     EventData,
-    LoggerProtocol,
 )
+from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.transport_adapter import (
     AbstractTransportAdapter,
 )
 
 if TYPE_CHECKING:
-    from aider_mcp_server.atoms.logging import Logger
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 
@@ -42,7 +41,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
     def __init__(
         self,
         coordinator: Optional["ApplicationCoordinator"] = None,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",  # noqa: S104
         port: int = 8808,
         sse_queue_size: int = 10,
         get_logger: Optional[Any] = None,
@@ -66,15 +65,20 @@ class SSETransportAdapter(AbstractTransportAdapter):
             transport_id="sse",
             transport_type="sse",
             coordinator=coordinator,
-            get_logger=get_logger,
         )
+        if callable(get_logger):
+            self.logger = get_logger(__name__)
+        else:
+            import logging
+
+            self.logger = logging.getLogger(__name__)  # type: ignore[assignment]
 
         self._host = host
         self._port = port
         self._sse_queue_size = sse_queue_size
-        self._active_connections: Dict[str, asyncio.Queue[Union[str, Dict[str, str]]]] = (
-            {}
-        )
+        self._active_connections: Dict[
+            str, asyncio.Queue[Union[str, Dict[str, str]]]
+        ] = {}
         self._server: Optional[Any] = None  # Starlette/Uvicorn server
         self._monitor_connections: Set[str] = set()
         self.monitor_stdio_transport_id: Optional[str] = None
@@ -87,7 +91,9 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         Sets up the Starlette app with SSE endpoints and prepares it for serving.
         """
-        self.logger.info(f"Initializing SSE transport adapter on {self._host}:{self._port}")
+        self.logger.info(
+            f"Initializing SSE transport adapter on {self._host}:{self._port}"
+        )
         # Call parent initialization
         await super().initialize()
 
@@ -162,24 +168,18 @@ class SSETransportAdapter(AbstractTransportAdapter):
         await super().shutdown()
         self.logger.info("SSE transport adapter shut down")
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> Set[EventTypes]:
         """
-        Return the capabilities of this transport adapter.
+        Return the event types supported by this transport adapter.
 
         Returns:
-            A dictionary describing the transport's capabilities, including:
-            - transport_type: Always "sse" for this adapter
-            - supports_events: True (SSE is event-based)
-            - supports_requests: True (can handle incoming requests)
-            - protocol: The base protocol which is HTTP
-            - connection_type: unidirectional (server can only send to client)
+            A set of EventTypes that this transport supports.
         """
         return {
-            "transport_type": self.transport_type,
-            "supports_events": True,
-            "supports_requests": True,
-            "protocol": "http",
-            "connection_type": "unidirectional",
+            EventTypes.STATUS,
+            EventTypes.PROGRESS,
+            EventTypes.TOOL_RESULT,
+            EventTypes.HEARTBEAT,
         }
 
     async def send_event(self, event_type: EventTypes, data: EventData) -> None:
@@ -348,8 +348,32 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 return True
 
         # Skip events that originated from us to prevent loops
-        if data.get("transport_origin", {}).get("transport_id") == self.transport_id:
+        if (
+            data.get("transport_origin", {}).get("transport_id")
+            == self.get_transport_id()
+        ):
             return False
 
         # All other events should be received
         return True
+
+    def validate_request_security(
+        self, request_details: Dict[str, Any]
+    ) -> SecurityContext:
+        """
+        Validate the security of an incoming request.
+
+        Args:
+            request_details: Details about the incoming request.
+
+        Returns:
+            SecurityContext containing security validation information.
+        """
+        # For SSE, we typically don't have authentication
+        # But we can validate origin headers and other security measures
+        return SecurityContext(
+            user_id=None,
+            permissions=set(),
+            is_anonymous=True,  # SSE connections are typically anonymous
+            transport_id=self.get_transport_id(),
+        )

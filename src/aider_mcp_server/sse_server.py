@@ -241,7 +241,9 @@ async def serve_sse(
             await sse_adapter.initialize()
 
             # Register the SSE adapter with the coordinator
-            await coordinator.register_transport(sse_adapter.transport_id, sse_adapter)
+            await coordinator.register_transport(
+                sse_adapter.get_transport_id(), sse_adapter
+            )
 
             # Register handlers with the coordinator
             await coordinator.register_handler(
