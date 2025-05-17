@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 
-def test_sse_validates_working_directory():
+def test_sse_validates_working_directory(free_port):
     """Test that SSE server validates working directory is a git repo."""
     # Use a non-git directory
     test_dir = Path(tempfile.gettempdir()) / "test_not_git"
@@ -26,7 +26,7 @@ def test_sse_validates_working_directory():
                 "--current-working-dir",
                 str(test_dir),
                 "--port",
-                "8768",
+                str(free_port),
                 "--editor-model",
                 "gpt-3.5-turbo",
             ],
@@ -38,10 +38,16 @@ def test_sse_validates_working_directory():
         )
 
         # Wait for error
-        stdout, stderr = process.communicate(timeout=2)
+        try:
+            stdout, stderr = process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            # Process didn't exit within timeout, kill it and get output
+            process.kill()
+            stdout, stderr = process.communicate()
+        
         return_code = process.returncode
 
-        # The process should have exited with an error
+        # The process should have exited with an error or been killed
         assert return_code != 0, f"Expected non-zero exit code, got {return_code}"
 
         # Check for error message about not being a git repository
@@ -51,11 +57,18 @@ def test_sse_validates_working_directory():
         )
 
     finally:
+        # Make sure process is terminated
+        if 'process' in locals() and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
         # Cleanup
         subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
 
 
-def test_sse_accepts_git_directory():
+def test_sse_accepts_git_directory(free_port):
     """Test that SSE server accepts a valid git directory."""
     # Use a git directory
     test_dir = Path(tempfile.gettempdir()) / "test_git"
@@ -77,7 +90,7 @@ def test_sse_accepts_git_directory():
                 "--current-working-dir",
                 str(test_dir),
                 "--port",
-                "8769",
+                str(free_port),
                 "--editor-model",
                 "gpt-3.5-turbo",
             ],
@@ -91,7 +104,7 @@ def test_sse_accepts_git_directory():
         # Give it some time to start
         import time
 
-        time.sleep(2)
+        time.sleep(3)
 
         # Check if server is still running
         return_code = process.poll()
@@ -103,7 +116,11 @@ def test_sse_accepts_git_directory():
 
         # Terminate the server
         process.terminate()
-        stdout, stderr = process.communicate()
+        try:
+            stdout, stderr = process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
 
         # The process should not have any error about git repository
         combined_output = stdout + stderr
@@ -112,6 +129,13 @@ def test_sse_accepts_git_directory():
         )
 
     finally:
+        # Make sure process is terminated
+        if 'process' in locals() and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
         # Cleanup
         subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
 
