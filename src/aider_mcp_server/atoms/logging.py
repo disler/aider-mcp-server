@@ -25,7 +25,7 @@ class Logger:
         """
         self.name = name
         # Prioritize the verbose flag passed to constructor
-        self.verbose = verbose
+        self._verbose = verbose
 
         # Check environment variable for log level
         env_log_level = os.environ.get("MCP_LOG_LEVEL", "").upper()
@@ -33,10 +33,10 @@ class Logger:
             if env_log_level == "VERBOSE":
                 level = logging.DEBUG
                 if not verbose: # if verbose is not already set by the arg
-                    self.verbose = True  # VERBOSE implies debug level and verbose mode
+                    self._verbose = True  # VERBOSE implies debug level and verbose mode
             elif env_log_level == "DEBUG":
                 level = logging.DEBUG
-                # self.verbose is determined by the 'verbose' argument
+                # self._verbose is determined by the 'verbose' argument
             elif env_log_level == "WARNING":
                 level = logging.WARNING
             elif env_log_level == "ERROR":
@@ -46,8 +46,8 @@ class Logger:
         elif level == logging.DEBUG:
             if env_log_level == "VERBOSE" and not verbose:
                 # If level is explicitly DEBUG, env var is VERBOSE, and verbose arg is False, enable verbose mode
-                self.verbose = True
-            # If verbose arg is True, self.verbose is already True
+                self._verbose = True
+            # If verbose arg is True, self._verbose is already True
 
         self.level = level
 
@@ -62,7 +62,7 @@ class Logger:
 
         # Define a standard formatter
         if level == logging.DEBUG:
-            if self.verbose:
+            if self._verbose:
                 log_formatter = logging.Formatter(
                     "%(asctime)s [%(levelname)s] %(name)s (%(pathname)s:%(lineno)d): %(message)s",
                     datefmt="%Y-%m-%d %H:%M:%S",
@@ -108,7 +108,7 @@ class Logger:
 
     def is_verbose(self) -> bool:
         """Check if verbose mode is enabled."""
-        return self.verbose
+        return self._verbose
 
     def debug(self, message: str, **kwargs: Any) -> None:
         """Log a debug message."""
@@ -116,7 +116,7 @@ class Logger:
 
     def verbose(self, message: str, **kwargs: Any) -> None:
         """Log a message at DEBUG level only if verbose mode is enabled."""
-        if self.verbose:
+        if self._verbose:
             self.logger.debug(message, **kwargs)
 
     def info(self, message: str, **kwargs: Any) -> None:
