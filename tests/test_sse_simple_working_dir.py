@@ -56,10 +56,9 @@ def test_sse_working_directory_logs(free_port):
     # Verify the working directory was validated
     # The message can appear with different formats depending on logging config
     combined_output = stdout + stderr
-    assert (
-        "Validated working directory" in combined_output
-        and "git repository" in combined_output
-    ), f"Working directory validation not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+    assert "Validated working directory" in combined_output and "git repository" in combined_output, (
+        f"Working directory validation not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+    )
 
     # Verify the correct directory was used
     assert str(test_dir) in stdout or str(test_dir) in stderr, (
