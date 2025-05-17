@@ -38,7 +38,7 @@ def test_sse_working_directory_logs(free_port):
     )
 
     # Wait a bit for the server to start
-    time.sleep(2)
+    time.sleep(3)
 
     # Terminate and get output
     process.terminate()
@@ -54,13 +54,15 @@ def test_sse_working_directory_logs(free_port):
     print("STDERR:", stderr)
 
     # Verify the working directory was validated
-    output = stdout + stderr
-    assert "Validated working directory (git repository):" in output, (
-        f"Working directory validation not found in logs.\nOutput: {output}"
-    )
+    assert (
+        "Validated working directory (git repository):" in stdout
+        or "Validated working directory (git repository):" in stderr
+    ), f"Working directory validation not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
 
     # Verify the correct directory was used
-    assert str(test_dir) in output, f"Test directory {test_dir} not found in logs.\nOutput: {output}"
+    assert str(test_dir) in stdout or str(test_dir) in stderr, (
+        f"Test directory {test_dir} not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+    )
 
     # Cleanup
     subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
