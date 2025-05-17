@@ -5,6 +5,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
 
 def test_sse_working_directory_logs(free_port):
     """Test that SSE server starts correctly with a valid git repository."""
@@ -42,10 +44,10 @@ def test_sse_working_directory_logs(free_port):
 
     # Check if server is still running (it should be)
     return_code = process.poll()
-    
+
     # Terminate the process
     process.terminate()
-    
+
     # Get output
     try:
         stdout, stderr = process.communicate(timeout=1)
@@ -56,10 +58,10 @@ def test_sse_working_directory_logs(free_port):
     # Check the output
     print("STDOUT:", stdout)
     print("STDERR:", stderr)
-    
+
     # If the server exited early, that's an error
     if return_code is not None:
-        assert False, f"Server exited early with code {return_code}.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+        pytest.fail(f"Server exited early with code {return_code}.\nSTDOUT: {stdout}\nSTDERR: {stderr}")
 
     # The server should have started without error
     combined_output = stdout + stderr

@@ -16,8 +16,8 @@ def test_sse_validates_working_directory():
     try:
         # Try to start the SSE server with a non-git directory
         # This should fail
-        process = subprocess.Popen(
-            [
+        process = subprocess.Popen(  # noqa: S603
+            [  # noqa: S607
                 "python",
                 "-m",
                 "aider_mcp_server",
@@ -46,14 +46,13 @@ def test_sse_validates_working_directory():
 
         # Check for error message about not being a git repository
         combined_output = stdout + stderr
-        assert (
-            "not a valid git repository" in combined_output
-            or "not a git repository" in combined_output
-        ), f"Expected git repository error message not found.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+        assert "not a valid git repository" in combined_output or "not a git repository" in combined_output, (
+            f"Expected git repository error message not found.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+        )
 
     finally:
         # Cleanup
-        subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)
+        subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
 
 
 def test_sse_accepts_git_directory():
@@ -61,15 +60,15 @@ def test_sse_accepts_git_directory():
     # Use a git directory
     test_dir = Path(tempfile.gettempdir()) / "test_git"
     test_dir.mkdir(exist_ok=True)
-    
+
     # Initialize git repo
-    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True)
+    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True)  # noqa: S603, S607
 
     try:
         # Start the SSE server with a git directory
         # This should start successfully
-        process = subprocess.Popen(
-            [
+        process = subprocess.Popen(  # noqa: S603
+            [  # noqa: S607
                 "python",
                 "-m",
                 "aider_mcp_server",
@@ -91,16 +90,17 @@ def test_sse_accepts_git_directory():
 
         # Give it some time to start
         import time
+
         time.sleep(2)
 
         # Check if server is still running
         return_code = process.poll()
-        
+
         # If it exited, get the output
         if return_code is not None:
             stdout, stderr = process.communicate()
             pytest.fail(f"Server exited unexpectedly: {return_code}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
-        
+
         # Terminate the server
         process.terminate()
         stdout, stderr = process.communicate()
@@ -113,7 +113,7 @@ def test_sse_accepts_git_directory():
 
     finally:
         # Cleanup
-        subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)
+        subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
 
 
 if __name__ == "__main__":
