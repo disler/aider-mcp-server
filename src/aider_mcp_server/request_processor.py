@@ -68,9 +68,13 @@ class RequestProcessor:
             operation_name: Name of the operation to execute
             request_data: Request parameters and data
         """
+        self._logger.verbose(
+            f"Processing request {request_id} for operation '{operation_name}' from transport {transport_id}. Data: {request_data}"
+        )
+        self._logger.verbose(f"Looking up handler for operation '{operation_name}' (request_id: {request_id})")
         handler = await self._handler_registry.get_handler(operation_name)
         if not handler:
-            self._logger.error(f"No handler found for operation '{operation_name}'")
+            self._logger.error(f"No handler found for operation '{operation_name}' (request_id: {request_id})")
             await self.fail_request(
                 request_id,
                 operation_name,
@@ -80,14 +84,21 @@ class RequestProcessor:
                 request_data,
             )
             return
+        self._logger.verbose(f"Handler found for operation '{operation_name}' (request_id: {request_id})")
 
         required_permission = await self._handler_registry.get_required_permission(operation_name)
+        self._logger.verbose(
+            f"Required permission for '{operation_name}' is '{required_permission}' (request_id: {request_id})"
+        )
 
         if required_permission:
             # Check permissions
+            self._logger.verbose(
+                f"Checking permission '{required_permission}' for transport {transport_id} (request_id: {request_id})"
+            )
             has_permission = await self._session_manager.check_permission(transport_id, required_permission)
             if not has_permission:
-                self._logger.error(f"Permission denied for operation '{operation_name}'")
+                self._logger.error(f"Permission denied for operation '{operation_name}' (request_id: {request_id})")
                 await self.fail_request(
                     request_id,
                     operation_name,
@@ -97,11 +108,18 @@ class RequestProcessor:
                     request_data,
                 )
                 return
+            self._logger.verbose(
+                f"Permission '{required_permission}' granted for transport {transport_id} (request_id: {request_id})"
+            )
 
         # Create a task to run the handler
         async def run_handler() -> None:
             try:
+                self._logger.verbose(f"Starting handler execution for '{operation_name}' (request_id: {request_id})")
                 # Send status update that processing has started
+                self._logger.verbose(
+                    f"Sending 'processing' status update for '{operation_name}' (request_id: {request_id})"
+                )
                 await self._event_coordinator.send_event_to_transport(
                     transport_id,
                     EventTypes.STATUS,
@@ -124,6 +142,9 @@ class RequestProcessor:
                 # Call the handler with all required parameters plus defaults
                 # Handler expects 6 parameters:
                 # request_id, transport_id, params, security_context, use_diff_cache, clear_cached_for_unchanged
+                self._logger.verbose(
+                    f"Calling handler for '{operation_name}' with params: {params} (request_id: {request_id})"
+                )
                 result = await handler(
                     request_id,
                     transport_id,
@@ -132,11 +153,18 @@ class RequestProcessor:
                     True,  # use_diff_cache
                     True,  # clear_cached_for_unchanged
                 )
+                self._logger.verbose(
+                    f"Handler for '{operation_name}' completed with result: {result} (request_id: {request_id})"
+                )
 
                 # Format success response
+                self._logger.verbose(f"Formatting success response for '{operation_name}' (request_id: {request_id})")
                 success_response = self._response_formatter.format_success_response(request_id, transport_id, result)
 
                 # Send the result back to the client
+                self._logger.verbose(
+                    f"Sending TOOL_RESULT event for '{operation_name}' (request_id: {request_id})"
+                )
                 await self._event_coordinator.send_event_to_transport(
                     transport_id,
                     EventTypes.TOOL_RESULT,
@@ -146,8 +174,11 @@ class RequestProcessor:
                         "result": success_response,
                     },
                 )
+                self._logger.verbose(
+                    f"Successfully sent TOOL_RESULT for '{operation_name}' (request_id: {request_id})"
+                )
             except Exception as e:
-                self._logger.error(f"Error processing request: {e}")
+                self._logger.error(f"Error processing request {request_id} for '{operation_name}': {e}", exc_info=True)
                 await self.fail_request(
                     request_id,
                     operation_name,
@@ -157,6 +188,7 @@ class RequestProcessor:
                     request_data,
                 )
             finally:
+                self._logger.verbose(f"Cleaning up request {request_id} for '{operation_name}'")
                 await self._cleanup_request(request_id)
 
         task = asyncio.create_task(run_handler())
@@ -190,11 +222,15 @@ class RequestProcessor:
             originating_transport_id: Identifier for the transport that made the request
             request_details: Original request parameters and data
         """
+        self._logger.verbose(
+            f"Failing request {request_id} for operation '{operation_name}'. Error: {error}, Details: {error_details}"
+        )
         if originating_transport_id is None:
             self._logger.warning(f"Cannot send failure notification for request {request_id}: no transport ID provided")
             return
 
         # Format error response - convert error_details to appropriate format
+        self._logger.verbose(f"Formatting error response for request {request_id}")
         error_message = error
         error_code = None
 
@@ -211,6 +247,7 @@ class RequestProcessor:
         )
 
         # Send failure message as a TOOL_RESULT event
+        self._logger.verbose(f"Sending TOOL_RESULT (failure) for request {request_id}")
         await self._event_coordinator.send_event_to_transport(
             originating_transport_id,
             EventTypes.TOOL_RESULT,
@@ -222,6 +259,7 @@ class RequestProcessor:
         )
 
         # Also send a STATUS event to indicate failure
+        self._logger.verbose(f"Sending STATUS (failed) for request {request_id}")
         await self._event_coordinator.send_event_to_transport(
             originating_transport_id,
             EventTypes.STATUS,
@@ -231,13 +269,17 @@ class RequestProcessor:
                 "message": f"Operation {operation_name} failed: {error}",
             },
         )
-
+        self._logger.verbose(f"Cleaning up failed request {request_id}")
         await self._cleanup_request(request_id)
 
     async def _cleanup_request(self, request_id: str) -> None:
         """
         Clean up the request state.
         """
+        self._logger.verbose(f"Entering _cleanup_request for request_id: {request_id}")
         async with self._active_requests_lock:
             if request_id in self._active_requests:
                 del self._active_requests[request_id]
+                self._logger.verbose(f"Removed request {request_id} from active requests.")
+            else:
+                self._logger.verbose(f"Request {request_id} not found in active requests for cleanup.")

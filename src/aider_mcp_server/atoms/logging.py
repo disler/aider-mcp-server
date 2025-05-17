@@ -12,6 +12,7 @@ class Logger:
         name: str,
         log_dir: Optional[Union[str, Path]] = None,
         level: Optional[int] = None,
+        verbose: bool = False,
     ):
         """
         Initialize the logger.
@@ -19,21 +20,34 @@ class Logger:
         Args:
             name: Logger name
             log_dir: Directory to store log files (defaults to ./logs)
-            level: Logging level (defaults to INFO, or DEBUG if MCP_LOG_LEVEL=DEBUG)
+            level: Logging level (defaults to INFO, or DEBUG if MCP_LOG_LEVEL=DEBUG/VERBOSE)
+            verbose: Enable verbose logging mode (applies if level is DEBUG)
         """
         self.name = name
+        # Prioritize the verbose flag passed to constructor
+        self.verbose = verbose
 
         # Check environment variable for log level
         env_log_level = os.environ.get("MCP_LOG_LEVEL", "").upper()
-        if level is None:
-            if env_log_level == "DEBUG":
+        if level is None:  # Only apply env var if level is not explicitly passed
+            if env_log_level == "VERBOSE":
                 level = logging.DEBUG
+                if not verbose: # if verbose is not already set by the arg
+                    self.verbose = True  # VERBOSE implies debug level and verbose mode
+            elif env_log_level == "DEBUG":
+                level = logging.DEBUG
+                # self.verbose is determined by the 'verbose' argument
             elif env_log_level == "WARNING":
                 level = logging.WARNING
             elif env_log_level == "ERROR":
                 level = logging.ERROR
             else:
                 level = logging.INFO
+        elif level == logging.DEBUG:
+            if env_log_level == "VERBOSE" and not verbose:
+                # If level is explicitly DEBUG, env var is VERBOSE, and verbose arg is False, enable verbose mode
+                self.verbose = True
+            # If verbose arg is True, self.verbose is already True
 
         self.level = level
 
@@ -46,13 +60,20 @@ class Logger:
         if self.logger.handlers:
             self.logger.handlers.clear()
 
-        # Define a standard formatter - compact for non-debug levels
+        # Define a standard formatter
         if level == logging.DEBUG:
-            log_formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
+            if self.verbose:
+                log_formatter = logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(name)s (%(pathname)s:%(lineno)d): %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
+            else:
+                log_formatter = logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
         else:
+            # Compact formatter for non-debug levels
             log_formatter = logging.Formatter(
                 "%(asctime)s [%(levelname)s] %(message)s",
                 datefmt="%H:%M:%S",
@@ -85,9 +106,18 @@ class Logger:
             # Commented out to reduce verbosity
             # self.logger.info(f"Logging to: {log_file_path}")
 
+    def is_verbose(self) -> bool:
+        """Check if verbose mode is enabled."""
+        return self.verbose
+
     def debug(self, message: str, **kwargs: Any) -> None:
         """Log a debug message."""
         self.logger.debug(message, **kwargs)
+
+    def verbose(self, message: str, **kwargs: Any) -> None:
+        """Log a message at DEBUG level only if verbose mode is enabled."""
+        if self.verbose:
+            self.logger.debug(message, **kwargs)
 
     def info(self, message: str, **kwargs: Any) -> None:
         """Log an info message."""
@@ -114,6 +144,7 @@ def get_logger(
     name: str,
     log_dir: Optional[Union[str, Path]] = None,
     level: Optional[int] = None,
+    verbose: bool = False,
 ) -> Logger:
     """
     Get a configured logger instance.
@@ -122,6 +153,7 @@ def get_logger(
         name: Logger name
         log_dir: Directory to store log files (defaults to ./logs)
         level: Logging level (optional, will check MCP_LOG_LEVEL env var)
+        verbose: Enable verbose logging mode (applies if level is DEBUG)
 
     Returns:
         Configured Logger instance
@@ -134,4 +166,5 @@ def get_logger(
         name=name,
         log_dir=log_dir,
         level=level,
+        verbose=verbose,
     )

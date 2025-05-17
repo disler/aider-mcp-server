@@ -110,6 +110,7 @@ class ApplicationCoordinator:
         self._shutdown_event = asyncio.Event()  # Event to signal shutdown
         self._coordinator_id: Optional[str] = None
         self._discovery: Optional[CoordinatorDiscovery] = None
+        self.logger = get_logger_func(f"{__name__}.ApplicationCoordinator")
 
     async def _initialize_coordinator(
         self,
@@ -293,6 +294,10 @@ class ApplicationCoordinator:
             if transport_id in self._transports:
                 logger.debug(f"Transport {transport_id} already registered. Overwriting.")
             self._transports[transport_id] = transport
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Transport {transport_id} registered and connected.")
+            else:
+                self.logger.debug(f"(Verbose) Transport {transport_id} registered and connected.")
             # Transport registration logged only at DEBUG level
         # Update capabilities and default subscriptions (outside transports_lock)
         await self.update_transport_capabilities(transport_id, transport.get_capabilities())
@@ -305,7 +310,15 @@ class ApplicationCoordinator:
                 del self._transports[transport_id]
                 transport_exists = True
                 logger.debug(f"Transport unregistered: {transport_id}")
+                if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                    self.logger.verbose(f"Transport {transport_id} disconnected and unregistered.")
+                else:
+                    self.logger.debug(f"(Verbose) Transport {transport_id} disconnected and unregistered.")
             else:
+                if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                    self.logger.verbose(f"Verbose: Attempt to unregister non-existent transport: {transport_id}.")
+                else:
+                    self.logger.debug(f"(Verbose) Verbose: Attempt to unregister non-existent transport: {transport_id}.")
                 logger.warning(f"Attempted to unregister non-existent transport: {transport_id}")
 
         if transport_exists:
@@ -336,6 +349,10 @@ class ApplicationCoordinator:
         async with self._transport_subscriptions_lock:
             # Validate that subscriptions are a subset of capabilities? Optional.
             self._transport_subscriptions[transport_id] = subscriptions
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Transport {transport_id} subscriptions updated to: {[s.value for s in subscriptions]}.")
+            else:
+                self.logger.debug(f"(Verbose) Transport {transport_id} subscriptions updated to: {[s.value for s in subscriptions]}.")
             # Subscription updates logged only at DEBUG level
 
     # --- Subscription Management (for test compatibility) ---
@@ -352,6 +369,10 @@ class ApplicationCoordinator:
                 self._transport_subscriptions[transport_id] = set()
             self._transport_subscriptions[transport_id].add(event_type)
             logger.debug(f"Transport {transport_id} subscribed to {event_type.value}")
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Transport {transport_id} successfully subscribed to event type {event_type.value}.")
+            else:
+                self.logger.debug(f"(Verbose) Transport {transport_id} successfully subscribed to event type {event_type.value}.")
 
     async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """Unsubscribes a transport from a specific event type."""
@@ -359,6 +380,10 @@ class ApplicationCoordinator:
             if transport_id in self._transport_subscriptions:
                 self._transport_subscriptions[transport_id].discard(event_type)
                 logger.debug(f"Transport {transport_id} unsubscribed from {event_type.value}")
+                if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                    self.logger.verbose(f"Transport {transport_id} successfully unsubscribed from event type {event_type.value}.")
+                else:
+                    self.logger.debug(f"(Verbose) Transport {transport_id} successfully unsubscribed from event type {event_type.value}.")
             # else: No warning needed if transport exists but wasn't subscribed
 
     async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
@@ -443,7 +468,15 @@ class ApplicationCoordinator:
             logger.debug(
                 f"Request {request_id} security context validated: User '{security_context.user_id}', Permissions: {security_context.permissions}"
             )
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Security context for request {request_id} (user: {security_context.user_id}) validated successfully.")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Security context for request {request_id} (user: {security_context.user_id}) validated successfully.")
         except Exception as e:
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Security validation failed for request {request_id} from {transport_id}. Error: {e}")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Security validation failed for request {request_id} from {transport_id}. Error: {e}")
             logger.error(
                 f"Security validation failed for request {request_id} from {transport_id}: {e}",
                 exc_info=True,
@@ -469,6 +502,10 @@ class ApplicationCoordinator:
         # 2. Find Handler and Check Permissions (read handler lock)
         handler_info = await self._get_handler_info(operation_name)
         if not handler_info:
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: No handler found for operation '{operation_name}' (request {request_id}). Failing request.")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: No handler found for operation '{operation_name}' (request {request_id}). Failing request.")
             logger.warning(f"No handler found for operation '{operation_name}' (request {request_id}).")
             # Fail request needs original params
             request_params = request_data.get("parameters", {})
@@ -484,6 +521,10 @@ class ApplicationCoordinator:
 
         handler, required_permission = handler_info
         if required_permission and not security_context.has_permission(required_permission):
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Permission denied for operation '{operation_name}' (request {request_id}). User '{security_context.user_id}' lacks permission '{required_permission.name}'.")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Permission denied for operation '{operation_name}' (request {request_id}). User '{security_context.user_id}' lacks permission '{required_permission.name}'.")
             logger.warning(
                 f"Permission denied for operation '{operation_name}' (request {request_id}). User '{security_context.user_id}' lacks permission '{required_permission.name}'."
             )
@@ -630,6 +671,10 @@ class ApplicationCoordinator:
             # No return here, let finally block handle cleanup
 
         except Exception as e:
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Exception in handler for '{operation_name}' (request {request_id}): {type(e).__name__} - {e}")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Exception in handler for '{operation_name}' (request {request_id}): {type(e).__name__} - {e}")
             logger.error(
                 f"Handler for '{operation_name}' (request {request_id}) raised an exception: {e}",
                 exc_info=True,
@@ -914,12 +959,20 @@ class ApplicationCoordinator:
                     name=f"direct-send-{event_type.value}-{transport_id}-{data.get('request_id', uuid.uuid4())}",
                 )
             except Exception as e:
+                if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                    self.logger.verbose(f"Verbose: Error creating task for direct event {event_type.value} to transport {transport_id}. Exception: {e}")
+                else:
+                    self.logger.debug(f"(Verbose) Verbose: Error creating task for direct event {event_type.value} to transport {transport_id}. Exception: {e}")
                 # This catch block might not be effective if send_event is async and raises later
                 logger.error(
                     f"Error creating task to send direct event {event_type.value} to transport {transport_id}: {e}",
                     exc_info=True,
                 )
         else:
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Attempted to send direct event {event_type.value} to non-existent transport {transport_id}, but transport not found.")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Attempted to send direct event {event_type.value} to non-existent transport {transport_id}, but transport not found.")
             logger.warning(
                 f"Attempted to send direct event {event_type.value} to non-existent transport {transport_id}"
             )
@@ -1031,6 +1084,10 @@ class ApplicationCoordinator:
 
             # Avoid logging CancelledError stack traces unless debugging needed
             log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
+            if hasattr(self.logger, 'verbose') and callable(self.logger.verbose):
+                self.logger.verbose(f"Verbose: Error sending event via task {task_name} (Transport: {log_transport_id}). Exception: {result}")
+            else:
+                self.logger.debug(f"(Verbose) Verbose: Error sending event via task {task_name} (Transport: {log_transport_id}). Exception: {result}")
             logger.error(
                 f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}",
                 exc_info=log_exc_info,

@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path  # Import Path
@@ -85,6 +86,12 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WS_PORT,
         help=f"Port number for SSE/Multi server (default: {DEFAULT_WS_PORT}).",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose DEBUG logging. Overrides MCP_LOG_LEVEL environment variable.",
+    )
     return parser
 
 
@@ -167,13 +174,34 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> None
     """Main entry point for the Aider MCP Server."""
     # Set up logging
     get_logger_func = logger_factory or get_logger
-    log = get_logger_func(__name__, log_dir=log_dir_path)
 
-    # Parse command-line arguments
+    # Parse command-line arguments early for logging setup
+    # A more limited parser could be used here if we only wanted verbose for initial logs
+    # For now, parse all args, then setup logging.
     parser = _setup_argument_parser()
     args: argparse.Namespace = parser.parse_args()
 
+    # Determine log level based on verbose flag
+    log_level_override = logging.DEBUG if args.verbose else None
+
+    # Initialize logger with potential override from verbose flag
+    # This will reconfigure the logger instance obtained by name,
+    # affecting both this `log` and the global `logger` if they share the same name.
+    log = get_logger_func(
+        __name__,
+        log_dir=log_dir_path,
+        level=log_level_override,
+        verbose=args.verbose,
+    )
+    if args.verbose:
+        # This message confirms that args.verbose was processed.
+        log.debug("Verbose logging enabled via -v/--verbose flag.")
+
+    # (Re-parsing arguments is not necessary here as we've already parsed them)
+    # args: argparse.Namespace = parser.parse_args() # Already did this
+
     # Validate working directory
+    # Arguments already parsed, use existing 'args'
     abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
 
     # Validate server mode arguments
