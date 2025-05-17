@@ -44,7 +44,7 @@ def test_sse_validates_working_directory(free_port):
             # Process didn't exit within timeout, kill it and get output
             process.kill()
             stdout, stderr = process.communicate()
-        
+
         return_code = process.returncode
 
         # The process should have exited with an error or been killed
@@ -58,7 +58,7 @@ def test_sse_validates_working_directory(free_port):
 
     finally:
         # Make sure process is terminated
-        if 'process' in locals() and process.poll() is None:
+        if "process" in locals() and process.poll() is None:
             process.terminate()
             try:
                 process.wait(timeout=1)
@@ -130,7 +130,7 @@ def test_sse_accepts_git_directory(free_port):
 
     finally:
         # Make sure process is terminated
-        if 'process' in locals() and process.poll() is None:
+        if "process" in locals() and process.poll() is None:
             process.terminate()
             try:
                 process.wait(timeout=1)
