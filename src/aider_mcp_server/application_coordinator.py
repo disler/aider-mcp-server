@@ -63,7 +63,7 @@ class ApplicationCoordinator:
                             raise RuntimeError(f"Failed to initialize TransportAdapterRegistry: {e}") from e
 
                         if transport_registry is None:
-                            instance.logger.error("TransportAdapterRegistry initialization returned None.")
+                            instance.logger.error("TransportAdapterRegistry initialization returned None.")  # type: ignore[unreachable]
                             raise RuntimeError("TransportAdapterRegistry initialization returned None")
 
                         # Set the transport registry and initialize dependent components
@@ -100,12 +100,12 @@ class ApplicationCoordinator:
                     except Exception as e:
                         # Log the initialization error using the logger from the partially created instance if available
                         # otherwise use the temp_logger
-                        logger_to_use = getattr(cls._instance, 'logger', temp_logger) if cls._instance else temp_logger
+                        logger_to_use = getattr(cls._instance, "logger", temp_logger) if cls._instance else temp_logger
                         logger_to_use.error(f"Failed to initialize ApplicationCoordinator: {e}")
                         # Re-raise the exception to inform the caller
                         raise e
                 else:
-                    temp_logger.verbose("ApplicationCoordinator instance already exists.")
+                    temp_logger.verbose("ApplicationCoordinator instance already exists.")  # type: ignore[unreachable]
         return cls._instance
 
     async def register_transport(self, transport_id: str, transport: Type[ITransportAdapter]) -> None:
@@ -143,7 +143,9 @@ class ApplicationCoordinator:
         operation_name: str,
         request_data: Dict[str, Any],
     ) -> None:
-        self.logger.verbose(f"Starting request {request_id} for operation {operation_name} from transport {transport_id}. Data: {request_data}")
+        self.logger.verbose(
+            f"Starting request {request_id} for operation {operation_name} from transport {transport_id}. Data: {request_data}"
+        )
         if self._request_processor:
             await self._request_processor.process_request(request_id, transport_id, operation_name, request_data)
             self.logger.verbose(f"Request {request_id} processing initiated.")
@@ -159,7 +161,9 @@ class ApplicationCoordinator:
         originating_transport_id: Optional[str] = None,
         request_details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self.logger.verbose(f"Failing request {request_id} for operation {operation_name}. Error: {error}, Details: {error_details}")
+        self.logger.verbose(
+            f"Failing request {request_id} for operation {operation_name}. Error: {error}, Details: {error_details}"
+        )
         if self._request_processor:
             await self._request_processor.fail_request(
                 request_id,

@@ -4,15 +4,15 @@ Demo script to show how verbose logging helps understand internal operations.
 """
 
 import asyncio
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.logging import get_logger
 
 
 def get_verbose_logger(name):
@@ -23,19 +23,19 @@ def get_verbose_logger(name):
 async def demo_logging_functionality():
     """Demonstrate different logging scenarios with verbose mode."""
     print("=== Demo: Verbose Logging Features ===\n")
-    
+
     # Test 1: Standard logger without verbose
     print("1. Standard logger (no verbose):")
     standard_logger = get_logger("demo.standard", level=logging.DEBUG)
     standard_logger.info("Standard info message")
     standard_logger.debug("Standard debug message")
-    
+
     print("\n2. Verbose logger (with file/line info):")
     verbose_logger = get_verbose_logger("demo.verbose")
     verbose_logger.info("Verbose info message - note the file path and line number")
     verbose_logger.debug("Verbose debug message - detailed formatting")
     verbose_logger.verbose("Verbose-only message - only shows in verbose mode")
-    
+
     print("\n3. Simulating component lifecycle logging:")
     # Simulate what ApplicationCoordinator would log
     app_logger = get_verbose_logger("ApplicationCoordinator")
@@ -46,7 +46,7 @@ async def demo_logging_functionality():
     app_logger.verbose("Initializing EventCoordinator...")
     app_logger.verbose("EventCoordinator initialized.")
     app_logger.info("ApplicationCoordinator instance created and initialized successfully.")
-    
+
     print("\n4. Simulating request processing:")
     req_logger = get_verbose_logger("RequestProcessor")
     request_id = "req-12345"
@@ -57,7 +57,7 @@ async def demo_logging_functionality():
     req_logger.verbose(f"Permission check passed for operation '{operation}'")
     req_logger.verbose(f"Starting handler execution for '{operation}'")
     req_logger.verbose(f"Handler completed successfully for '{operation}'")
-    
+
     print("\n5. Simulating event flow:")
     event_logger = get_verbose_logger("EventCoordinator")
     transport_id = "transport-001"
@@ -65,13 +65,13 @@ async def demo_logging_functionality():
     event_logger.verbose(f"Subscribing transport {transport_id} to event type {event_type.value}")
     event_logger.verbose(f"Broadcasting event {event_type.value} with data")
     event_logger.verbose(f"Sending event {event_type.value} to transport {transport_id}")
-    
+
     print("\n6. Session management example:")
     session_logger = get_verbose_logger("SessionManager")
     session_logger.verbose(f"Created new session for transport '{transport_id}'")
     session_logger.verbose(f"Updated session for transport '{transport_id}'")
     session_logger.verbose(f"Permission check for transport '{transport_id}': Required 'EXECUTE', Has: True")
-    
+
     print("\n=== Demo Complete ===")
     print("\nVerbose logging benefits:")
     print("- See exact file paths and line numbers")

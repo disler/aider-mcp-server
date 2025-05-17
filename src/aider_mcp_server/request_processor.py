@@ -162,9 +162,7 @@ class RequestProcessor:
                 success_response = self._response_formatter.format_success_response(request_id, transport_id, result)
 
                 # Send the result back to the client
-                self._logger.verbose(
-                    f"Sending TOOL_RESULT event for '{operation_name}' (request_id: {request_id})"
-                )
+                self._logger.verbose(f"Sending TOOL_RESULT event for '{operation_name}' (request_id: {request_id})")
                 await self._event_coordinator.send_event_to_transport(
                     transport_id,
                     EventTypes.TOOL_RESULT,
@@ -174,9 +172,7 @@ class RequestProcessor:
                         "result": success_response,
                     },
                 )
-                self._logger.verbose(
-                    f"Successfully sent TOOL_RESULT for '{operation_name}' (request_id: {request_id})"
-                )
+                self._logger.verbose(f"Successfully sent TOOL_RESULT for '{operation_name}' (request_id: {request_id})")
             except Exception as e:
                 self._logger.error(f"Error processing request {request_id} for '{operation_name}': {e}", exc_info=True)
                 await self.fail_request(

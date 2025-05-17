@@ -134,7 +134,7 @@ class SessionManager:
             # Need to acquire lock to iterate over self.sessions items safely if it can be modified elsewhere,
             # or copy items first. Let's copy keys to avoid issues if lock is held for too long.
             # However, the current logic iterates then acquires lock to delete, which is fine.
-            
+
             # To be safe, let's get a snapshot of sessions or keys under lock if we were to do complex things before the delete lock
             # For now, the existing logic is okay as it re-checks under the lock implicitly by iterating `expired_sessions`
             # which was derived from `self.sessions.items()` before the lock for deletion.
@@ -143,10 +143,10 @@ class SessionManager:
             # Iterate over a copy of items for safety if sessions could change during iteration
             # For this specific loop, it's okay as it's just building a list of IDs
             # The critical part is deleting under the lock.
-            for transport_id, session in list(self.sessions.items()): # list() for a copy
+            for transport_id, session in list(self.sessions.items()):  # list() for a copy
                 if (current_time - session.last_accessed_time).total_seconds() > self.session_timeout:
                     expired_session_ids.append(transport_id)
-            
+
             if expired_session_ids:
                 self.logger.verbose(f"Found {len(expired_session_ids)} expired sessions: {expired_session_ids}")
                 async with self.lock:
@@ -154,7 +154,9 @@ class SessionManager:
                         # Ensure session still exists before deleting, in case it was removed by another task
                         if transport_id in self.sessions:
                             del self.sessions[transport_id]
-                            self.logger.info(f"Expired session for transport '{transport_id}' removed.") # Keep info for actual removal
+                            self.logger.info(
+                                f"Expired session for transport '{transport_id}' removed."
+                            )  # Keep info for actual removal
                         else:
                             self.logger.verbose(f"Session '{transport_id}' already removed before cleanup.")
             else:
@@ -172,7 +174,7 @@ class SessionManager:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
                 session.permissions = permissions
-                session.last_accessed_time = datetime.now() # Also update last_accessed_time
+                session.last_accessed_time = datetime.now()  # Also update last_accessed_time
                 perm_values = {p.value for p in permissions}
                 self.logger.verbose(
                     f"Set permissions for transport '{transport_id}' to {perm_values}. Last accessed: {session.last_accessed_time}"

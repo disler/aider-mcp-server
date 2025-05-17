@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 class Logger:
     """Custom logger that writes to both console and file."""
 
-    def __init__(
+    def __init__(  # noqa: C901
         self,
         name: str,
         log_dir: Optional[Union[str, Path]] = None,
@@ -32,7 +32,7 @@ class Logger:
         if level is None:  # Only apply env var if level is not explicitly passed
             if env_log_level == "VERBOSE":
                 level = logging.DEBUG
-                if not verbose: # if verbose is not already set by the arg
+                if not verbose:  # if verbose is not already set by the arg
                     self._verbose = True  # VERBOSE implies debug level and verbose mode
             elif env_log_level == "DEBUG":
                 level = logging.DEBUG
