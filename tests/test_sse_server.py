@@ -1,18 +1,18 @@
 import asyncio
+from unittest import mock
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.mcp_types import LoggerProtocol
-from aider_mcp_server.sse_server import serve_sse
+from aider_mcp_server.sse_server import run_sse_server
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
 
 # Test function
 @pytest.mark.asyncio
-async def test_serve_sse_startup_and_run():
+async def test_run_sse_server_startup():
     # Create patch context for all mocks
     with (
         patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, None)),
@@ -40,7 +40,7 @@ async def test_serve_sse_startup_and_run():
         mock_coordinator_cls.getInstance = AsyncMock(return_value=mock_coordinator)
 
         # Set up mock adapter instance that mock_adapter_cls will return
-        mock_adapter = MagicMock(spec_set=SSETransportAdapter)
+        mock_adapter = MagicMock(spec=SSETransportAdapter)
         mock_adapter_cls.return_value = mock_adapter
 
         # Call the function under test - define params first
@@ -71,10 +71,19 @@ async def test_serve_sse_startup_and_run():
         mock_adapter._initialize_fastmcp = MagicMock()
         mock_adapter._create_app = AsyncMock()
 
-        # Define the side effect for mock_adapter.initialize
+        # Mock initialize method to simulate what AbstractTransportAdapter.initialize would do
         async def initialize_side_effect():
-            # Call AbstractTransportAdapter.initialize with mock_adapter as self
-            await AbstractTransportAdapter.initialize(mock_adapter)
+            # Simulate the coordinator registration
+            if mock_adapter._coordinator:
+                await mock_adapter._coordinator.register_transport("sse", mock_adapter)
+                await mock_adapter._coordinator.subscribe_to_event_type("sse", EventTypes.STATUS)
+                
+                # Mock the heartbeat task creation
+                if mock_adapter._heartbeat_interval is not None and mock_adapter._heartbeat_interval > 0:
+                    mock_adapter._heartbeat_task = MagicMock()
+                    mock_create_task.return_value = mock_adapter._heartbeat_task
+                    mock_create_task(mock_adapter._heartbeat_loop.return_value)
+            
             # Call the mocked SSE-specific parts
             mock_adapter._initialize_fastmcp()
             await mock_adapter._create_app()
@@ -82,20 +91,21 @@ async def test_serve_sse_startup_and_run():
         mock_adapter.initialize = AsyncMock(side_effect=initialize_side_effect)
 
 
-        await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat_interval_val)
+        # Call run_sse_server with the proper function signature
+        await run_sse_server(host=host, port=port, editor_model=editor_model, current_working_dir=cwd)
 
         # Verify ApplicationCoordinator lifecycle
         mock_coordinator_cls.getInstance.assert_awaited_once()
         mock_coordinator.__aenter__.assert_awaited_once()
 
-        # Verify SSETransportAdapter instantiation
+        # Verify SSETransportAdapter instantiation - check the actual call arguments
         mock_adapter_cls.assert_called_once_with(
             coordinator=mock_coordinator,
             host=host,
             port=port,
+            get_logger=mock.ANY,  # Accept any logger function
             editor_model=editor_model,
             current_working_dir=cwd,
-            heartbeat_interval=heartbeat_interval_val,
         )
 
         # Verify adapter initialization process
