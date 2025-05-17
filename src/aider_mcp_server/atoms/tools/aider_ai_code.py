@@ -516,7 +516,7 @@ def _setup_aider_coder(
             git_repo = GitRepo(
                 io=io,
                 fnames=abs_editable_files,
-                root=working_dir,
+                git_dname=working_dir,
                 models=model.commit_message_models(),
             )
             logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
