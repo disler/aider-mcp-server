@@ -75,7 +75,7 @@ class Logger:
         else:
             # Compact formatter for non-debug levels
             log_formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(message)s",
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 datefmt="%H:%M:%S",
             )
 

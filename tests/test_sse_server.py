@@ -1,8 +1,13 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.mcp_types import LoggerProtocol
 from aider_mcp_server.sse_server import serve_sse
+from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
 
 # Test function
@@ -14,47 +19,103 @@ async def test_serve_sse_startup_and_run():
         patch("aider_mcp_server.sse_server.asyncio.Event") as mock_event_cls,
         patch("aider_mcp_server.sse_server.SSETransportAdapter") as mock_adapter_cls,
         patch("aider_mcp_server.sse_server.ApplicationCoordinator") as mock_coordinator_cls,
+        patch("aider_mcp_server.transport_adapter.asyncio.create_task") as mock_create_task,
     ):
-        # Set up mock event
+        # Set up mock event for graceful shutdown signalling
         mock_event = MagicMock()
-        mock_event.wait = AsyncMock()
+        mock_event.wait = AsyncMock()  # serve_sse awaits this
         mock_event.set = MagicMock()
-        mock_event.is_set = MagicMock(return_value=True)  # Make it return immediately
+        # is_set might be used if serve_sse had a different loop structure,
+        # but current serve_sse relies on wait().
+        mock_event.is_set = MagicMock(return_value=False) # Start as not set
         mock_event_cls.return_value = mock_event
-
-        # Set up mock adapter
-        mock_adapter = MagicMock()
-        mock_adapter.transport_id = "sse_test_id"
-        mock_adapter.initialize = AsyncMock()
-        mock_adapter_cls.return_value = mock_adapter
 
         # Set up mock coordinator
         mock_coordinator = MagicMock()
-        mock_coordinator.register_handler = AsyncMock()
+        mock_coordinator.register_handler = AsyncMock() # Still check it's not called
         mock_coordinator.register_transport = AsyncMock()
+        mock_coordinator.subscribe_to_event_type = AsyncMock()
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock()
         mock_coordinator_cls.getInstance = AsyncMock(return_value=mock_coordinator)
 
-        # Call the function under test
-        host, port, editor_model, cwd, heartbeat = (
+        # Set up mock adapter instance that mock_adapter_cls will return
+        mock_adapter = MagicMock(spec_set=SSETransportAdapter)
+        mock_adapter_cls.return_value = mock_adapter
+
+        # Call the function under test - define params first
+        host, port, editor_model, cwd, heartbeat_interval_val = (
             "127.0.0.1",
             8888,
             "test_model",
             "/test/repo",
             20.0,
         )
-        await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat)
 
-        # Verify correct methods were called
+        # Simulate state of mock_adapter as if SSETransportAdapter.__init__ and its super().__init__ calls ran
+        mock_adapter._coordinator = mock_coordinator
+        mock_adapter._transport_id = "sse"  # Set by SSETransportAdapter's call to super().__init__
+        mock_adapter._transport_type = "sse" # Set by SSETransportAdapter's call to super().__init__
+        mock_adapter._heartbeat_interval = heartbeat_interval_val # Passed to constructor
+        mock_adapter._heartbeat_task = None # Initial state in AbstractTransportAdapter
+        mock_adapter.logger = MagicMock(spec_set=LoggerProtocol) # Used by AbstractTransportAdapter.initialize
+
+        # Mock methods on mock_adapter needed by AbstractTransportAdapter.initialize or SSETransportAdapter.initialize
+        mock_adapter.get_transport_id = MagicMock(return_value="sse")
+        mock_adapter.get_transport_type = MagicMock(return_value="sse")
+        # Return a specific EventType for subscribe_to_event_type assertion
+        mock_adapter.get_capabilities = MagicMock(return_value={EventTypes.STATUS})
+        mock_adapter._heartbeat_loop = AsyncMock() # Coroutine function for heartbeat task
+
+        # Mock methods specific to SSETransportAdapter.initialize that are called after super().initialize()
+        mock_adapter._initialize_fastmcp = MagicMock()
+        mock_adapter._create_app = AsyncMock()
+
+        # Define the side effect for mock_adapter.initialize
+        async def initialize_side_effect():
+            # Call AbstractTransportAdapter.initialize with mock_adapter as self
+            await AbstractTransportAdapter.initialize(mock_adapter)
+            # Call the mocked SSE-specific parts
+            mock_adapter._initialize_fastmcp()
+            await mock_adapter._create_app()
+
+        mock_adapter.initialize = AsyncMock(side_effect=initialize_side_effect)
+
+
+        await serve_sse(host, port, editor_model, cwd, heartbeat_interval=heartbeat_interval_val)
+
+        # Verify ApplicationCoordinator lifecycle
         mock_coordinator_cls.getInstance.assert_awaited_once()
         mock_coordinator.__aenter__.assert_awaited_once()
-        mock_coordinator.__aexit__.assert_awaited_once()
 
-        # Verify adapter was initialized and registered
+        # Verify SSETransportAdapter instantiation
+        mock_adapter_cls.assert_called_once_with(
+            coordinator=mock_coordinator,
+            host=host,
+            port=port,
+            editor_model=editor_model,
+            current_working_dir=cwd,
+            heartbeat_interval=heartbeat_interval_val,
+        )
+
+        # Verify adapter initialization process
         mock_adapter.initialize.assert_awaited_once()
-        mock_coordinator.register_transport.assert_awaited_once()
+
+        # Verify transport registration (called from AbstractTransportAdapter.initialize)
+        mock_coordinator.register_transport.assert_awaited_once_with("sse", mock_adapter)
+
+        # Verify subscription to capabilities (called from AbstractTransportAdapter.initialize)
+        mock_coordinator.subscribe_to_event_type.assert_awaited_once_with("sse", EventTypes.STATUS)
+
+        # Verify heartbeat task creation (called from AbstractTransportAdapter.initialize)
+        mock_create_task.assert_called_once()
+        # Check that create_task was called with the coroutine from _heartbeat_loop()
+        assert mock_create_task.call_args[0][0] == mock_adapter._heartbeat_loop.return_value
+
 
         # Verify that handlers are no longer directly registered with the coordinator
-        # as they are now registered through FastMCP in the SSE transport adapter
         assert mock_coordinator.register_handler.await_count == 0
+
+        # Verify serve_sse waits for stop event and coordinator exits
+        mock_event.wait.assert_awaited_once()
+        mock_coordinator.__aexit__.assert_awaited_once()
