@@ -16,7 +16,7 @@ from aider_mcp_server.atoms.utils.fallback_config import (
 )
 
 
-def test_detect_rate_limit_error() -> bool:
+def test_detect_rate_limit_error() -> None:
     """Test the detect_rate_limit_error function."""
     print("Testing detect_rate_limit_error function...")
 
@@ -78,10 +78,9 @@ def test_detect_rate_limit_error() -> bool:
                                     print(
                                         f"Pattern '{pattern}' in '{error_message.lower()}': {pattern.lower() in error_message.lower()}"
                                     )
-                return False
+                raise AssertionError(f"Test failed for provider {provider}, error: {error_message}")
 
     print("✅ detect_rate_limit_error tests passed")
-    return True
 
 
 def test_get_fallback_model() -> None:

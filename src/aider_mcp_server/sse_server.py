@@ -154,7 +154,14 @@ async def run_sse_server(
         logger.info("Coordinator context entered")
 
         # Create the SSE adapter with coordinator
-        sse_adapter = SSETransportAdapter(coordinator=coordinator, host=host, port=port, get_logger=get_logger)
+        sse_adapter = SSETransportAdapter(
+            coordinator=coordinator,
+            host=host,
+            port=port,
+            get_logger=get_logger,
+            editor_model=editor_model,
+            current_working_dir=current_working_dir,
+        )
 
         # Initialize the adapter (this will create the FastMCP server)
         await sse_adapter.initialize()

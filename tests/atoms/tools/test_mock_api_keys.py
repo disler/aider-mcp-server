@@ -40,8 +40,11 @@ class MockGitRepo:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-        # Ensure required attributes are set
-        if not hasattr(self, "root") and "working_dir" in kwargs:
+        # Ensure required attributes are set based on actual GitRepo parameters
+        if not hasattr(self, "root") and "git_dname" in kwargs:
+            self.root = kwargs["git_dname"]
+        elif not hasattr(self, "root") and "working_dir" in kwargs:
+            # Handle old parameter name for backward compatibility
             self.root = kwargs["working_dir"]
 
 

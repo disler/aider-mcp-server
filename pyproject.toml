@@ -68,6 +68,7 @@ pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "api: marks tests that require API keys",
+    "integration: marks tests that perform integration testing",
 ]
 
 [tool.hatch]

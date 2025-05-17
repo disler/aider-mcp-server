@@ -47,6 +47,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
         port: int = 8765,
         sse_queue_size: int = 10,
         get_logger: Optional[Any] = None,
+        editor_model: str = "",
+        current_working_dir: str = "",
         **kwargs: Any,  # Accept and ignore additional keyword arguments
     ):
         """
@@ -78,6 +80,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self._host = host
         self._port = port
         self._sse_queue_size = sse_queue_size
+        self._editor_model = editor_model
+        self._current_working_dir = current_working_dir
         self._active_connections: Dict[str, asyncio.Queue[Union[str, Dict[str, str]]]] = {}
         self._server: Optional[Any] = None  # Starlette/Uvicorn server
         self._monitor_connections: Set[str] = set()
@@ -154,6 +158,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
                     transport_id=self.get_transport_id(),
                     params=params,
                     security_context=security_context,
+                    editor_model=self._editor_model,
+                    current_working_dir=self._current_working_dir,
                 )
                 return result.result if hasattr(result, "result") else result
             except Exception as e:

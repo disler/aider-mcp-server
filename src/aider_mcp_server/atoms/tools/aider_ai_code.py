@@ -412,17 +412,9 @@ def _configure_model(model: str, editor_model: Optional[str] = None, architect_m
         logger.info(f"Using deliberately non-existent model for testing: {model}")
         return Model(model)
 
-    if "/" in model:
-        provider, model_name = model.split("/", 1)
-    else:
-        # If no provider prefix, use the model name as is
-        _determine_provider(model)
-
-    # Use a model that we know is supported by the installed version of Aider
-    # For tests to pass, we can just use a standard OpenAI model which should work
-    # with most Aider installations
-    aider_model_name = "gpt-3.5-turbo"
-    logger.info(f"Using standard model name for Aider compatibility: {aider_model_name}")
+    # Use the actual requested model instead of hardcoding
+    aider_model_name = model
+    logger.info(f"Using requested model: {aider_model_name}")
 
     # Configure model based on architect mode setting
     if architect_mode:
@@ -516,7 +508,7 @@ def _setup_aider_coder(
             git_repo = GitRepo(
                 io=io,
                 fnames=abs_editable_files,
-                root=working_dir,
+                git_dname=working_dir,
                 models=model.commit_message_models(),
             )
             logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
