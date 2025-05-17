@@ -44,7 +44,7 @@ async def test_sse_working_directory_integration(free_port, server_process):
     try:
         # Give server time to start and validate the working directory
         await asyncio.sleep(3)
-        
+
         # Check if server is still running
         if process.poll() is not None:
             stdout, stderr = process.communicate()
@@ -63,9 +63,9 @@ async def test_sse_working_directory_integration(free_port, server_process):
 
         # Check for the expected validation message
         combined_output = stdout + stderr
-        assert (
-            "Validated working directory (git repository):" in combined_output
-        ), f"Working directory validation not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+        assert "Validated working directory (git repository):" in combined_output, (
+            f"Working directory validation not found in logs.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+        )
 
         # Verify the correct directory was used
         assert str(test_dir) in combined_output, (
