@@ -1,9 +1,11 @@
 """Tests for the security service."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from aider_mcp_server.authentication_errors import AuthenticationError
+from aider_mcp_server.interfaces.authentication_provider import UserInfo
 from aider_mcp_server.security import Permissions, SecurityContext
 from aider_mcp_server.security_service import SecurityService
 
@@ -23,9 +25,16 @@ def mock_logger_factory():
 
 
 @pytest.fixture
-def security_service(mock_logger_factory):
+def mock_auth_provider():
+    """Fixture for a mock authentication provider."""
+    mock_provider = AsyncMock()
+    return mock_provider
+
+
+@pytest.fixture
+def security_service(mock_logger_factory, mock_auth_provider):
     """Fixture for a security service instance."""
-    return SecurityService(mock_logger_factory)
+    return SecurityService(mock_logger_factory, mock_auth_provider)
 
 
 @pytest.mark.asyncio
@@ -44,25 +53,30 @@ async def test_validate_token_anonymous(security_service, mock_logger_factory):
     )
 
     # Check that anonymous auth event was logged - check all logging levels
-    all_calls = (
-        mock_logger_factory.return_value.debug.call_args_list + mock_logger_factory.return_value.info.call_args_list
+    mock_logger_factory.return_value.info.assert_any_call(
+        "Security event: auth_anonymous", extra={"details": {"user_id": "anonymous"}}
     )
-    found_auth_anonymous = False
-    for call in all_calls:
-        if len(call.args) > 0 and call.args[0].startswith("Security event auth_anonymous:"):
-            found_auth_anonymous = True
-            break
-    assert found_auth_anonymous
 
 
 @pytest.mark.asyncio
-async def test_validate_token_valid_user(security_service, mock_logger_factory):
+async def test_validate_token_valid_user(security_service, mock_logger_factory, mock_auth_provider):
     """Test validating a valid token returns a user context with permissions."""
-    # Use a token that's recognized as valid by the existing code
+    # Set up the mock auth provider
+    mock_auth_provider.validate_token.return_value = True
+    mock_auth_provider.get_user_info.return_value = UserInfo(
+        user_id="test-user",
+        permissions={Permissions.EXECUTE_AIDER},
+    )
+
+    # Use a valid token
     context = await security_service.validate_token("VALID_TEST_TOKEN")
 
     assert context.user_id == "test-user"
     assert Permissions.EXECUTE_AIDER in context.permissions
+
+    # Verify auth provider was called
+    mock_auth_provider.validate_token.assert_called_once_with("VALID_TEST_TOKEN")
+    mock_auth_provider.get_user_info.assert_called_once_with("VALID_TEST_TOKEN")
 
     # Check logging calls - token_prefix is only 10 chars
     mock_logger_factory.return_value.info.assert_any_call(
@@ -71,8 +85,15 @@ async def test_validate_token_valid_user(security_service, mock_logger_factory):
 
 
 @pytest.mark.asyncio
-async def test_validate_token_admin(security_service, mock_logger_factory):
+async def test_validate_token_admin(security_service, mock_logger_factory, mock_auth_provider):
     """Test validating an admin token returns a context with admin permissions."""
+    # Set up the mock auth provider for admin
+    mock_auth_provider.validate_token.return_value = True
+    mock_auth_provider.get_user_info.return_value = UserInfo(
+        user_id="admin",
+        permissions={Permissions.EXECUTE_AIDER, Permissions.LIST_MODELS, Permissions.VIEW_CONFIG},
+    )
+
     context = await security_service.validate_token("ADMIN_TOKEN")
 
     assert context.user_id == "admin"
@@ -80,14 +101,19 @@ async def test_validate_token_admin(security_service, mock_logger_factory):
     assert Permissions.EXECUTE_AIDER in context.permissions
     assert Permissions.LIST_MODELS in context.permissions
 
-    # Check logging call for auth success - the order of set items can vary
-    # So let's check the actual call instead
-    debug_calls = mock_logger_factory.return_value.debug.call_args_list
+    # Verify auth provider was called
+    mock_auth_provider.validate_token.assert_called_once_with("ADMIN_TOKEN")
+    mock_auth_provider.get_user_info.assert_called_once_with("ADMIN_TOKEN")
+
+    # Check logging call for auth success
+    info_calls = mock_logger_factory.return_value.info.call_args_list
     found_auth_success = False
-    for call in debug_calls:
-        if call.args[0].startswith("Security event auth_success:"):
-            found_auth_success = True
-            break
+    for call in info_calls:
+        if len(call.args) > 0:
+            arg = call.args[0]
+            if "auth_success" in arg:
+                found_auth_success = True
+                break
     assert found_auth_success
 
 
@@ -168,3 +194,71 @@ async def test_log_security_event_permission_denied(security_service, mock_logge
 
     # Check warning log call
     mock_logger_factory.return_value.warning.assert_any_call(f"Permission denied: {details}")
+
+
+@pytest.mark.asyncio
+async def test_validate_token_invalid(security_service, mock_logger_factory, mock_auth_provider):
+    """Test validating an invalid token returns anonymous context."""
+    # Set up the mock auth provider to return False for invalid token
+    mock_auth_provider.validate_token.return_value = False
+
+    context = await security_service.validate_token("INVALID_TOKEN")
+
+    # Should get anonymous context
+    assert context.user_id is None
+    assert context.is_anonymous is True
+    assert not context.permissions
+
+    # Verify auth provider was called
+    mock_auth_provider.validate_token.assert_called_once_with("INVALID_TOKEN")
+    # get_user_info should not be called for invalid token
+    mock_auth_provider.get_user_info.assert_not_called()
+
+    # Check logging for auth failure
+    mock_logger_factory.return_value.info.assert_any_call(
+        "Security event: auth_failure", extra={"details": {"reason": "invalid_token", "token_prefix": "INVALID_TO"}}
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_token_auth_error(security_service, mock_logger_factory, mock_auth_provider):
+    """Test handling authentication error during token validation."""
+    # Set up the mock auth provider to raise an exception
+    mock_auth_provider.validate_token.side_effect = AuthenticationError("Mock authentication error")
+
+    context = await security_service.validate_token("ERROR_TOKEN")
+
+    # Should get anonymous context
+    assert context.user_id is None
+    assert context.is_anonymous is True
+    assert not context.permissions
+
+    # Check logging for auth failure
+    mock_logger_factory.return_value.info.assert_any_call(
+        "Security event: auth_failure",
+        extra={"details": {"reason": "Mock authentication error", "token_prefix": "ERROR_TOKE"}},
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_token_unexpected_error(security_service, mock_logger_factory, mock_auth_provider):
+    """Test handling unexpected error during token validation."""
+    # Set up the mock auth provider to raise an unexpected exception
+    mock_auth_provider.validate_token.side_effect = RuntimeError("Unexpected error")
+
+    context = await security_service.validate_token("UNEXPECTED_TOKEN")
+
+    # Should get anonymous context
+    assert context.user_id is None
+    assert context.is_anonymous is True
+    assert not context.permissions
+
+    # Check error logging
+    mock_logger_factory.return_value.error.assert_called_once_with(
+        "Unexpected error during token validation: Unexpected error"
+    )
+
+    # Check auth error event
+    mock_logger_factory.return_value.info.assert_any_call(
+        "Security event: auth_error", extra={"details": {"error": "Unexpected error"}}
+    )

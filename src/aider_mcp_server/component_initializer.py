@@ -1,9 +1,11 @@
 import asyncio
 
+from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_mediator import EventMediator
 from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
+from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
@@ -29,6 +31,7 @@ class Components:
         event_coordinator: EventCoordinator,
         request_processor: RequestProcessor,
         security_service: ISecurityService,
+        auth_provider: IAuthenticationProvider,
     ):
         self.logger_factory = logger_factory
         self.transport_registry = transport_registry
@@ -38,6 +41,7 @@ class Components:
         self.event_coordinator = event_coordinator
         self.request_processor = request_processor
         self.security_service = security_service
+        self.auth_provider = auth_provider
 
 
 class ComponentInitializer:
@@ -68,10 +72,19 @@ class ComponentInitializer:
         response_formatter = ResponseFormatter(self.logger_factory)
         self.logger.verbose("ResponseFormatter initialized.")
 
-        # Initialize SecurityService
+        # Initialize AuthenticationProvider
+        try:
+            self.logger.verbose("Initializing AuthenticationProvider...")
+            auth_provider = DefaultAuthenticationProvider(self.logger_factory)
+            self.logger.verbose("AuthenticationProvider initialized.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize AuthenticationProvider: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize AuthenticationProvider: {e}") from e
+
+        # Initialize SecurityService with AuthenticationProvider
         try:
             self.logger.verbose("Initializing SecurityService...")
-            security_service = SecurityService(self.logger_factory)
+            security_service = SecurityService(self.logger_factory, auth_provider)
             self.logger.verbose("SecurityService initialized.")
         except Exception as e:
             self.logger.error(f"Failed to initialize SecurityService: {e}", exc_info=True)
@@ -149,4 +162,5 @@ class ComponentInitializer:
             event_coordinator=event_coordinator,
             request_processor=request_processor,
             security_service=security_service,
+            auth_provider=auth_provider,
         )

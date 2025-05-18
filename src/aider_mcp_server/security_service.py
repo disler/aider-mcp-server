@@ -5,9 +5,11 @@ Centralized security service implementation.
 import asyncio
 from typing import Any, Dict, Optional
 
+from aider_mcp_server.authentication_errors import AuthenticationError
+from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.mcp_types import LoggerFactory
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, Permissions, SecurityContext
 
 
 class SecurityService(ISecurityService):
@@ -16,14 +18,16 @@ class SecurityService(ISecurityService):
     This service is stateless and thread-safe.
     """
 
-    def __init__(self, logger_factory: LoggerFactory):
+    def __init__(self, logger_factory: LoggerFactory, auth_provider: IAuthenticationProvider):
         """
         Initialize the security service.
 
         Args:
             logger_factory: Factory for creating loggers.
+            auth_provider: Authentication provider for handling authentication.
         """
         self._logger = logger_factory(__name__)
+        self._auth_provider = auth_provider
         self._lock = asyncio.Lock()  # For thread-safe operations if needed
 
     async def validate_token(self, token: Optional[str]) -> SecurityContext:
@@ -41,27 +45,41 @@ class SecurityService(ISecurityService):
             "auth_attempt", {"token_present": token is not None, "token_prefix": token[:10] if token else None}
         )
 
-        # Use the existing create_context_from_credentials function
-        # TODO: This should be refactored to use pluggable authentication providers
-        if token == "VALID_TEST_TOKEN":  # noqa: S105
-            context = SecurityContext(user_id="test-user", permissions={Permissions.EXECUTE_AIDER})
-        elif token == "ADMIN_TOKEN":  # noqa: S105
-            context = SecurityContext(
-                user_id="admin",
-                permissions={Permissions.EXECUTE_AIDER, Permissions.LIST_MODELS, Permissions.VIEW_CONFIG},
+        if token is None:
+            # Return anonymous context
+            await self.log_security_event("auth_anonymous", {"user_id": "anonymous"})
+            return ANONYMOUS_SECURITY_CONTEXT
+
+        try:
+            # Validate the token using the authentication provider
+            if await self._auth_provider.validate_token(token):
+                # Get user info from valid token
+                user_info = await self._auth_provider.get_user_info(token)
+                if user_info:
+                    context = SecurityContext(
+                        user_id=user_info.user_id,
+                        permissions=user_info.permissions,  # type: ignore[arg-type]
+                        is_anonymous=False,
+                    )
+                    await self.log_security_event(
+                        "auth_success",
+                        {"user_id": context.user_id, "permissions": [p.value for p in context.permissions]},
+                    )
+                    return context
+
+            # Invalid token
+            await self.log_security_event("auth_failure", {"reason": "invalid_token", "token_prefix": token[:10]})
+            return ANONYMOUS_SECURITY_CONTEXT
+
+        except AuthenticationError as e:
+            await self.log_security_event(
+                "auth_failure", {"reason": str(e), "token_prefix": token[:10] if token else None}
             )
-        else:
-            # Return anonymous context for all other cases
-            context = SecurityContext(user_id="anonymous", is_anonymous=True)
-
-        # Log the authentication result
-        user_id = context.user_id or "anonymous"
-        await self.log_security_event(
-            "auth_success" if user_id != "anonymous" else "auth_anonymous",
-            {"user_id": user_id, "permissions": [p.value for p in context.permissions]},
-        )
-
-        return context
+            return ANONYMOUS_SECURITY_CONTEXT
+        except Exception as e:
+            self._logger.error(f"Unexpected error during token validation: {e}")
+            await self.log_security_event("auth_error", {"error": str(e)})
+            return ANONYMOUS_SECURITY_CONTEXT
 
     async def check_permission(self, context: SecurityContext, permission: Permissions) -> bool:
         """
