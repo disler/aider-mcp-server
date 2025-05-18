@@ -14,6 +14,12 @@ from aider.models import Model
 
 from aider_mcp_server.atoms.diff_cache import DiffCache
 from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.tools.aider_compatibility import (
+    filter_supported_params,
+    get_aider_version,
+    get_supported_coder_create_params,
+    get_supported_coder_params,
+)
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
@@ -480,6 +486,10 @@ def _setup_aider_coder(
     """
     logger.info("Setting up Aider coder...")
 
+    # Log aider version for debugging
+    aider_version = get_aider_version()
+    logger.info(f"Using aider version: {aider_version}")
+
     # Set chat history file path in the working directory if possible
     chat_history_file = None
     if working_dir:
@@ -534,26 +544,49 @@ def _setup_aider_coder(
         logger.warning("Could not import GitRepo from aider.repo, will set repo=None")
         git_repo = None
 
+    # Parameters for Coder.create method (different from __init__)
+    create_params = {
+        "main_model": model,
+        "io": io,
+        "edit_format": "architect" if architect_mode else None,
+    }
+
+    # Parameters that go directly to Coder.__init__ via kwargs
+    init_params = {
+        "fnames": abs_editable_files,
+        "read_only_fnames": abs_readonly_files,
+        "repo": git_repo,
+        "show_diffs": False,
+        "auto_commits": False,
+        "dirty_commits": False,
+        "use_git": True if git_repo else False,
+        "stream": False,
+        "suggest_shell_commands": False,
+        "detect_urls": False,
+        "verbose": False,
+        "auto_accept_architect": auto_accept_architect if architect_mode else True,
+    }
+
+    # Get supported parameters for create method
+    supported_create_params = get_supported_coder_create_params()
+    logger.info(f"Supported Coder.create parameters: {supported_create_params}")
+
+    # Get supported parameters for init method
+    supported_init_params = get_supported_coder_params()
+    logger.info(f"Supported Coder.__init__ parameters: {supported_init_params}")
+
+    # Filter parameters based on what's actually supported
+    filtered_create = filter_supported_params(create_params, supported_create_params)
+    filtered_init = filter_supported_params(init_params, supported_init_params)
+
+    # Combine create params with init params as kwargs
+    final_params = filtered_create.copy()
+    final_params.update(filtered_init)
+
+    logger.info(f"Creating Coder with parameters: {list(final_params.keys())}")
+
     # Create the Coder instance using parameters compatible with the installed version
-    # The key is to pass the GitRepo object, not a string path
-    coder = Coder.create(
-        main_model=model,  # Pass model as main_model
-        io=io,
-        fnames=abs_editable_files,
-        read_only_fnames=abs_readonly_files,  # Parameter is read_only_fnames not readonly_fnames
-        repo=git_repo,  # Pass the GitRepo instance or None if it failed to initialize
-        show_diffs=False,  # We'll handle diffs separately
-        auto_commits=False,  # Don't commit automatically
-        dirty_commits=False,  # Don't commit automatically
-        use_git=True if git_repo else False,  # Use git only if the repo was initialized
-        stream=False,  # Disable streaming to prevent output interfering with JSON response
-        suggest_shell_commands=False,  # Don't suggest shell commands
-        detect_urls=False,  # Don't detect URLs
-        verbose=False,  # Explicitly disable verbose output
-        quiet=True,  # Enable quiet mode to suppress informational messages
-        edit_format="architect" if architect_mode else None,  # Set edit format based on architect mode
-        auto_accept_architect=auto_accept_architect if architect_mode else True,  # Only use when in architect mode
-    )
+    coder = Coder.create(**final_params)
 
     return coder
 

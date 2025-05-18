@@ -47,3 +47,12 @@ repos:
     hooks:
       - id: clang-format
         files: "\\.(c|cpp|h|hpp|pyx)$"
+
+  - repo: local
+    hooks:
+      - id: check-aider-compatibility
+        name: Check Aider Compatibility
+        entry: python scripts/check_aider_compatibility.py
+        language: python
+        pass_filenames: false
+        always_run: true

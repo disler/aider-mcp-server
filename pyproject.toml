@@ -26,6 +26,8 @@ dependencies = [
     "uvicorn[standard]>=0.30.0", # Added for running Starlette/SSE server
     "uvloop>=0.17.0",
     "hatch",
+    "toml>=0.10.2",  # Added for reading pyproject.toml in compatibility tests
+    "packaging>=21.3",  # Added for version parsing in compatibility checks
 ]
 
 [project.scripts]
@@ -49,7 +51,6 @@ dev = [
     "pytest-mock",
     "ruff>=0.11.6",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
-    "pydantic[mypy]",
 ]
 
 test = [

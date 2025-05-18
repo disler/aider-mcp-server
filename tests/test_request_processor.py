@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,7 +45,7 @@ def handler_registry():
             "result": {"message": "Test Result"},
         }
 
-    handler_registry_mock.get_handler = AsyncMock()
+    handler_registry_mock.get_handler = AsyncMock(return_value=test_handler)
     handler_registry_mock.get_required_permission = AsyncMock(return_value=Permissions.EXECUTE_AIDER)
     handler_registry_mock.register_handler = AsyncMock()
 
@@ -55,7 +56,7 @@ def handler_registry():
 def response_formatter():
     response_formatter_mock = MagicMock()
 
-    async def format_success_response(request_id: str, transport_id: str, result: dict) -> OperationResult:
+    def format_success_response(request_id: str, transport_id: str, result: dict) -> OperationResult:
         return {
             "success": True,
             "request_id": request_id,
@@ -63,7 +64,7 @@ def response_formatter():
             "result": result,
         }
 
-    async def format_error_response(
+    def format_error_response(
         request_id: str,
         transport_id: str,
         error_message: str,
@@ -87,8 +88,8 @@ def response_formatter():
             "error": error_data,
         }
 
-    response_formatter_mock.format_success_response = AsyncMock(side_effect=format_success_response)
-    response_formatter_mock.format_error_response = AsyncMock(side_effect=format_error_response)
+    response_formatter_mock.format_success_response = MagicMock(side_effect=format_success_response)
+    response_formatter_mock.format_error_response = MagicMock(side_effect=format_error_response)
 
     return response_formatter_mock
 
@@ -103,7 +104,9 @@ def event_coordinator():
 
 @pytest.fixture
 def session_manager():
-    return AsyncMock()
+    session_manager_mock = MagicMock()
+    session_manager_mock.check_permission = AsyncMock(return_value=True)
+    return session_manager_mock
 
 
 @pytest.fixture
@@ -178,6 +181,9 @@ async def test_process_request(request_processor, handler_registry):
     request_data = {"parameters": {"param1": "value1", "param2": "value2"}}
 
     await request_processor.process_request("123", "transport_id", "test_operation", request_data)
+
+    # Give the task a chance to complete
+    await asyncio.sleep(0.01)
 
     handler_registry.get_handler.assert_called_once_with("test_operation")
 
