@@ -504,9 +504,16 @@ def _setup_aider_coder(
 
     # Try to redirect IO output to null to prevent interference
     with contextlib.suppress(Exception):
-        from io import StringIO
+        # Create a null output stream
+        null_stream = open(os.devnull, "w")
 
-        io.output = StringIO()  # Redirect IO output to a string buffer
+        # Redirect various output streams in the IO object
+        io.output = null_stream  # Redirect main output to null
+        io.tool_output = None  # Disable tool output
+        io.tool_error_output = None  # Disable tool error output
+
+        # Set quiet mode to suppress "Creating empty file" messages
+        io.quiet = True  # Set quiet mode if available
     # For the GitRepo, we need to import the class from aider (if available)
     try:
         from aider.repo import GitRepo  # No stubs available for aider.repo
@@ -542,6 +549,8 @@ def _setup_aider_coder(
         stream=False,  # Disable streaming to prevent output interfering with JSON response
         suggest_shell_commands=False,  # Don't suggest shell commands
         detect_urls=False,  # Don't detect URLs
+        verbose=False,  # Explicitly disable verbose output
+        quiet=True,  # Enable quiet mode to suppress informational messages
         edit_format="architect" if architect_mode else None,  # Set edit format based on architect mode
         auto_accept_architect=auto_accept_architect if architect_mode else True,  # Only use when in architect mode
     )
@@ -1000,6 +1009,19 @@ async def code_with_aider(
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
+    # Capture stdout/stderr at the earliest point to catch any output
+    import sys
+    from io import StringIO
+
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    stdout_capture = StringIO()
+    stderr_capture = StringIO()
+
+    # Redirect stdout and stderr
+    sys.stdout = stdout_capture
+    sys.stderr = stderr_capture
+
     try:
         # Execute with retry logic
         response: ResponseDict = await _execute_with_retry(
@@ -1030,6 +1052,19 @@ async def code_with_aider(
             "is_cached_diff": False,  # Ensure this is False on error
         }
         response = error_response
+    finally:
+        # Always restore stdout and stderr
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+        # Log any captured output
+        captured_stdout = stdout_capture.getvalue()
+        captured_stderr = stderr_capture.getvalue()
+
+        if captured_stdout:
+            logger.warning(f"Captured stdout: {captured_stdout}")
+        if captured_stderr:
+            logger.warning(f"Captured stderr: {captured_stderr}")
 
     # Convert the response to a proper JSON string
     formatted_response = json.dumps(response, indent=4)
