@@ -776,26 +776,36 @@ async def _run_aider_session(
         import sys
         from io import StringIO
         
-        # Redirect stdout temporarily
+        # Redirect stdout and stderr temporarily
         old_stdout = sys.stdout
-        sys.stdout = StringIO()
+        old_stderr = sys.stderr
+        stdout_capture = StringIO()
+        stderr_capture = StringIO()
+        sys.stdout = stdout_capture
+        sys.stderr = stderr_capture
         
         result = coder.run(ai_coding_prompt)
         
         # Capture any output that was written
-        captured_output = sys.stdout.getvalue()
+        captured_stdout = stdout_capture.getvalue()
+        captured_stderr = stderr_capture.getvalue()
         
-        # Restore stdout
+        # Restore stdout and stderr
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         
-        if captured_output:
-            logger.warning(f"Captured output from Aider: {captured_output[:200]}...")
+        if captured_stdout:
+            logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
+        if captured_stderr:
+            logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
             
         logger.info(f"Aider coding session result: {result}")
     except Exception as e:
-        # Make sure to restore stdout even if there's an error
+        # Make sure to restore stdout and stderr even if there's an error
         if 'old_stdout' in locals():
             sys.stdout = old_stdout
+        if 'old_stderr' in locals():
+            sys.stderr = old_stderr
         raise e
 
     # Process the results after the coder has run
