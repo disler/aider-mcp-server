@@ -1,130 +1,121 @@
-import asyncio
 from typing import Any, Dict, Optional, Type, Union
 
 from atoms.event_types import EventTypes
 
-from aider_mcp_server.event_coordinator import EventCoordinator
-from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
+# TransportAdapterRegistry is now accessed via components
 from aider_mcp_server.mcp_types import LoggerFactory
-from aider_mcp_server.request_processor import RequestProcessor
-from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security import Permissions
-from aider_mcp_server.session_manager import SessionManager
+# Other components (EventCoordinator, HandlerRegistry, RequestProcessor, ResponseFormatter, SessionManager)
+# are now accessed via the 'components' object passed during initialization.
+
+from aider_mcp_server.singleton_manager import SingletonManager
+from aider_mcp_server.component_initializer import ComponentInitializer, Components
 
 
 class ApplicationCoordinator:
-    _instance: Optional["ApplicationCoordinator"] = None
-    _creation_lock = asyncio.Lock()
+    """
+    Acts as a central facade for the MCP server, coordinating various components.
+    It handles incoming requests, manages transport adapters, and orchestrates
+    event broadcasting and handling.
 
-    def __init__(self, logger_factory: LoggerFactory) -> None:
+    This class is a singleton, accessible via `ApplicationCoordinator.getInstance()`.
+    """
+
+    # Singleton instance is managed by SingletonManager
+
+    def __init__(self, logger_factory: LoggerFactory, components: Components):
+        """
+        Initializes the ApplicationCoordinator with pre-initialized components.
+        This constructor is typically called by the SingletonManager during instance creation.
+
+        Args:
+            logger_factory: Factory function to create loggers.
+            components: A Components object containing all initialized core services.
+        """
         self.logger = logger_factory("ApplicationCoordinator")
-        self.logger.verbose("ApplicationCoordinator initializing...")
-        # Initialize components that don't have circular dependencies
-        self._transport_registry: Optional[TransportAdapterRegistry] = None
-        self._session_manager = SessionManager()
-        self._handler_registry = HandlerRegistry()
-        self._response_formatter = ResponseFormatter(logger_factory)
+        self.logger.verbose("ApplicationCoordinator initializing with pre-initialized components...")
 
-        # These will be initialized properly in getInstance after TransportRegistry is available
-        self._event_coordinator: Optional[EventCoordinator] = None
-        self._request_processor: Optional[RequestProcessor] = None
+        # Store references to the initialized components
+        self._transport_registry = components.transport_registry
+        self._session_manager = components.session_manager
+        self._handler_registry = components.handler_registry
+        self._response_formatter = components.response_formatter
+        self._event_coordinator = components.event_coordinator
+        self._request_processor = components.request_processor
+        
+        self.logger.info("ApplicationCoordinator instance configured with components.")
 
     @classmethod
     async def getInstance(cls, logger_factory: LoggerFactory) -> "ApplicationCoordinator":
-        if cls._instance is None:
-            # Temporary logger for getInstance scope if instance isn't created yet
-            temp_logger = logger_factory("ApplicationCoordinator.getInstance")
-            temp_logger.verbose("Attempting to get ApplicationCoordinator instance.")
-            async with cls._creation_lock:
-                temp_logger.verbose("Acquired creation lock.")
-                if cls._instance is None:
-                    temp_logger.verbose("ApplicationCoordinator instance is None, creating new instance.")
-                    try:
-                        # Create instance but don't initialize transport registry yet
-                        instance = cls(logger_factory)
-                        instance.logger.verbose("Initial ApplicationCoordinator object created.")
+        """
+        Provides access to the singleton instance of ApplicationCoordinator.
+        If the instance doesn't exist, it's created and initialized asynchronously.
 
-                        # Now get the TransportAdapterRegistry instance asynchronously with timeout
-                        instance.logger.verbose("Initializing TransportAdapterRegistry...")
-                        try:
-                            # Add timeout to avoid indefinite waiting
-                            transport_registry = await asyncio.wait_for(
-                                TransportAdapterRegistry.get_instance(),
-                                timeout=10.0,  # 10 second timeout
-                            )
-                            instance.logger.verbose("TransportAdapterRegistry.get_instance() successful.")
-                        except asyncio.TimeoutError as e:
-                            instance.logger.error("Timeout while initializing TransportAdapterRegistry.")
-                            raise RuntimeError("Timeout while initializing TransportAdapterRegistry") from e
-                        except Exception as e:
-                            instance.logger.error(f"Failed to initialize TransportAdapterRegistry: {e}")
-                            raise RuntimeError(f"Failed to initialize TransportAdapterRegistry: {e}") from e
+        Args:
+            logger_factory: Factory function to create loggers.
 
-                        if transport_registry is None:
-                            instance.logger.error("TransportAdapterRegistry initialization returned None.")  # type: ignore[unreachable]
-                            raise RuntimeError("TransportAdapterRegistry initialization returned None")
+        Returns:
+            The singleton instance of ApplicationCoordinator.
+        
+        Raises:
+            RuntimeError: If initialization of the ApplicationCoordinator or its components fails.
+        """
+        return await SingletonManager.get_instance(
+            cls,
+            async_init_func=cls._create_and_initialize,
+            logger_factory=logger_factory  # Pass logger_factory to _create_and_initialize
+        )
 
-                        # Set the transport registry and initialize dependent components
-                        instance._transport_registry = transport_registry
-                        instance.logger.verbose("TransportAdapterRegistry initialized and set.")
+    @classmethod
+    async def _create_and_initialize(cls, logger_factory: LoggerFactory) -> "ApplicationCoordinator":
+        """
+        Internal factory method called by SingletonManager to create and initialize
+        the ApplicationCoordinator instance along with all its dependent components.
 
-                        try:
-                            instance.logger.verbose("Initializing EventCoordinator...")
-                            # Initialize EventCoordinator with error handling
-                            instance._event_coordinator = EventCoordinator(transport_registry, logger_factory)
-                            instance.logger.verbose("EventCoordinator initialized.")
-                        except Exception as e:
-                            instance.logger.error(f"Failed to initialize EventCoordinator: {e}")
-                            raise RuntimeError(f"Failed to initialize EventCoordinator: {e}") from e
+        Args:
+            logger_factory: Factory function to create loggers.
 
-                        try:
-                            instance.logger.verbose("Initializing RequestProcessor...")
-                            # Re-initialize the request processor with all dependencies
-                            instance._request_processor = RequestProcessor(
-                                instance._event_coordinator,
-                                instance._session_manager,
-                                logger_factory,
-                                instance._handler_registry,
-                                instance._response_formatter,
-                            )
-                            instance.logger.verbose("RequestProcessor initialized.")
-                        except Exception as e:
-                            instance.logger.error(f"Failed to initialize RequestProcessor: {e}")
-                            raise RuntimeError(f"Failed to initialize RequestProcessor: {e}") from e
-
-                        # Only set the instance if all initialization steps completed successfully
-                        cls._instance = instance
-                        instance.logger.info("ApplicationCoordinator instance created and initialized successfully.")
-                    except Exception as e:
-                        # Log the initialization error using the logger from the partially created instance if available
-                        # otherwise use the temp_logger
-                        logger_to_use = getattr(cls._instance, "logger", temp_logger) if cls._instance else temp_logger
-                        logger_to_use.error(f"Failed to initialize ApplicationCoordinator: {e}")
-                        # Re-raise the exception to inform the caller
-                        raise e
-                else:
-                    temp_logger.verbose("ApplicationCoordinator instance already exists.")  # type: ignore[unreachable]
-        return cls._instance
+        Returns:
+            A new, fully initialized ApplicationCoordinator instance.
+        
+        Raises:
+            RuntimeError: If component initialization fails.
+        """
+        # Use a specific logger for this critical initialization phase
+        init_logger = logger_factory("ApplicationCoordinator.Initializer")
+        init_logger.verbose("Starting ApplicationCoordinator and component initialization...")
+        
+        try:
+            initializer = ComponentInitializer(logger_factory)
+            components = await initializer.initialize_components()
+            instance = cls(logger_factory, components) # Pass components to __init__
+            init_logger.info("ApplicationCoordinator instance created and initialized successfully.")
+            return instance
+        except Exception as e:
+            init_logger.error(f"Fatal error during ApplicationCoordinator initialization: {e}", exc_info=True)
+            # Re-raise to ensure SingletonManager and the caller are aware of the failure.
+            raise RuntimeError(f"Failed to initialize ApplicationCoordinator: {e}") from e
 
     async def register_transport(self, transport_id: str, transport: Type[ITransportAdapter]) -> None:
         self.logger.verbose(f"Registering transport: {transport_id}")
         # This is a placeholder since TransportAdapterRegistry doesn't have register_transport method
         # Instead, it uses register_adapter_class, but that expects different parameters
         # For now, just log that this method was called
+        # To implement fully, this would likely interact with self._transport_registry
         pass
 
     async def unregister_transport(self, transport_id: str) -> None:
         self.logger.verbose(f"Unregistering transport: {transport_id}")
         # This is a placeholder since TransportAdapterRegistry doesn't have unregister_transport method
         # For now, just log that this method was called
+        # To implement fully, this would likely interact with self._transport_registry
         pass
 
     async def register_handler(
         self,
         operation_name: str,
-        handler: Type[Any],
+        handler: Type[Any], # Note: HandlerRegistry expects HandlerFunc, not Type[Any]
         required_permission: Optional[Permissions] = None,
     ) -> None:
         self.logger.verbose(f"Registering handler for operation: {operation_name}")
