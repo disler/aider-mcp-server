@@ -2,53 +2,52 @@ name: Test Aider Compatibility
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, development ]
   pull_request:
-    branches: [ main ]
-  schedule:
-    # Run daily to catch any new aider releases
-    - cron: '0 0 * * *'
+    branches: [ main, development ]
 
 jobs:
   test-compatibility:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
-        aider-version: ["0.83.1", "0.84.0", "latest"]
-    
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        aider-version: ['0.83.1', '0.84.0', 'latest']
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies with specific aider version
+
+    - name: Install dependencies
       run: |
-        pip install --upgrade pip
-        pip install hatch
-        pip install uv
-        
-        # Install base dependencies
-        uv pip install -e ".[test]"
-        
-        # Install specific aider version
-        if [ "${{ matrix.aider-version }}" == "latest" ]; then
-          uv pip install --upgrade aider-chat
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-mock pytest-timeout
+        pip install -e .
+
+    - name: Install specific aider version
+      run: |
+        if [ "${{ matrix.aider-version }}" = "latest" ]; then
+          pip install aider-chat
         else
-          uv pip install aider-chat==${{ matrix.aider-version }}
+          pip install aider-chat==${{ matrix.aider-version }}
         fi
-    
-    - name: Check aider version
+
+    - name: Run compatibility check script
+      run: |
+        python scripts/inspect_aider_params.py
+
+    - name: Display aider version
       run: |
         python -c "import aider; print(f'Testing with aider version: {aider.__version__}')"
-    
+
     - name: Run compatibility tests
       run: |
         pytest tests/compatibility/ -v
-    
+
     - name: Run integration tests
       run: |
         pytest tests/ -v -m integration
