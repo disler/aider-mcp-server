@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import os
 import os.path
@@ -19,7 +20,6 @@ from aider_mcp_server.atoms.utils.fallback_config import (
 )
 
 
-# Type definition for response from aider processing
 class ResponseDict(TypedDict, total=False):
     """Type for Aider response dictionary."""
 
@@ -497,19 +497,16 @@ def _setup_aider_coder(
         yes=True,  # Always say yes to prompts
         fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
         chat_history_file=chat_history_file,  # Set chat history file if available
-        verbose=False,  # Disable verbose output
     )
     io.yes_to_all = True  # Automatically say yes to all prompts
     io.tool_error = False  # Disable tool error messages that could interfere with JSON
     io.dry_run = False  # Ensure we're not in dry-run mode
-    
-    # Try to redirect IO output to null to prevent interference
-    try:
-        from io import StringIO
-        io.output = StringIO()  # Redirect IO output to a string buffer
-    except Exception:
-        pass  # If the io object doesn't support this, just continue
 
+    # Try to redirect IO output to null to prevent interference
+    with contextlib.suppress(Exception):
+        from io import StringIO
+
+        io.output = StringIO()  # Redirect IO output to a string buffer
     # For the GitRepo, we need to import the class from aider (if available)
     try:
         from aider.repo import GitRepo  # No stubs available for aider.repo
@@ -775,7 +772,7 @@ async def _run_aider_session(
         # Capture any stdout that might interfere with JSON response
         import sys
         from io import StringIO
-        
+
         # Redirect stdout and stderr temporarily
         old_stdout = sys.stdout
         old_stderr = sys.stderr
@@ -783,28 +780,28 @@ async def _run_aider_session(
         stderr_capture = StringIO()
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
-        
+
         result = coder.run(ai_coding_prompt)
-        
+
         # Capture any output that was written
         captured_stdout = stdout_capture.getvalue()
         captured_stderr = stderr_capture.getvalue()
-        
+
         # Restore stdout and stderr
         sys.stdout = old_stdout
         sys.stderr = old_stderr
-        
+
         if captured_stdout:
             logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
         if captured_stderr:
             logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
-            
+
         logger.info(f"Aider coding session result: {result}")
     except Exception as e:
         # Make sure to restore stdout and stderr even if there's an error
-        if 'old_stdout' in locals():
+        if "old_stdout" in locals():
             sys.stdout = old_stdout
-        if 'old_stderr' in locals():
+        if "old_stderr" in locals():
             sys.stderr = old_stderr
         raise e
 
