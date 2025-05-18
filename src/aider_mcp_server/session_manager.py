@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Union
 
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.security import Permissions
@@ -117,6 +117,32 @@ class SessionManager:
             else:
                 self.logger.warning(f"Session for transport '{transport_id}' not found during permission check.")
                 return False
+
+    async def get_transport_security_context(self, transport_id: str) -> "SecurityContext":
+        """
+        Get the security context for a transport.
+
+        Args:
+            transport_id: The ID of the transport
+
+        Returns:
+            SecurityContext for the transport or anonymous context if not found
+        """
+        from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
+
+        async with self.lock:
+            if transport_id in self.sessions:
+                session = self.sessions[transport_id]
+                session.last_accessed_time = datetime.now()
+
+                # Build security context from session
+                user_id = session.user_info.get("id") if session.user_info else None
+                context = SecurityContext(user_id=user_id, permissions=session.permissions, transport_id=transport_id)
+                self.logger.verbose(f"Retrieved security context for transport '{transport_id}': {context}")
+                return context
+            else:
+                self.logger.warning(f"Session for transport '{transport_id}' not found, returning anonymous context.")
+                return ANONYMOUS_SECURITY_CONTEXT
 
     async def cleanup_expired_sessions(self, run_once: bool = False) -> None:
         """

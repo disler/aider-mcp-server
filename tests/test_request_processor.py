@@ -10,12 +10,22 @@ from aider_mcp_server.security import Permissions
 
 
 @pytest.fixture
+def security_service():
+    service = MagicMock()
+    service.check_permission = AsyncMock(return_value=True)
+    service.validate_token = AsyncMock()
+    service.log_security_event = AsyncMock()
+    return service
+
+
+@pytest.fixture
 def request_processor(
     event_coordinator,
     session_manager,
     logger_factory,
     handler_registry,
     response_formatter,
+    security_service,
 ):
     return RequestProcessor(
         event_coordinator,
@@ -23,6 +33,7 @@ def request_processor(
         logger_factory,
         handler_registry,
         response_formatter,
+        security_service,
     )
 
 
@@ -104,9 +115,17 @@ def event_coordinator():
 
 @pytest.fixture
 def session_manager():
-    session_manager_mock = MagicMock()
-    session_manager_mock.check_permission = AsyncMock(return_value=True)
-    return session_manager_mock
+    manager = AsyncMock()
+    manager.check_permission = AsyncMock(return_value=True)
+    manager.get_transport_security_context = AsyncMock()
+
+    # Mock security context
+    from aider_mcp_server.security import Permissions, SecurityContext
+
+    mock_context = SecurityContext(user_id="test-user", permissions={Permissions.EXECUTE_AIDER})
+    manager.get_transport_security_context.return_value = mock_context
+
+    return manager
 
 
 @pytest.fixture

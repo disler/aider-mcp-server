@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.handler_registry import HandlerRegistry
+from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security import SecurityContext
@@ -33,6 +34,7 @@ class RequestProcessor:
         logger_factory: LoggerFactory,
         handler_registry: HandlerRegistry,
         response_formatter: ResponseFormatter,
+        security_service: ISecurityService,
     ) -> None:
         """
         Initialize the RequestProcessor.
@@ -43,11 +45,13 @@ class RequestProcessor:
             logger_factory: Factory function to create loggers
             handler_registry: Registry for managing operation handlers
             response_formatter: Formatter for standardizing response formatting
+            security_service: Service for handling security operations
         """
         self._event_coordinator = event_coordinator
         self._session_manager = session_manager
         self._handler_registry = handler_registry
         self._response_formatter = response_formatter
+        self._security_service = security_service
         self._active_requests: Dict[str, Dict[str, Any]] = {}
         self._active_requests_lock = asyncio.Lock()
         self._logger = logger_factory(__name__)
@@ -92,13 +96,29 @@ class RequestProcessor:
         )
 
         if required_permission:
-            # Check permissions
+            # Get security context for the transport
+            transport_context = await self._session_manager.get_transport_security_context(transport_id)
+
+            # Check permissions using SecurityService
             self._logger.verbose(
                 f"Checking permission '{required_permission}' for transport {transport_id} (request_id: {request_id})"
             )
-            has_permission = await self._session_manager.check_permission(transport_id, required_permission)
+            has_permission = await self._security_service.check_permission(transport_context, required_permission)
+
             if not has_permission:
                 self._logger.error(f"Permission denied for operation '{operation_name}' (request_id: {request_id})")
+                # Log the security event via SecurityService
+                await self._security_service.log_security_event(
+                    "permission_denied",
+                    {
+                        "transport_id": transport_id,
+                        "request_id": request_id,
+                        "operation": operation_name,
+                        "required_permission": required_permission.value,
+                        "user_id": transport_context.user_id,
+                    },
+                )
+
                 await self.fail_request(
                     request_id,
                     operation_name,
@@ -108,6 +128,7 @@ class RequestProcessor:
                     request_data,
                 )
                 return
+
             self._logger.verbose(
                 f"Permission '{required_permission}' granted for transport {transport_id} (request_id: {request_id})"
             )
@@ -131,10 +152,10 @@ class RequestProcessor:
                 )
 
                 # Extract parameters for the handler
-                # Get security context - Use a properly typed security context
-                from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT
-
-                security_context: SecurityContext = ANONYMOUS_SECURITY_CONTEXT
+                # Get security context from the session manager
+                security_context: SecurityContext = await self._session_manager.get_transport_security_context(
+                    transport_id
+                )
 
                 # Extract parameters from request_data
                 params = request_data.get("parameters", {})

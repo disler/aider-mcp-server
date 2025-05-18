@@ -4,10 +4,12 @@ from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_mediator import EventMediator
 from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
+from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.request_processor import RequestProcessor
 from aider_mcp_server.response_formatter import ResponseFormatter
+from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
 
 
@@ -26,6 +28,7 @@ class Components:
         response_formatter: ResponseFormatter,
         event_coordinator: EventCoordinator,
         request_processor: RequestProcessor,
+        security_service: ISecurityService,
     ):
         self.logger_factory = logger_factory
         self.transport_registry = transport_registry
@@ -34,6 +37,7 @@ class Components:
         self.response_formatter = response_formatter
         self.event_coordinator = event_coordinator
         self.request_processor = request_processor
+        self.security_service = security_service
 
 
 class ComponentInitializer:
@@ -63,6 +67,15 @@ class ComponentInitializer:
 
         response_formatter = ResponseFormatter(self.logger_factory)
         self.logger.verbose("ResponseFormatter initialized.")
+
+        # Initialize SecurityService
+        try:
+            self.logger.verbose("Initializing SecurityService...")
+            security_service = SecurityService(self.logger_factory)
+            self.logger.verbose("SecurityService initialized.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize SecurityService: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize SecurityService: {e}") from e
 
         # Initialize TransportAdapterRegistry
         self.logger.verbose("Initializing TransportAdapterRegistry...")
@@ -110,7 +123,7 @@ class ComponentInitializer:
             self.logger.error(f"Failed to initialize EventCoordinator: {e}", exc_info=True)
             raise RuntimeError(f"Failed to initialize EventCoordinator: {e}") from e
 
-        # Initialize RequestProcessor
+        # Initialize RequestProcessor with SecurityService
         try:
             self.logger.verbose("Initializing RequestProcessor...")
             request_processor = RequestProcessor(
@@ -119,6 +132,7 @@ class ComponentInitializer:
                 self.logger_factory,
                 handler_registry,
                 response_formatter,
+                security_service,
             )
             self.logger.verbose("RequestProcessor initialized.")
         except Exception as e:
@@ -134,4 +148,5 @@ class ComponentInitializer:
             response_formatter=response_formatter,
             event_coordinator=event_coordinator,
             request_processor=request_processor,
+            security_service=security_service,
         )
