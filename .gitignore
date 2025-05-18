@@ -91,3 +91,7 @@ node_modules/
 # Task files
 tasks.json
 tasks/
+
+# Test files that shouldn't be checked in CI
+test_fix.py
+test_file.py

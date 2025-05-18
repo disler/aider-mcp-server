@@ -517,10 +517,16 @@ def _setup_aider_coder(
         # Create a null output stream
         null_stream = open(os.devnull, "w")
 
+        # Create a no-op function to replace tool_output method
+        def noop_output(*args: Any, **kwargs: Any) -> None:
+            pass
+
         # Redirect various output streams in the IO object
         io.output = null_stream  # Redirect main output to null
-        io.tool_output = None  # Disable tool output
-        io.tool_error_output = None  # Disable tool error output
+        io.tool_output = noop_output  # Replace with no-op function instead of None
+
+        # Handle tool_error - don't try to set tool_error_output which doesn't exist
+        io.tool_error = False  # Disable tool error messages
 
         # Set quiet mode to suppress "Creating empty file" messages
         io.quiet = True  # Set quiet mode if available
