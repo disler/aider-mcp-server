@@ -39,7 +39,7 @@ async def handle_shutdown_signal(
     logger.warning(log_message)
 
     if not event.is_set():
-        logger.info("Signaling main loop to shut down via event...")
+        logger.debug("Signaling main loop to shut down via event...")
         event.set()
     else:
         logger.warning("Shutdown already in progress.")
@@ -136,7 +136,7 @@ async def run_sse_server(
     """
     # Validate working directory if provided
     if current_working_dir:
-        logger.info(f"Validating working directory: {current_working_dir}")
+        logger.debug(f"Validating working directory: {current_working_dir}")
         is_repo, error_msg = is_git_repository(Path(current_working_dir))
         if not is_repo:
             error_message = (
@@ -144,14 +144,14 @@ async def run_sse_server(
             )
             logger.critical(error_message)
             raise ValueError(error_message)
-        logger.info(f"Working directory '{current_working_dir}' is a valid git repository.")
+        logger.debug(f"Working directory '{current_working_dir}' is a valid git repository.")
 
     # Get coordinator instance
     coordinator = await ApplicationCoordinator.getInstance(get_logger)
 
     # Use the coordinator in async context
     async with coordinator:
-        logger.info("Coordinator context entered")
+        logger.debug("Coordinator context entered")
 
         # Create the SSE adapter with coordinator
         sse_adapter = SSETransportAdapter(
@@ -163,23 +163,19 @@ async def run_sse_server(
             current_working_dir=current_working_dir,
         )
 
-        # Initialize the adapter (this will create the FastMCP server)
+        # Initialize the adapter (this will create the FastMCP server and register with coordinator)
         await sse_adapter.initialize()
-
-        # Register the adapter with the coordinator
-        await coordinator.register_transport(sse_adapter.get_transport_id(), sse_adapter)
-        logger.info("Registered SSE transport with coordinator")
 
         # Start the SSE server
         await sse_adapter.start_listening()
-        logger.info(f"SSE server listening on {host}:{port}")
+        logger.debug(f"SSE server listening on {host}:{port}")
 
         # Setup shutdown event
         shutdown_event = asyncio.Event()
 
         async def handle_shutdown() -> None:
             """Handle graceful shutdown"""
-            logger.info("Initiating graceful shutdown...")
+            logger.info("Graceful shutdown initiated")
             shutdown_event.set()
 
         # Setup signal handlers

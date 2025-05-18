@@ -1,11 +1,14 @@
 import asyncio
-import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
+from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.security import Permissions
 
-logger = logging.getLogger(__name__)
+# Module-level logger can be kept for module-level concerns if any,
+# but SessionManager will use its own instance.
+# import logging
+# logger = logging.getLogger(__name__)
 
 
 class Session:
@@ -46,6 +49,7 @@ class SessionManager:
         Args:
             start_cleanup: Whether to start the cleanup task (disabled for testing)
         """
+        self.logger = get_logger(__name__)
         self.sessions: Dict[str, Session] = {}
         self.lock = asyncio.Lock()
 
@@ -66,10 +70,16 @@ class SessionManager:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
                 session.last_accessed_time = datetime.now()
+                self.logger.verbose(
+                    f"Accessed existing session for transport '{transport_id}'. Last accessed: {session.last_accessed_time}"
+                )
                 return session
             else:
                 new_session = Session(transport_id)
                 self.sessions[transport_id] = new_session
+                self.logger.verbose(
+                    f"Created new session for transport '{transport_id}'. Creation time: {new_session.creation_time}"
+                )
                 return new_session
 
     async def update_session(self, transport_id: str, data: Dict[str, Any]) -> Optional[Session]:
@@ -78,26 +88,34 @@ class SessionManager:
                 session = self.sessions[transport_id]
                 session.last_accessed_time = datetime.now()
                 session.custom_data.update(data)
+                self.logger.verbose(
+                    f"Updated session for transport '{transport_id}'. Last accessed: {session.last_accessed_time}, Data updated: {list(data.keys())}"
+                )
                 return session
             else:
-                logger.warning(f"Session for transport '{transport_id}' not found.")
+                self.logger.warning(f"Session for transport '{transport_id}' not found during update.")
                 return None
 
     async def remove_session(self, transport_id: str) -> None:
         async with self.lock:
             if transport_id in self.sessions:
                 del self.sessions[transport_id]
+                self.logger.verbose(f"Removed session for transport '{transport_id}'.")
             else:
-                logger.warning(f"Session for transport '{transport_id}' not found.")
+                self.logger.warning(f"Session for transport '{transport_id}' not found during removal.")
 
     async def check_permission(self, transport_id: str, required_permission: Permissions) -> bool:
         async with self.lock:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
                 session.last_accessed_time = datetime.now()
-                return required_permission in session.permissions
+                has_perm = required_permission in session.permissions
+                self.logger.verbose(
+                    f"Permission check for transport '{transport_id}': Required '{required_permission.value}', Has: {has_perm}. Last accessed: {session.last_accessed_time}"
+                )
+                return has_perm
             else:
-                logger.warning(f"Session for transport '{transport_id}' not found.")
+                self.logger.warning(f"Session for transport '{transport_id}' not found during permission check.")
                 return False
 
     async def cleanup_expired_sessions(self, run_once: bool = False) -> None:
@@ -110,18 +128,39 @@ class SessionManager:
         while True:
             if not run_once:
                 await asyncio.sleep(60)  # Check every minute
+            self.logger.verbose("Running cleanup for expired sessions.")
 
             current_time = datetime.now()
-            expired_sessions = [
-                transport_id
-                for transport_id, session in self.sessions.items()
-                if (current_time - session.last_accessed_time).total_seconds() > self.session_timeout
-            ]
+            # Need to acquire lock to iterate over self.sessions items safely if it can be modified elsewhere,
+            # or copy items first. Let's copy keys to avoid issues if lock is held for too long.
+            # However, the current logic iterates then acquires lock to delete, which is fine.
 
-            async with self.lock:
-                for transport_id in expired_sessions:
-                    del self.sessions[transport_id]
-                    logger.info(f"Expired session for transport '{transport_id}' removed.")
+            # To be safe, let's get a snapshot of sessions or keys under lock if we were to do complex things before the delete lock
+            # For now, the existing logic is okay as it re-checks under the lock implicitly by iterating `expired_sessions`
+            # which was derived from `self.sessions.items()` before the lock for deletion.
+
+            expired_session_ids = []
+            # Iterate over a copy of items for safety if sessions could change during iteration
+            # For this specific loop, it's okay as it's just building a list of IDs
+            # The critical part is deleting under the lock.
+            for transport_id, session in list(self.sessions.items()):  # list() for a copy
+                if (current_time - session.last_accessed_time).total_seconds() > self.session_timeout:
+                    expired_session_ids.append(transport_id)
+
+            if expired_session_ids:
+                self.logger.verbose(f"Found {len(expired_session_ids)} expired sessions: {expired_session_ids}")
+                async with self.lock:
+                    for transport_id in expired_session_ids:
+                        # Ensure session still exists before deleting, in case it was removed by another task
+                        if transport_id in self.sessions:
+                            del self.sessions[transport_id]
+                            self.logger.info(
+                                f"Expired session for transport '{transport_id}' removed."
+                            )  # Keep info for actual removal
+                        else:
+                            self.logger.verbose(f"Session '{transport_id}' already removed before cleanup.")
+            else:
+                self.logger.verbose("No expired sessions found during cleanup.")
 
             if run_once:
                 break
@@ -135,7 +174,12 @@ class SessionManager:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
                 session.permissions = permissions
+                session.last_accessed_time = datetime.now()  # Also update last_accessed_time
+                perm_values = {p.value for p in permissions}
+                self.logger.verbose(
+                    f"Set permissions for transport '{transport_id}' to {perm_values}. Last accessed: {session.last_accessed_time}"
+                )
                 return session
             else:
-                logger.warning(f"Session for transport '{transport_id}' not found.")
+                self.logger.warning(f"Session for transport '{transport_id}' not found when setting permissions.")
                 return None

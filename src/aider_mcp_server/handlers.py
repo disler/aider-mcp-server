@@ -132,7 +132,7 @@ def _parse_aider_result(request_id: str, result_json_str: str) -> OperationResul
             )
             result_dict["success"] = False
 
-        logger.info(f"Request {request_id}: AI Coding Request Completed. Success: {result_dict.get('success')}")
+        logger.info(f"Request {request_id}: AI Coding completed - Success: {result_dict.get('success')}")
         return result_dict
 
     except json.JSONDecodeError as e:
@@ -169,7 +169,7 @@ async def process_aider_ai_code_request(
     Returns:
         Dict[str, Any]: The response data including 'success' field.
     """
-    logger.info(
+    logger.debug(
         f"Handler 'process_aider_ai_code_request' invoked for request_id: {request_id}, transport_id: {transport_id}"
     )
     logger.debug(f"Security Context: {security_context}")  # Log context at debug
@@ -191,13 +191,13 @@ async def process_aider_ai_code_request(
     model_to_use = _determine_model(request_id, params, editor_model)
 
     # Log request details
-    logger.info(
+    logger.debug(
         f"Request {request_id}: AI Coding Request: Prompt='{ai_coding_prompt[:50] if ai_coding_prompt else ''}...'"
     )
-    logger.info(f"Request {request_id}: Editable files: {relative_editable_files}")
-    logger.info(f"Request {request_id}: Readonly files: {relative_readonly_files}")
-    logger.info(f"Request {request_id}: Model to use: {model_to_use} (Editor default: {editor_model})")
-    logger.info(f"Request {request_id}: Working directory: {current_working_dir}")
+    logger.debug(f"Request {request_id}: Editable files: {relative_editable_files}")
+    logger.debug(f"Request {request_id}: Readonly files: {relative_readonly_files}")
+    logger.debug(f"Request {request_id}: Model to use: {model_to_use} (Editor default: {editor_model})")
+    logger.debug(f"Request {request_id}: Working directory: {current_working_dir}")
 
     # Execute the Aider code generation
     if ai_coding_prompt is None or relative_editable_files is None:
@@ -237,7 +237,7 @@ async def process_list_models_request(
     Returns:
         Dict[str, Any]: The response data containing the list of models and 'success' field.
     """
-    logger.info(
+    logger.debug(
         f"Handler 'process_list_models_request' invoked for request_id: {request_id}, transport_id: {transport_id}"
     )
     logger.debug(f"Security Context: {security_context}")
@@ -250,11 +250,11 @@ async def process_list_models_request(
         )
         substring = ""
 
-    logger.info(f"Request {request_id}: List Models Request: Substring='{substring}'")
+    logger.debug(f"Request {request_id}: List Models Request: Substring='{substring}'")
 
     try:
         models = list_models(substring)
-        logger.info(f"Request {request_id}: Found {len(models)} models matching '{substring}'")
+        logger.debug(f"Request {request_id}: Found {len(models)} models matching '{substring}'")
         return {"models": models, "success": True}
     except Exception as e:
         logger.exception(f"Request {request_id}: Error during list_models execution: {e}")

@@ -54,6 +54,9 @@ except ImportError:
             def exception(self, message: str, **kwargs: typing.Any) -> None:
                 logger.exception(message, **kwargs)
 
+            def verbose(self, message: str, **kwargs: typing.Any) -> None:
+                logger.debug(message, **kwargs)
+
         return CustomLogger()
 
     get_logger_func = fallback_get_logger
