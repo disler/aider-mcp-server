@@ -491,13 +491,24 @@ def _setup_aider_coder(
             logger.warning(f"Could not create chat history directory: {e}")
 
     # Create an IO instance for the Coder that won't require interactive prompting
+    # Add verbose=False to suppress progress output
     io = InputOutput(
         pretty=False,  # Disable fancy output
         yes=True,  # Always say yes to prompts
         fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
         chat_history_file=chat_history_file,  # Set chat history file if available
+        verbose=False,  # Disable verbose output
     )
     io.yes_to_all = True  # Automatically say yes to all prompts
+    io.tool_error = False  # Disable tool error messages that could interfere with JSON
+    io.dry_run = False  # Ensure we're not in dry-run mode
+    
+    # Try to redirect IO output to null to prevent interference
+    try:
+        from io import StringIO
+        io.output = StringIO()  # Redirect IO output to a string buffer
+    except Exception:
+        pass  # If the io object doesn't support this, just continue
 
     # For the GitRepo, we need to import the class from aider (if available)
     try:
@@ -531,7 +542,7 @@ def _setup_aider_coder(
         auto_commits=False,  # Don't commit automatically
         dirty_commits=False,  # Don't commit automatically
         use_git=True if git_repo else False,  # Use git only if the repo was initialized
-        stream=True,  # Stream model responses
+        stream=False,  # Disable streaming to prevent output interfering with JSON response
         suggest_shell_commands=False,  # Don't suggest shell commands
         detect_urls=False,  # Don't detect URLs
         edit_format="architect" if architect_mode else None,  # Set edit format based on architect mode
@@ -760,8 +771,32 @@ async def _run_aider_session(
         Dictionary with success status and diff output
     """
     logger.info("Starting Aider coding session...")
-    result = coder.run(ai_coding_prompt)
-    logger.info(f"Aider coding session result: {result}")
+    try:
+        # Capture any stdout that might interfere with JSON response
+        import sys
+        from io import StringIO
+        
+        # Redirect stdout temporarily
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+        
+        result = coder.run(ai_coding_prompt)
+        
+        # Capture any output that was written
+        captured_output = sys.stdout.getvalue()
+        
+        # Restore stdout
+        sys.stdout = old_stdout
+        
+        if captured_output:
+            logger.warning(f"Captured output from Aider: {captured_output[:200]}...")
+            
+        logger.info(f"Aider coding session result: {result}")
+    except Exception as e:
+        # Make sure to restore stdout even if there's an error
+        if 'old_stdout' in locals():
+            sys.stdout = old_stdout
+        raise e
 
     # Process the results after the coder has run
     response: ResponseDict = await _process_coder_results(  # Await the async function
