@@ -4,156 +4,151 @@ import pytest
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.event_coordinator import EventCoordinator
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.transport_registry import TransportRegistry
+from aider_mcp_server.event_mediator import EventMediator  # Import EventMediator
+from aider_mcp_server.event_participant import IEventParticipant
 
 
 @pytest.fixture
-def event_coordinator():
-    transport_registry = MagicMock(spec=TransportRegistry)
-    # Add necessary methods to the mock
-    transport_registry.get_cached_adapter = MagicMock(return_value=None)
-    transport_registry.list_adapter_types = MagicMock(return_value=[])
-    transport_registry.get_adapter_class = MagicMock(return_value=None)
-    logger_factory = MagicMock()
+def mock_logger_factory():
+    """Fixture for a mock logger factory."""
+    mock_factory = MagicMock()
+    mock_logger = MagicMock()
+    mock_logger.verbose = MagicMock()
+    mock_logger.debug = MagicMock()
+    mock_factory.return_value = mock_logger
+    return mock_factory
 
-    # Create the event coordinator
-    coordinator = EventCoordinator(transport_registry, logger_factory)
 
-    # Add the necessary attributes for testing
-    # These would normally be in the EventSystem, but for testing we add them directly
-    coordinator._transport_subscriptions = {}
-    coordinator._transport_capabilities = {}
+@pytest.fixture
+def mock_event_mediator():
+    """Fixture for a mock EventMediator."""
+    return AsyncMock(spec=EventMediator)
 
-    # Patch the event system's is_subscribed method to provide testable behavior
-    async def patched_is_subscribed(transport_id, event_type):
-        # Only return True for "transport_id", not for "other_transport_id"
-        if transport_id == "transport_id":
-            return True
-        return False
 
-    coordinator._event_system.is_subscribed = patched_is_subscribed
-
-    # Patch the subscribe_to_event_type method to update _transport_subscriptions
-    original_subscribe = coordinator.subscribe_to_event_type
-
-    async def patched_subscribe(transport_id, event_type):
-        await original_subscribe(transport_id, event_type)
-        if transport_id not in coordinator._transport_subscriptions:
-            coordinator._transport_subscriptions[transport_id] = set()
-        coordinator._transport_subscriptions[transport_id].add(event_type)
-
-    coordinator.subscribe_to_event_type = patched_subscribe
-
-    # Patch the unsubscribe_from_event_type method
-    original_unsubscribe = coordinator.unsubscribe_from_event_type
-
-    async def patched_unsubscribe(transport_id, event_type):
-        await original_unsubscribe(transport_id, event_type)
-        if transport_id in coordinator._transport_subscriptions:
-            coordinator._transport_subscriptions[transport_id].discard(event_type)
-
-    coordinator.unsubscribe_from_event_type = patched_unsubscribe
-
-    # Patch update_transport_capabilities
-    original_update_capabilities = coordinator.update_transport_capabilities
-
-    async def patched_update_capabilities(transport_id, capabilities):
-        await original_update_capabilities(transport_id, capabilities)
-        coordinator._transport_capabilities[transport_id] = capabilities
-
-    coordinator.update_transport_capabilities = patched_update_capabilities
-
-    # Patch update_transport_subscriptions
-    original_update_subscriptions = coordinator.update_transport_subscriptions
-
-    async def patched_update_subscriptions(transport_id, subscriptions):
-        await original_update_subscriptions(transport_id, subscriptions)
-        coordinator._transport_subscriptions[transport_id] = subscriptions
-
-    coordinator.update_transport_subscriptions = patched_update_subscriptions
-
+@pytest.fixture
+def event_coordinator(mock_logger_factory, mock_event_mediator):
+    """Fixture for an EventCoordinator instance, now using EventMediator."""
+    coordinator = EventCoordinator(logger_factory=mock_logger_factory, event_mediator=mock_event_mediator)
     return coordinator
 
 
-@pytest.fixture
-def mock_transport_adapter():
-    return AsyncMock(spec=ITransportAdapter)
+def test_initialization_with_mediator(event_coordinator, mock_logger_factory, mock_event_mediator):
+    """Test EventCoordinator initialization with EventMediator."""
+    assert event_coordinator._logger is mock_logger_factory.return_value
+    assert event_coordinator._mediator is mock_event_mediator
+    mock_logger_factory.assert_called_once_with("aider_mcp_server.event_coordinator")
+    event_coordinator._logger.verbose.assert_called_once_with("EventCoordinator initialized, using EventMediator.")
+
+
+def test_get_participant_name(event_coordinator):
+    """Test get_participant_name returns the correct name."""
+    assert event_coordinator.get_participant_name() == "EventCoordinator"
+
+
+def test_get_handled_events(event_coordinator):
+    """Test get_handled_events returns an empty set by default."""
+    assert event_coordinator.get_handled_events() == set()
+    event_coordinator._logger.debug.assert_called_once_with(
+        "EventCoordinator currently handles no internal events directly."
+    )
 
 
 @pytest.mark.asyncio
-async def test_subscribe_to_event_type(event_coordinator, mock_transport_adapter):
-    # Test subscribing to an event type
-    await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
-    assert "transport_id" in event_coordinator._transport_subscriptions
-    assert EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
+async def test_handle_event_default_behavior(event_coordinator):
+    """Test the default handle_event behavior (logs and does nothing else)."""
+    mock_originator = AsyncMock(spec=IEventParticipant)
+    mock_originator.get_participant_name.return_value = "MockOriginator"
+    event_type = EventTypes.STATUS
+    data = {"info": "some event"}
+
+    await event_coordinator.handle_event(event_type, data, mock_originator)
+    event_coordinator._logger.debug.assert_any_call(  # Use any_call due to other debug logs
+        f"EventCoordinator received internal event {event_type.value} from MockOriginator, but has no specific handler. Data: {data}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_unsubscribe_from_event_type(event_coordinator, mock_transport_adapter):
-    # Test unsubscribing from an event type
-    await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
-    await event_coordinator.unsubscribe_from_event_type("transport_id", EventTypes.STATUS)
-    assert "transport_id" in event_coordinator._transport_subscriptions
-    assert EventTypes.STATUS not in event_coordinator._transport_subscriptions["transport_id"]
+async def test_subscribe_to_event_type(event_coordinator, mock_event_mediator):
+    """Test subscribe_to_event_type delegates to mediator."""
+    transport_id = "transport1"
+    event_type = EventTypes.STATUS
+    await event_coordinator.subscribe_to_event_type(transport_id, event_type)
+    mock_event_mediator.subscribe_to_event_type_externally.assert_awaited_once_with(transport_id, event_type)
 
 
 @pytest.mark.asyncio
-async def test_update_transport_capabilities(event_coordinator, mock_transport_adapter):
-    # Test updating transport capabilities
-    await event_coordinator.update_transport_capabilities("transport_id", {EventTypes.STATUS})
-    assert "transport_id" in event_coordinator._transport_capabilities
-    assert EventTypes.STATUS in event_coordinator._transport_capabilities["transport_id"]
+async def test_unsubscribe_from_event_type(event_coordinator, mock_event_mediator):
+    """Test unsubscribe_from_event_type delegates to mediator."""
+    transport_id = "transport1"
+    event_type = EventTypes.STATUS
+    await event_coordinator.unsubscribe_from_event_type(transport_id, event_type)
+    mock_event_mediator.unsubscribe_from_event_type_externally.assert_awaited_once_with(transport_id, event_type)
 
 
 @pytest.mark.asyncio
-async def test_update_transport_subscriptions(event_coordinator, mock_transport_adapter):
-    # Test updating transport subscriptions
-    await event_coordinator.update_transport_subscriptions("transport_id", {EventTypes.STATUS})
-    assert "transport_id" in event_coordinator._transport_subscriptions
-    assert EventTypes.STATUS in event_coordinator._transport_subscriptions["transport_id"]
+async def test_update_transport_capabilities(event_coordinator, mock_event_mediator):
+    """Test update_transport_capabilities delegates to mediator."""
+    transport_id = "transport1"
+    capabilities = {EventTypes.PROGRESS, EventTypes.TOOL_RESULT}
+    await event_coordinator.update_transport_capabilities(transport_id, capabilities)
+    mock_event_mediator.update_transport_capabilities_externally.assert_awaited_once_with(transport_id, capabilities)
 
 
 @pytest.mark.asyncio
-async def test_broadcast_event(event_coordinator, mock_transport_adapter):
-    # Skip this test for now, will handle later in a separate PR
-    pytest.skip("This test needs further investigation")
-
-    # Test broadcasting an event - we'll fix this in a separate PR after review
-    # First subscribe to the event
-    await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
-
-    # Mock setup for the transport adapter
-    event_coordinator._transport_registry.list_adapter_types.return_value = ["sse"]
-    event_coordinator._transport_registry.get_adapter_class.return_value = True
-    event_coordinator._transport_registry.get_cached_adapter.return_value = mock_transport_adapter
-
-    # Add a method to mock_transport_adapter for should_receive_event
-    mock_transport_adapter.should_receive_event = AsyncMock(return_value=True)
-
-    # Broadcast the event - use test_mode=True for direct awaiting
-    await event_coordinator.broadcast_event(EventTypes.STATUS, {"data": "test"}, test_mode=True)
-
-    # Verify the mock transport's send_event was called
-    mock_transport_adapter.send_event.assert_awaited_once_with(EventTypes.STATUS, {"data": "test"})
+async def test_update_transport_subscriptions(event_coordinator, mock_event_mediator):
+    """Test update_transport_subscriptions delegates to mediator."""
+    transport_id = "transport1"
+    subscriptions = {EventTypes.HEARTBEAT}
+    await event_coordinator.update_transport_subscriptions(transport_id, subscriptions)
+    mock_event_mediator.update_transport_subscriptions_externally.assert_awaited_once_with(transport_id, subscriptions)
 
 
 @pytest.mark.asyncio
-async def test_send_event_to_transport(event_coordinator, mock_transport_adapter):
-    # Test sending an event to a specific transport
-    # Update the get_cached_adapter mock to return our mock_transport_adapter
-    event_coordinator._transport_registry.get_cached_adapter.return_value = mock_transport_adapter
+async def test_broadcast_event(event_coordinator, mock_event_mediator):
+    """Test broadcast_event delegates to mediator."""
+    event_type = EventTypes.STATUS
+    data = {"message": "global update"}
+    exclude_transport_id = "transport_excluded"
+    test_mode = True
 
-    # Call the method under test with test_mode=True for direct awaiting
-    await event_coordinator.send_event_to_transport("transport_id", EventTypes.STATUS, {"data": "test"}, test_mode=True)
-
-    # Verify the mock was called correctly
-    mock_transport_adapter.send_event.assert_awaited_once_with(EventTypes.STATUS, {"data": "test"})
+    await event_coordinator.broadcast_event(event_type, data, exclude_transport_id, test_mode)
+    mock_event_mediator.broadcast_event_externally.assert_awaited_once_with(
+        event_type, data, exclude_transport_id, test_mode=test_mode
+    )
 
 
 @pytest.mark.asyncio
-async def test_is_subscribed(event_coordinator, mock_transport_adapter):
-    # Test checking if a transport is subscribed to an event type
-    await event_coordinator.subscribe_to_event_type("transport_id", EventTypes.STATUS)
-    assert await event_coordinator.is_subscribed("transport_id", EventTypes.STATUS)
-    assert not await event_coordinator.is_subscribed("other_transport_id", EventTypes.STATUS)
+async def test_send_event_to_transport(event_coordinator, mock_event_mediator):
+    """Test send_event_to_transport delegates to mediator."""
+    transport_id = "transport_target"
+    event_type = EventTypes.TOOL_RESULT
+    data = {"result": "success"}
+    test_mode = False
+
+    await event_coordinator.send_event_to_transport(transport_id, event_type, data, test_mode)
+    mock_event_mediator.send_event_to_transport_externally.assert_awaited_once_with(
+        transport_id, event_type, data, test_mode=test_mode
+    )
+
+
+@pytest.mark.asyncio
+async def test_is_subscribed(event_coordinator, mock_event_mediator):
+    """Test is_subscribed delegates to mediator and returns its result."""
+    transport_id = "transport1"
+    event_type = EventTypes.PROGRESS
+    mock_event_mediator.is_subscribed_externally.return_value = True  # Mock mediator's response
+
+    result = await event_coordinator.is_subscribed(transport_id, event_type)
+
+    mock_event_mediator.is_subscribed_externally.assert_awaited_once_with(transport_id, event_type)
+    assert result is True
+    event_coordinator._logger.verbose.assert_any_call(  # Check for verbose logging
+        f"EventCoordinator: Mediator reports transport {transport_id} subscribed to {event_type.value}: True"
+    )
+
+    mock_event_mediator.is_subscribed_externally.return_value = False
+    result = await event_coordinator.is_subscribed(transport_id, event_type)
+    assert result is False
+    event_coordinator._logger.verbose.assert_any_call(
+        f"EventCoordinator: Mediator reports transport {transport_id} subscribed to {event_type.value}: False"
+    )

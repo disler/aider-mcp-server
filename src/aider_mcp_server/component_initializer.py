@@ -1,6 +1,8 @@
 import asyncio
 
 from aider_mcp_server.event_coordinator import EventCoordinator
+from aider_mcp_server.event_mediator import EventMediator
+from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
@@ -80,10 +82,29 @@ class ComponentInitializer:
         # TransportAdapterRegistry.get_instance() is guaranteed to return a valid instance or raise an exception
         self.logger.verbose("TransportAdapterRegistry initialized.")
 
+        # Initialize EventSystem
+        try:
+            self.logger.verbose("Initializing EventSystem...")
+            event_system = EventSystem(transport_registry)
+            self.logger.verbose("EventSystem initialized.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize EventSystem: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize EventSystem: {e}") from e
+
+        # Initialize EventMediator
+        try:
+            self.logger.verbose("Initializing EventMediator...")
+            event_mediator = EventMediator(self.logger_factory, event_system)
+            self.logger.verbose("EventMediator initialized.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize EventMediator: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize EventMediator: {e}") from e
+
         # Initialize EventCoordinator
         try:
             self.logger.verbose("Initializing EventCoordinator...")
-            event_coordinator = EventCoordinator(transport_registry, self.logger_factory)
+            # EventCoordinator now takes logger_factory and event_mediator
+            event_coordinator = EventCoordinator(self.logger_factory, event_mediator)
             self.logger.verbose("EventCoordinator initialized.")
         except Exception as e:
             self.logger.error(f"Failed to initialize EventCoordinator: {e}", exc_info=True)
