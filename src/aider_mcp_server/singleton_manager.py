@@ -1,14 +1,16 @@
 import asyncio
 import logging
-from typing import Type, TypeVar, Any, Callable, Awaitable, Optional, Dict
+from typing import Any, Awaitable, Callable, Dict, Optional, Type, TypeVar
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
+
 
 class SingletonManager:
     """
     Manages singleton instances with support for asynchronous initialization.
     """
+
     _instances: Dict[Type[Any], Any] = {}
     _locks: Dict[Type[Any], asyncio.Lock] = {}
 
@@ -61,12 +63,14 @@ class SingletonManager:
                         logger.error(f"Error creating instance for {target_cls.__name__}: {e}", exc_info=True)
                         raise
                 else:
-                    logger.debug(f"Instance for {target_cls.__name__} found after acquiring lock (created by another task).")
+                    logger.debug(
+                        f"Instance for {target_cls.__name__} found after acquiring lock (created by another task)."
+                    )
             logger.debug(f"Lock for {target_cls.__name__} released.")
         else:
             logger.debug(f"Returning existing instance for {target_cls.__name__}")
-            
-        return cls._instances[target_cls]  # type: ignore[return-value]
+
+        return cls._instances[target_cls]  # type: ignore[no-any-return]
 
     @classmethod
     def reset_instance(cls, target_cls: Type[Any]) -> None:

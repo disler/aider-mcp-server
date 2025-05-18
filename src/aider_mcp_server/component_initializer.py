@@ -14,14 +14,17 @@ class Components:
     A container for all major initialized components of the application.
     This structure helps in passing around the initialized components easily.
     """
-    def __init__(self,
-                 logger_factory: LoggerFactory,
-                 transport_registry: TransportAdapterRegistry,
-                 session_manager: SessionManager,
-                 handler_registry: HandlerRegistry,
-                 response_formatter: ResponseFormatter,
-                 event_coordinator: EventCoordinator,
-                 request_processor: RequestProcessor):
+
+    def __init__(
+        self,
+        logger_factory: LoggerFactory,
+        transport_registry: TransportAdapterRegistry,
+        session_manager: SessionManager,
+        handler_registry: HandlerRegistry,
+        response_formatter: ResponseFormatter,
+        event_coordinator: EventCoordinator,
+        request_processor: RequestProcessor,
+    ):
         self.logger_factory = logger_factory
         self.transport_registry = transport_registry
         self.session_manager = session_manager
@@ -35,9 +38,10 @@ class ComponentInitializer:
     """
     Responsible for initializing and wiring all major components of the application.
     """
+
     def __init__(self, logger_factory: LoggerFactory):
-        self.logger = logger_factory(__name__) # Logger for ComponentInitializer itself
-        self.logger_factory = logger_factory # To be passed to components that need it
+        self.logger = logger_factory(__name__)  # Logger for ComponentInitializer itself
+        self.logger_factory = logger_factory  # To be passed to components that need it
 
     async def initialize_components(self) -> Components:
         """
@@ -52,7 +56,7 @@ class ComponentInitializer:
         session_manager = SessionManager()
         self.logger.verbose("SessionManager initialized.")
 
-        handler_registry = HandlerRegistry() # Uses its own logger or fallback
+        handler_registry = HandlerRegistry()  # Uses its own logger or fallback
         self.logger.verbose("HandlerRegistry initialized.")
 
         response_formatter = ResponseFormatter(self.logger_factory)
@@ -73,9 +77,7 @@ class ComponentInitializer:
             self.logger.error(f"Failed to initialize TransportAdapterRegistry: {e}", exc_info=True)
             raise RuntimeError(f"Failed to initialize TransportAdapterRegistry: {e}") from e
 
-        if transport_registry is None:  # pragma: no cover  # Should not happen if get_instance is robust
-            self.logger.error("TransportAdapterRegistry initialization returned None.")
-            raise RuntimeError("TransportAdapterRegistry initialization returned None")
+        # TransportAdapterRegistry.get_instance() is guaranteed to return a valid instance or raise an exception
         self.logger.verbose("TransportAdapterRegistry initialized.")
 
         # Initialize EventCoordinator
@@ -110,5 +112,5 @@ class ComponentInitializer:
             handler_registry=handler_registry,
             response_formatter=response_formatter,
             event_coordinator=event_coordinator,
-            request_processor=request_processor
+            request_processor=request_processor,
         )

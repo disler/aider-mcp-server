@@ -2,15 +2,16 @@ from typing import Any, Dict, Optional, Type, Union
 
 from atoms.event_types import EventTypes
 
+from aider_mcp_server.component_initializer import ComponentInitializer, Components
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
+
 # TransportAdapterRegistry is now accessed via components
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.security import Permissions
+from aider_mcp_server.singleton_manager import SingletonManager
+
 # Other components (EventCoordinator, HandlerRegistry, RequestProcessor, ResponseFormatter, SessionManager)
 # are now accessed via the 'components' object passed during initialization.
-
-from aider_mcp_server.singleton_manager import SingletonManager
-from aider_mcp_server.component_initializer import ComponentInitializer, Components
 
 
 class ApplicationCoordinator:
@@ -43,7 +44,7 @@ class ApplicationCoordinator:
         self._response_formatter = components.response_formatter
         self._event_coordinator = components.event_coordinator
         self._request_processor = components.request_processor
-        
+
         self.logger.info("ApplicationCoordinator instance configured with components.")
 
     @classmethod
@@ -57,14 +58,14 @@ class ApplicationCoordinator:
 
         Returns:
             The singleton instance of ApplicationCoordinator.
-        
+
         Raises:
             RuntimeError: If initialization of the ApplicationCoordinator or its components fails.
         """
         return await SingletonManager.get_instance(
             cls,
             async_init_func=cls._create_and_initialize,
-            logger_factory=logger_factory  # Pass logger_factory to _create_and_initialize
+            logger_factory=logger_factory,  # Pass logger_factory to _create_and_initialize
         )
 
     @classmethod
@@ -78,18 +79,18 @@ class ApplicationCoordinator:
 
         Returns:
             A new, fully initialized ApplicationCoordinator instance.
-        
+
         Raises:
             RuntimeError: If component initialization fails.
         """
         # Use a specific logger for this critical initialization phase
         init_logger = logger_factory("ApplicationCoordinator.Initializer")
         init_logger.verbose("Starting ApplicationCoordinator and component initialization...")
-        
+
         try:
             initializer = ComponentInitializer(logger_factory)
             components = await initializer.initialize_components()
-            instance = cls(logger_factory, components) # Pass components to __init__
+            instance = cls(logger_factory, components)  # Pass components to __init__
             init_logger.info("ApplicationCoordinator instance created and initialized successfully.")
             return instance
         except Exception as e:
@@ -115,7 +116,7 @@ class ApplicationCoordinator:
     async def register_handler(
         self,
         operation_name: str,
-        handler: Type[Any], # Note: HandlerRegistry expects HandlerFunc, not Type[Any]
+        handler: Type[Any],  # Note: HandlerRegistry expects HandlerFunc, not Type[Any]
         required_permission: Optional[Permissions] = None,
     ) -> None:
         self.logger.verbose(f"Registering handler for operation: {operation_name}")
