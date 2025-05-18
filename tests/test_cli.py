@@ -35,9 +35,9 @@ def run_main(
     mock.MagicMock,
 ]:
     """Runs the CLI main function with mocked dependencies."""
-    mock_serve = mock.AsyncMock()  # Use AsyncMock for async functions
-    mock_serve_sse = mock.AsyncMock()
-    mock_serve_multi = mock.AsyncMock()
+    mock_serve = mock.MagicMock()  # Use MagicMock since this is just passing it to setattr
+    mock_serve_sse = mock.MagicMock()
+    mock_serve_multi = mock.MagicMock()
     mock_logger_instance = mock.MagicMock(spec=Logger)  # Mock the logger instance
     # Mock the get_logger function *where it's used* in __main__
     mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
@@ -411,9 +411,9 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     # No need to mock is_dir or is_git_repo as resolve(strict=True) fails first
 
     # Set up other mocks needed by run_main
-    mock_serve = mock.AsyncMock()
-    mock_serve_sse = mock.AsyncMock()
-    mock_serve_multi = mock.AsyncMock()
+    mock_serve = mock.MagicMock()
+    mock_serve_sse = mock.MagicMock()
+    mock_serve_multi = mock.MagicMock()
     mock_logger_instance = mock.MagicMock(spec=Logger)
     mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
     mock_is_git_repo = mock.MagicMock()  # Won't be called
