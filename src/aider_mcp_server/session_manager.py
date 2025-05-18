@@ -1,9 +1,9 @@
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, Optional, Set, Union
+from typing import Any, Dict, Optional, Set, Union, cast
 
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.security import Permissions
+from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, Permissions, SecurityContext
 
 # Module-level logger can be kept for module-level concerns if any,
 # but SessionManager will use its own instance.
@@ -118,7 +118,7 @@ class SessionManager:
                 self.logger.warning(f"Session for transport '{transport_id}' not found during permission check.")
                 return False
 
-    async def get_transport_security_context(self, transport_id: str) -> "SecurityContext":
+    async def get_transport_security_context(self, transport_id: str) -> SecurityContext:
         """
         Get the security context for a transport.
 
@@ -128,8 +128,6 @@ class SessionManager:
         Returns:
             SecurityContext for the transport or anonymous context if not found
         """
-        from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
-
         async with self.lock:
             if transport_id in self.sessions:
                 session = self.sessions[transport_id]
@@ -137,7 +135,9 @@ class SessionManager:
 
                 # Build security context from session
                 user_id = session.user_info.get("id") if session.user_info else None
-                context = SecurityContext(user_id=user_id, permissions=session.permissions, transport_id=transport_id)
+                # Cast permissions to the expected type for SecurityContext
+                permissions = cast(Set[Union[Permissions, str]], session.permissions)
+                context = SecurityContext(user_id=user_id, permissions=permissions, transport_id=transport_id)
                 self.logger.verbose(f"Retrieved security context for transport '{transport_id}': {context}")
                 return context
             else:
