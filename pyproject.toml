@@ -85,6 +85,24 @@ packages = ["src/aider_mcp_server"]
 dependencies = ["aider-mcp-server[dev]"]
 features = ["dev"]
 
+[tool.hatch.envs.dev.scripts]
+# Format and lint commands
+format = [
+    "isort . --profile black",
+    "ruff format .",
+    "ruff check --fix .",
+]
+lint = "pre-commit run --all-files"
+test = "pytest {args}"
+all = [
+    "format",
+    "lint",
+    "test",
+]
+# Pre-commit management
+install-hooks = "pre-commit install --install-hooks"
+update-hooks = "pre-commit autoupdate"
+
 [tool.hatch.envs.test]
 dependencies = ["aider-mcp-server[test]"]
 features = ["test"]
@@ -97,7 +115,8 @@ line-length = 120
 select = ["E", "F", "A", "B", "C", "Q", "S"]  # Removed "I" for isort
 ignore = ["E501"]  # Ignore line length
 # Ignore S101 (assert usage) in test files and exclude stubbed file from formatting
-per-file-ignores = {"tests/*" = ["S101"], "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]}
+# Allow S108 (/tmp usage) in test files
+per-file-ignores = {"tests/*" = ["S101"], "test_*.py" = ["S101", "S108"], "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]}
 
 [tool.ruff.format]
 quote-style = "double"
