@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 aider-mcp-server = "aider_mcp_server:main"
+setup-aider-mcp = "aider_mcp_server.scripts.setup_aider_mcp_cli:cli_main"
 
 [build-system]
 requires = ["hatchling"]
