@@ -5,27 +5,15 @@ import os
 import os.path
 import pathlib
 import subprocess
-from typing import Any, Dict, List, Optional, TypedDict, Union, cast
 
 # External imports - no stubs available
-import types
+from typing import Any, Dict, List, Optional, TypedDict, Union, cast
 
 from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
 
-
-# Create a subclass of InputOutput that overrides tool_error to do nothing
-class SilentInputOutput(InputOutput):
-    """A subclass of InputOutput that overrides tool_error to do nothing."""
-    
-    def tool_error(self, message="", strip=True):
-        """Override to do nothing with error messages."""
-        pass
-
-
-# Remove monkey patching since we're directly handling exceptions in code_with_aider
-
+# Internal imports
 from aider_mcp_server.atoms.diff_cache import DiffCache
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.tools.aider_compatibility import (
@@ -38,6 +26,15 @@ from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
 )
+
+
+# Create a subclass of InputOutput that overrides tool_error to do nothing
+class SilentInputOutput(InputOutput):  # type: ignore[misc]
+    """A subclass of InputOutput that overrides tool_error to do nothing."""
+
+    def tool_error(self, message: str = "", strip: bool = True) -> None:
+        """Override to do nothing with error messages."""
+        pass
 
 
 class ResponseDict(TypedDict, total=False):
@@ -517,7 +514,7 @@ def _setup_aider_coder(
     # Create no-op functions to replace output methods
     def noop_output(*args: Any, **kwargs: Any) -> None:
         pass
-        
+
     # Create an IO instance for the Coder that won't require interactive prompting
     # Add verbose=False to suppress progress output
     io = SilentInputOutput(
@@ -526,7 +523,7 @@ def _setup_aider_coder(
         fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
         chat_history_file=chat_history_file,  # Set chat history file if available
     )
-    
+
     io.yes_to_all = True  # Automatically say yes to all prompts
     io.dry_run = False  # Ensure we're not in dry-run mode
 
@@ -1110,7 +1107,7 @@ async def code_with_aider(
     except Exception as e:
         logger.exception(f"Critical Error in code_with_aider: {str(e)}")
         # Create error response since the previous one failed
-        error_response: ResponseDict = {
+        general_error_response: ResponseDict = {
             "success": False,
             "diff": f"Unhandled Error during Aider execution: {str(e)}\nFile contents after editing (git not used):\nNo meaningful changes detected.",
             "rate_limit_info": {
@@ -1120,7 +1117,7 @@ async def code_with_aider(
             },
             "is_cached_diff": False,  # Ensure this is False on error
         }
-        response = error_response
+        response = general_error_response
     finally:
         # Always restore stdout and stderr
         sys.stdout = old_stdout

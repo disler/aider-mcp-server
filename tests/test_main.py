@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-# Use absolute imports from the package root
-# Import main from cli instead of __main__ to prevent RuntimeWarning
-from aider_mcp_server.cli import main
 from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
 )
 from aider_mcp_server.atoms.logging import Logger  # Import Logger for spec
+
+# Use absolute imports from the package root
+# Import main from cli instead of __main__ to prevent RuntimeWarning
+from aider_mcp_server.cli import main
 
 
 @pytest.fixture

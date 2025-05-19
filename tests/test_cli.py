@@ -10,7 +10,6 @@ import pytest
 # Use absolute imports from the package root
 # Import the cli module for testing
 import aider_mcp_server.cli as cli_module
-from aider_mcp_server.cli import main
 from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,

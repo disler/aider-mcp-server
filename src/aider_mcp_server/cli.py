@@ -179,59 +179,28 @@ async def _run_server(server_mode: str, host: str, port: int, editor_model: str,
         raise ValueError(f"Unknown server mode: {server_mode}")
 
 
-def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
-    """Main entry point for the Aider MCP Server.
-
-    Returns:
-        int: Exit code (0 for success, non-zero for errors)
-    """
-    # Set up logging
-    get_logger_func = logger_factory or get_logger
-
-    # Parse command-line arguments early for logging setup
-    parser = _setup_argument_parser()
-    args: argparse.Namespace = parser.parse_args()
-
-    # Handle version flag before any other processing
-    if args.version:
-        # Import here to avoid circular imports
-        from aider_mcp_server import __version__
-
-        print(f"Aider MCP Server version {__version__}")
-        return 0
-
-    # Check for required arguments after handling version flag
-    if args.current_working_dir is None:
-        parser.error("the following arguments are required: --current-working-dir")
-        sys.exit(1)  # Use sys.exit for better test compatibility
-
+def _setup_logging(get_logger_func: Callable[..., LoggerProtocol], args: argparse.Namespace) -> LoggerProtocol:
+    """Setup and configure logging based on command line arguments."""
     # Determine log level based on verbose flag
     log_level_override = logging.DEBUG if args.verbose else None
 
     # Initialize logger with potential override from verbose flag
-    # This will reconfigure the logger instance obtained by name,
-    # affecting both this `log` and the global `logger` if they share the same name.
     log = get_logger_func(
         __name__,
         log_dir=log_dir_path,
         level=log_level_override,
         verbose=args.verbose,
     )
+
     if args.verbose:
         # This message confirms that args.verbose was processed.
         log.debug("Verbose logging enabled via -v/--verbose flag.")
 
-    # Validate working directory
-    abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
-    # _validate_working_directory now uses sys.exit directly, no need to catch ValueError
+    return log
 
-    # Validate server mode arguments
-    _validate_server_mode_args(log, args.server_mode, args.host, args.port)
 
-    # Set up signal handling
-    _setup_signal_handling(log, args.server_mode)
-
-    # Run the appropriate server
+def _run_server_by_mode(log: LoggerProtocol, args: argparse.Namespace, abs_cwd_str: str) -> None:
+    """Run the appropriate server based on specified mode."""
     try:
         if args.server_mode == "multi":
             log.info(f"Starting in Multi-Transport server mode (SSE on http://{args.host}:{args.port}, plus Stdio)")
@@ -276,5 +245,47 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
         sys.exit(1)  # Use sys.exit for better test compatibility
     finally:
         log.info(f"Aider MCP Server ({args.server_mode} mode) shutting down.")
+
+
+def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
+    """Main entry point for the Aider MCP Server.
+
+    Returns:
+        int: Exit code (0 for success, non-zero for errors)
+    """
+    # Set up logging
+    get_logger_func = logger_factory or get_logger
+
+    # Parse command-line arguments early for logging setup
+    parser = _setup_argument_parser()
+    args: argparse.Namespace = parser.parse_args()
+
+    # Handle version flag before any other processing
+    if args.version:
+        # Import here to avoid circular imports
+        from aider_mcp_server import __version__
+
+        print(f"Aider MCP Server version {__version__}")
+        return 0
+
+    # Check for required arguments after handling version flag
+    if args.current_working_dir is None:
+        parser.error("the following arguments are required: --current-working-dir")
+        sys.exit(1)  # Use sys.exit for better test compatibility
+
+    # Set up logging based on command line arguments
+    log = _setup_logging(get_logger_func, args)
+
+    # Validate working directory
+    abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
+
+    # Validate server mode arguments
+    _validate_server_mode_args(log, args.server_mode, args.host, args.port)
+
+    # Set up signal handling
+    _setup_signal_handling(log, args.server_mode)
+
+    # Run the appropriate server based on mode
+    _run_server_by_mode(log, args, abs_cwd_str)
 
     return 0
