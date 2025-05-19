@@ -22,6 +22,12 @@ class AICodeParams(BaseModel):
     relative_editable_files: List[str]
     relative_readonly_files: List[str] = Field(default_factory=list)
 
+class AIAskParams(BaseModel):
+    """Parameters for the aider_ai_ask tool."""
+    ai_coding_prompt: str
+    relative_readonly_files: List[str] = Field(default_factory=list)
+    model: Optional[str] = None
+
 class ListModelsParams(BaseModel):
     """Parameters for the list_models tool."""
     substring: str = ""
@@ -31,6 +37,11 @@ class AICodeResponse(MCPResponse):
     """Response for the aider_ai_code tool."""
     status: str  # 'success' or 'failure'
     message: Optional[str] = None
+
+class AIAskResponse(MCPResponse):
+    """Response for the aider_ai_ask tool."""
+    success: bool
+    response: str
 
 class ListModelsResponse(MCPResponse):
     """Response for the list_models tool."""
@@ -42,10 +53,15 @@ class AICodeRequest(MCPRequest):
     name: str = "aider_ai_code"
     parameters: AICodeParams
 
+class AIAskRequest(MCPRequest):
+    """Request for the aider_ai_ask tool."""
+    name: str = "aider_ai_ask"
+    parameters: AIAskParams
+
 class ListModelsRequest(MCPRequest):
     """Request for the list_models tool."""
     name: str = "list_models"
     parameters: ListModelsParams
 
 # Union type for all possible MCP responses
-MCPToolResponse = Union[AICodeResponse, ListModelsResponse, MCPErrorResponse]
+MCPToolResponse = Union[AICodeResponse, AIAskResponse, ListModelsResponse, MCPErrorResponse]
