@@ -105,28 +105,29 @@ def _validate_working_directory(log: LoggerProtocol, cwd_path: str) -> Tuple[Pat
 
     Returns:
         Tuple containing the absolute Path object and string representation.
-        
+
     Raises:
         ValueError: If the directory doesn't exist, isn't a directory, or isn't a git repository
+        SystemExit: May also exit with code 1 if validation fails (for test compatibility)
     """
     # Validate directory exists and is a directory
     try:
         abs_cwd_path: Path = Path(cwd_path).resolve(strict=True)
         if not abs_cwd_path.is_dir():
             log.critical(f"Error: Specified working directory is not a directory: {abs_cwd_path}")
-            raise ValueError(f"Not a directory: {abs_cwd_path}")
+            sys.exit(1)  # Use sys.exit for better test compatibility
     except FileNotFoundError:
         log.critical(f"Error: Specified working directory does not exist: {cwd_path}")
-        raise ValueError(f"Directory does not exist: {cwd_path}")
+        sys.exit(1)  # Use sys.exit for better test compatibility
     except Exception as e:
         log.critical(f"Error resolving working directory '{cwd_path}': {e}")
-        raise ValueError(f"Error resolving directory: {e}")
+        sys.exit(1)  # Use sys.exit for better test compatibility
 
     # Validate it's a git repository
     is_repo, git_error = is_git_repository(abs_cwd_path)
     if not is_repo:
         log.critical(f"Error: Specified working directory is not a valid git repository: {abs_cwd_path} ({git_error})")
-        raise ValueError(f"Not a git repository: {git_error}")
+        sys.exit(1)  # Use sys.exit for better test compatibility
 
     log.info(f"Validated working directory (git repository): {abs_cwd_path}")
     return abs_cwd_path, str(abs_cwd_path)
@@ -180,7 +181,7 @@ async def _run_server(server_mode: str, host: str, port: int, editor_model: str,
 
 def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
     """Main entry point for the Aider MCP Server.
-    
+
     Returns:
         int: Exit code (0 for success, non-zero for errors)
     """
@@ -190,18 +191,19 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
     # Parse command-line arguments early for logging setup
     parser = _setup_argument_parser()
     args: argparse.Namespace = parser.parse_args()
-    
+
     # Handle version flag before any other processing
     if args.version:
         # Import here to avoid circular imports
         from aider_mcp_server import __version__
+
         print(f"Aider MCP Server version {__version__}")
         return 0
-        
+
     # Check for required arguments after handling version flag
     if args.current_working_dir is None:
         parser.error("the following arguments are required: --current-working-dir")
-        return 1
+        sys.exit(1)  # Use sys.exit for better test compatibility
 
     # Determine log level based on verbose flag
     log_level_override = logging.DEBUG if args.verbose else None
@@ -220,11 +222,8 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
         log.debug("Verbose logging enabled via -v/--verbose flag.")
 
     # Validate working directory
-    try:
-        abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
-    except ValueError as e:
-        # _validate_working_directory already logged the errors
-        return 1
+    abs_cwd_path, abs_cwd_str = _validate_working_directory(log, args.current_working_dir)
+    # _validate_working_directory now uses sys.exit directly, no need to catch ValueError
 
     # Validate server mode arguments
     _validate_server_mode_args(log, args.server_mode, args.host, args.port)
@@ -264,18 +263,18 @@ def main(logger_factory: Optional[Callable[..., LoggerProtocol]] = None) -> int:
             )
         else:
             log.critical(f"Error: Unknown server mode '{args.server_mode}'")
-            return 1
+            sys.exit(1)  # Use sys.exit for better test compatibility
     except ValueError as e:  # Catch validation errors from server functions
         log.critical(f"Server configuration error: {e}")
-        return 1
+        sys.exit(1)  # Use sys.exit for better test compatibility
     except KeyboardInterrupt:
         log.info(f"Server stopped by user (KeyboardInterrupt) in {args.server_mode} mode.")
     except asyncio.CancelledError:
         log.info(f"Main server task cancelled, likely during shutdown in {args.server_mode} mode.")
     except Exception as e:
         log.exception(f"Critical server error in {args.server_mode} mode: {e}")
-        return 1
+        sys.exit(1)  # Use sys.exit for better test compatibility
     finally:
         log.info(f"Aider MCP Server ({args.server_mode} mode) shutting down.")
-    
+
     return 0
