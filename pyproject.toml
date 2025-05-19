@@ -32,6 +32,7 @@ dependencies = [
 
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
+mcp-aider = "aider_mcp_server:main"
 
 [project.optional-dependencies]
 dev = [
