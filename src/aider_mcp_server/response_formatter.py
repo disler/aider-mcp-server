@@ -4,6 +4,8 @@ Response formatter for standardizing response formatting for different transport
 
 from typing import Any, Dict, Optional
 
+from aider_mcp_server.application_errors import BaseApplicationError
+from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
 
 
@@ -17,14 +19,16 @@ class ResponseFormatter:
     - Ensures consistent response structures
     """
 
-    def __init__(self, logger_factory: LoggerFactory) -> None:
+    def __init__(self, logger_factory: LoggerFactory, error_formatter: ErrorResponseFormatter) -> None:
         """
         Initialize the ResponseFormatter.
 
         Args:
             logger_factory: Factory function to create loggers
+            error_formatter: Formatter for standardizing error responses
         """
         self._logger = logger_factory(__name__)
+        self._error_formatter = error_formatter
 
     def format_success_response(self, request_id: str, transport_id: str, result: Dict[str, Any]) -> OperationResult:
         """
@@ -70,22 +74,48 @@ class ResponseFormatter:
         """
         self._logger.debug(f"Formatting error response for request {request_id}: {error_message}")
 
-        error_data: Dict[str, Any] = {
-            "message": error_message,
-        }
+        if isinstance(error_message, BaseApplicationError):
+            error_response = self._error_formatter.format_exception_to_response(error_message)
+        else:
+            error_data: Dict[str, Any] = {
+                "message": error_message,
+            }
 
-        if error_code:
-            error_data["code"] = error_code
+            if error_code:
+                error_data["code"] = error_code
 
-        if details:
-            error_data["details"] = details
+            if details:
+                error_data["details"] = details
 
-        error_response: OperationResult = {
-            "success": False,
-            "request_id": request_id,
-            "transport_id": transport_id,
-            "error": error_data,
-        }
+            error_response = {
+                "success": False,
+                "error": error_data,
+            }
+
+        error_response["request_id"] = request_id
+        error_response["transport_id"] = transport_id
+
+        return error_response
+
+    def format_exception_response(
+        self, request_id: str, transport_id: str, exc: Exception
+    ) -> OperationResult:
+        """
+        Format an error response from an exception.
+
+        Args:
+            request_id: Unique identifier for the request
+            transport_id: Identifier for the transport that made the request 
+            exc: The exception to format into a response
+
+        Returns:
+            Formatted operation result with error information
+        """
+        self._logger.exception(f"Formatting exception response for request {request_id}")
+        
+        error_response = self._error_formatter.format_exception_to_response(exc)
+        error_response["request_id"] = request_id
+        error_response["transport_id"] = transport_id
 
         return error_response
 

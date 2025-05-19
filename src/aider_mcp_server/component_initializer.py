@@ -10,6 +10,7 @@ from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.request_processor import RequestProcessor
+from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
@@ -69,7 +70,10 @@ class ComponentInitializer:
         handler_registry = HandlerRegistry()  # Uses its own logger or fallback
         self.logger.verbose("HandlerRegistry initialized.")
 
-        response_formatter = ResponseFormatter(self.logger_factory)
+        error_formatter = ErrorResponseFormatter(self.logger_factory)
+        self.logger.verbose("ErrorResponseFormatter initialized.")
+
+        response_formatter = ResponseFormatter(self.logger_factory, error_formatter)
         self.logger.verbose("ResponseFormatter initialized.")
 
         # Initialize AuthenticationProvider
@@ -159,6 +163,7 @@ class ComponentInitializer:
             session_manager=session_manager,
             handler_registry=handler_registry,
             response_formatter=response_formatter,
+            error_formatter=error_formatter,
             event_coordinator=event_coordinator,
             request_processor=request_processor,
             security_service=security_service,

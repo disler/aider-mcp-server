@@ -1,8 +1,8 @@
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
-from aider_mcp_server.application_errors import BaseApplicationError
-
 from pydantic import BaseModel, Field
+
+from aider_mcp_server.application_errors import BaseApplicationError
 
 T = TypeVar("T")
 
@@ -31,13 +31,13 @@ class MCPErrorResponse(MCPResponse):
         details (Optional[Dict[str, Any]]): Additional error details for debugging.
     """
 
-    error_code: str
-    message: str = Field(alias="error")
+    error_code: str 
+    error: str
     details: Optional[Dict[str, Any]] = None
 
     @property
-    def error(self) -> str:
-        return self.message
+    def message(self) -> str:
+        return self.error
 
     @classmethod
     def from_exception(cls, exc: Exception) -> "MCPErrorResponse":
@@ -59,7 +59,7 @@ class MCPErrorResponse(MCPResponse):
         else:
             return cls(
                 error_code="internal_server_error",
-                error=str(exc),
+                error="An internal error occurred",
                 details={},
             )
 
