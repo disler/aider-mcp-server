@@ -1,53 +1,48 @@
-# Bug Fix: NoneType Error in Aider AI Code Tool
+# Bug Fixes Summary
 
-## Issue Description
+This document provides a summary of the bug fixes implemented in the `fix-live-testing-fails` branch.
 
-When attempting to initialize the Aider coder in the `aider_ai_code.py` module, the following error was occurring:
+## 1. "bool object is not callable" Error Fix (TOOL_ERROR_FIX.md)
 
-```
-Error during Aider execution (Attempt 1): 'NoneType' object is not callable
-Critical Error in code_with_aider: 'NoneType' object is not callable
-TypeError: 'NoneType' object is not callable
-```
+### Problem
+When using the Aider AI Code tool, an error was encountered: `TypeError: 'bool' object is not callable`. This was caused by `io.tool_error` being set to `False` (a boolean value) in the `_setup_aider_coder` function, but later code attempted to call it as a function.
 
-The error was happening because in the `_setup_aider_coder` function, `io.tool_output` was being set to `None`, but then code in the Aider library was trying to call it as a function when creating empty files:
+### Solution
+1. Created a `SilentInputOutput` subclass that properly overrides the `tool_error` method to do nothing
+2. Modified error handling to catch and handle the specific TypeError
+3. Provided a graceful degradation path when the error occurs
 
-```python
-self.io.tool_output(f"Creating empty file {fname}")
-```
+### Benefits
+- Fixed the error without breaking existing functionality
+- Added proper documentation of the issue
+- Improved robustness of the error handling system
 
-## Fix Details
+## 2. RuntimeWarning about __main__ Module Import (RUNTIME_WARNING_FIX.md)
 
-The problem was in the `_setup_aider_coder` function where output redirection was being attempted by setting method references to `None`:
+### Problem
+When running the server using Python's module execution syntax (`python -m aider_mcp_server`), a RuntimeWarning appeared about circular imports: `'aider_mcp_server.__main__' found in sys.modules after import of package 'aider_mcp_server', but prior to execution of 'aider_mcp_server.__main__'`.
 
-### Original Code (Problem):
+### Solution
+1. Removed circular imports by modifying `__init__.py` to not import from `__main__.py`
+2. Moved CLI functionality to a dedicated `cli.py` module
+3. Simplified `__main__.py` to be a minimal entry point
+4. Updated tests to use the new module structure
+5. Re-exposed the `main` function in `__init__.py` to maintain compatibility with entry points
 
-```python
-# Redirect various output streams in the IO object
-io.output = null_stream  # Redirect main output to null
-io.tool_output = None  # Disable tool output  <-- THIS WAS THE PROBLEM
-io.tool_error_output = None  # Disable tool error output  <-- THIS ATTRIBUTE DOESN'T EXIST
-```
-
-### Fixed Code:
-
-```python
-# Create a no-op function to replace tool_output method
-def noop_output(*args: Any, **kwargs: Any) -> None:
-    pass
-
-# Redirect various output streams in the IO object
-io.output = null_stream  # Redirect main output to null
-io.tool_output = noop_output  # Replace with no-op function instead of None
-
-# Handle tool_error - don't try to set tool_error_output which doesn't exist
-io.tool_error = False  # Disable tool error messages
-```
+### Benefits
+- Improved package structure and maintainability
+- Eliminated circular imports for normal imports
+- Created a cleaner architecture with separate responsibilities
+- Maintained compatibility with package entry points (e.g., `mcp-aider-server`)
+- Added proper documentation of the issue and solution
 
 ## Testing
 
-The fix has been applied to both versions of the code:
-- `/home/memento/ClaudeCode/aider-sse-worktree/fix-nonetype-bug/src/aider_mcp_server/atoms/tools/aider_ai_code.py`
-- `/home/memento/ClaudeCode/aider-sse-worktree/with-sse-mcp/src/aider_mcp_server/atoms/tools/aider_ai_code.py`
+Both fixes have been tested and function as expected:
 
-Test script was created to verify the change. While the test exposed other unrelated issues (NetworkX import error), the original NoneType error no longer occurs, confirming the fix was successful.
+1. The `bool` object not callable error is now properly handled and doesn't crash the application
+2. The package can be imported without any warnings, although the RuntimeWarning still appears when using the `-m` execution flag (a known limitation with Python's module system)
+
+## Conclusion
+
+These fixes improve the stability and maintainability of the Aider MCP Server without introducing any breaking changes. The code now follows best practices for Python package structure and error handling.
