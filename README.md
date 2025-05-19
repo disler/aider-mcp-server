@@ -80,6 +80,9 @@ uv run pytest src/aider_mcp_server/tests/atoms/tools/test_aider_list_models.py
 
 # Test AI coding
 uv run pytest src/aider_mcp_server/tests/atoms/tools/test_aider_ai_code.py
+
+# Test AI ask mode
+uv run pytest src/aider_mcp_server/tests/atoms/tools/test_aider_ai_ask.py
 ```
 
 Note: The AI coding tests require a valid API key for the Gemini model. Make sure to set it in your `.env` file before running the tests.
@@ -139,7 +142,12 @@ This MCP server provides the following functionalities:
    - Uses Aider to implement the requested changes
    - Returns success or failure
 
-2. **List available models**:
+2. **Request explanations in ask mode**:
+   - Run Aider in ask mode to explain code or answer questions
+   - Provides reference to relevant files without modifying them
+   - Returns detailed explanations
+
+3. **List available models**:
    - Provides a list of models matching a substring
    - Useful for discovering supported models
 
@@ -186,7 +194,42 @@ Result:
   - `success`: boolean - Whether the operation was successful.
   - `diff`: string - The diff of the changes made to the file.
 
-### 2. `list_models`
+### 2. `aider_ai_ask`
+
+This tool allows you to run Aider in ask mode to explain code or answer questions without modifying any files.
+
+**Parameters:**
+
+- `ai_coding_prompt` (string, required): The question or explanation request for Aider.
+- `relative_readonly_files` (list of strings, optional): A list of file paths (relative to the `current_working_dir`) that Aider can read for context. These files provide relevant context for the question but cannot be modified. Defaults to an empty list `[]`.
+- `model` (string, optional): The AI model Aider should use for the explanation. Defaults to `"gemini/gemini-2.5-pro-exp-03-25"`. You can use the `list_models` tool to find other available models.
+
+**Example Usage (within an MCP request):**
+
+Claude Code Prompt:
+```
+Use the Aider AI Ask tool to: Explain how the calculate_tax function works in tax_calculator.py.
+```
+
+Result:
+```json
+{
+  "name": "aider_ai_ask",
+  "parameters": {
+    "ai_coding_prompt": "Explain how the calculate_tax function works in tax_calculator.py.",
+    "relative_readonly_files": ["src/tax_calculator.py"],
+    "model": "openai/gpt-4o"
+  }
+}
+```
+
+**Returns:**
+
+- A simple dict: {success, response}
+  - `success`: boolean - Whether the operation was successful.
+  - `response`: string - The detailed response from Aider answering the question or providing the explanation.
+
+### 3. `list_models`
 
 This tool lists available AI models supported by Aider that match a given substring.
 
@@ -221,7 +264,7 @@ The server is structured as follows:
 
 - **Server layer**: Handles MCP protocol communication
 - **Atoms layer**: Individual, pure functional components
-  - **Tools**: Specific capabilities (AI coding, listing models)
+  - **Tools**: Specific capabilities (AI coding, AI ask mode, listing models)
   - **Utils**: Constants and helper functions
   - **Data Types**: Type definitions using Pydantic
 
@@ -250,7 +293,9 @@ The project is organized into the following main directories and files:
 │       │   ├── logging.py    # Custom logging setup
 │       │   ├── tools         # Individual tool implementations
 │       │   │   ├── __init__.py
+│       │   │   ├── aider_common.py # Shared code between Aider tools
 │       │   │   ├── aider_ai_code.py # Logic for the aider_ai_code tool
+│       │   │   ├── aider_ai_ask.py # Logic for the aider_ai_ask tool
 │       │   │   └── aider_list_models.py # Logic for the list_models tool
 │       │   └── utils.py      # Utility functions and constants (like default models)
 │       ├── server.py         # MCP server logic, tool registration, request handling
@@ -262,16 +307,16 @@ The project is organized into the following main directories and files:
 │               └── tools     # Tests for the tools
 │                   ├── __init__.py
 │                   ├── test_aider_ai_code.py # Tests for AI coding tool
+│                   ├── test_aider_ai_ask.py # Tests for AI ask tool
 │                   └── test_aider_list_models.py # Tests for model listing tool
 ```
 
 - **`src/aider_mcp_server`**: Contains the main application code.
   - **`atoms`**: Holds the fundamental building blocks. These are designed to be pure functions or simple classes with minimal dependencies.
-    - **`tools`**: Each file here implements the core logic for a specific MCP tool (`aider_ai_code`, `list_models`).
+    - **`tools`**: Each file here implements the core logic for a specific MCP tool (`aider_ai_code`, `aider_ai_ask`, `list_models`).
     - **`utils.py`**: Contains shared constants like default model names.
     - **`data_types.py`**: Defines Pydantic models for request/response structures, ensuring data validation.
     - **`logging.py`**: Sets up a consistent logging format for console and file output.
   - **`server.py`**: Orchestrates the MCP server. It initializes the server, registers the tools defined in the `atoms/tools` directory, handles incoming requests, routes them to the appropriate tool logic, and sends back responses according to the MCP protocol.
   - **`__main__.py`**: Provides the command-line interface entry point (`aider-mcp-server`), parsing arguments like `--editor-model` and starting the server defined in `server.py`.
   - **`tests`**: Contains tests mirroring the structure of the `src` directory, ensuring that each component (especially atoms) works as expected.
-
