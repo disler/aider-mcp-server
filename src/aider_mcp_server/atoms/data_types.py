@@ -1,4 +1,6 @@
-from typing import Generic, List, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+
+from aider_mcp_server.application_errors import BaseApplicationError
 
 from pydantic import BaseModel, Field
 
@@ -20,9 +22,46 @@ class MCPResponse(BaseModel):
 
 
 class MCPErrorResponse(MCPResponse):
-    """Error response for MCP protocol."""
+    """
+    Error response for MCP protocol.
 
-    error: str
+    Attributes:
+        error_code (str): A unique code identifying the error.
+        message (str): A message describing the error, suitable for end users.
+        details (Optional[Dict[str, Any]]): Additional error details for debugging.
+    """
+
+    error_code: str
+    message: str = Field(alias="error")
+    details: Optional[Dict[str, Any]] = None
+
+    @property
+    def error(self) -> str:
+        return self.message
+
+    @classmethod
+    def from_exception(cls, exc: Exception) -> "MCPErrorResponse":
+        """
+        Create an MCPErrorResponse from an exception.
+
+        Args:
+            exc (Exception): The exception to convert.
+
+        Returns:
+            MCPErrorResponse: The error response created from the exception.
+        """
+        if isinstance(exc, BaseApplicationError):
+            return cls(
+                error_code=exc.error_code,
+                error=exc.user_friendly_message,
+                details=exc.details,
+            )
+        else:
+            return cls(
+                error_code="internal_server_error",
+                error=str(exc),
+                details={},
+            )
 
 
 # Tool-specific request parameter models
