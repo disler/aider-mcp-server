@@ -4,7 +4,6 @@ Custom exception hierarchy for the application.
 
 from typing import Any, Dict, Optional
 
-from .authentication_errors import AuthenticationError
 
 
 class BaseApplicationError(Exception):
@@ -57,13 +56,13 @@ class ProcessingError(BaseApplicationError):
     pass
 
 
-class ConnectionError(TransportError):
+class ConnectionFailedError(TransportError):
     """Raised when a connection cannot be established or is lost."""
 
     pass
 
 
-class TimeoutError(TransportError):
+class OperationTimeoutError(TransportError):
     """Raised when an operation times out."""
 
     pass
@@ -72,6 +71,12 @@ class TimeoutError(TransportError):
 class MessageFormatError(TransportError):
     """Raised when a message is malformed or cannot be parsed."""
 
+    pass
+
+
+class AuthenticationError(SecurityError):
+    """Raised when authentication fails."""
+    
     pass
 
 

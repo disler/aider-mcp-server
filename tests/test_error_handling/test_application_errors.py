@@ -1,14 +1,15 @@
 import pytest
+
 from aider_mcp_server.application_errors import (
-    BaseApplicationError,
-    TransportError,
-    SecurityError,
-    ValidationError,
-    ProcessingError,
-    ConnectionError,
     AuthorizationError,
+    BaseApplicationError,
+    ConnectionFailedError,
     InputValidationError,
+    ProcessingError,
     ResourceNotFoundError,
+    SecurityError,
+    TransportError,
+    ValidationError,
 )
 from aider_mcp_server.atoms.data_types import MCPErrorResponse
 
@@ -26,9 +27,7 @@ def test_base_application_error():
     }
 
 
-@pytest.mark.parametrize(
-    "error_class", [TransportError, SecurityError, ValidationError, ProcessingError]
-)
+@pytest.mark.parametrize("error_class", [TransportError, SecurityError, ValidationError, ProcessingError])
 def test_main_error_categories(error_class):
     """Test main error category classes."""
     error = error_class("test_code", "Test message")
@@ -40,7 +39,7 @@ def test_main_error_categories(error_class):
 @pytest.mark.parametrize(
     "error_class,parent_class",
     [
-        (ConnectionError, TransportError),
+        (ConnectionFailedError, TransportError),
         (AuthorizationError, SecurityError),
         (InputValidationError, ValidationError),
         (ResourceNotFoundError, ProcessingError),
