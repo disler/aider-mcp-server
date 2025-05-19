@@ -8,17 +8,16 @@ from unittest import mock
 import pytest
 
 # Use absolute imports from the package root
-from aider_mcp_server import __main__ as cli_main
+# Import the cli module for testing
+import aider_mcp_server.cli as cli_module
 from aider_mcp_server.atoms.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
 
-# Import get_logger from atoms.logging, as __main__ imports it from there
+# Import Logger for mocking
 from aider_mcp_server.atoms.logging import Logger
-
-# Import is_git_repository from server, as __main__ imports it from there
 
 
 # Helper function to run the main function with specific args
@@ -58,10 +57,10 @@ def run_main(
     mock_asyncio_run.side_effect = run_sync
 
     # Patch the functions and classes used within __main__.py's scope
-    monkeypatch.setattr(cli_main, "serve", mock_serve)
-    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
-    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
-    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
+    monkeypatch.setattr(cli_module, "serve", mock_serve)
+    monkeypatch.setattr(cli_module, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_module, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_module, "get_logger", mock_get_logger)
     # Patch Path.is_dir globally as __main__ uses Path objects now
     monkeypatch.setattr(Path, "is_dir", mock_path_is_dir)
 
@@ -77,7 +76,7 @@ def run_main(
 
     monkeypatch.setattr(Path, "resolve", simple_resolve)
 
-    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(cli_module, "is_git_repository", mock_is_git_repo)
     monkeypatch.setattr(sys, "exit", mock_exit)
     monkeypatch.setattr(asyncio, "run", mock_asyncio_run)  # Mock asyncio.run
 
@@ -85,7 +84,7 @@ def run_main(
     monkeypatch.setattr(sys, "argv", ["script_name"] + args)
 
     try:
-        cli_main.main()
+        cli_module.main()
     except SystemExit:
         pass  # Capture SystemExit raised by mock_exit or argparse error
 
@@ -420,18 +419,18 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     mock_exit = mock.MagicMock(side_effect=SystemExit)
     mock_asyncio_run = mock.MagicMock()  # Mock asyncio.run
 
-    monkeypatch.setattr(cli_main, "serve", mock_serve)
-    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
-    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
-    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
-    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(cli_module, "serve", mock_serve)
+    monkeypatch.setattr(cli_module, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_module, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_module, "get_logger", mock_get_logger)
+    monkeypatch.setattr(cli_module, "is_git_repository", mock_is_git_repo)
     monkeypatch.setattr(sys, "exit", mock_exit)
     monkeypatch.setattr(asyncio, "run", mock_asyncio_run)  # Mock asyncio.run
     monkeypatch.setattr(sys, "argv", ["script_name"] + args)
 
-    # Run main, expecting it to exit
+    # Run cli_module, expecting it to exit
     with pytest.raises(SystemExit):
-        cli_main.main()
+        cli_module.main()
 
     # Assertions
     mock_logger_instance.critical.assert_called_once()
@@ -467,10 +466,10 @@ def test_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     mock_asyncio_run = mock.MagicMock()  # Mock asyncio.run
 
     # Patch necessary components
-    monkeypatch.setattr(cli_main, "serve", mock_serve)
-    monkeypatch.setattr(cli_main, "serve_sse", mock_serve_sse)
-    monkeypatch.setattr(cli_main, "serve_multi_transport", mock_serve_multi)
-    monkeypatch.setattr(cli_main, "get_logger", mock_get_logger)
+    monkeypatch.setattr(cli_module, "serve", mock_serve)
+    monkeypatch.setattr(cli_module, "serve_sse", mock_serve_sse)
+    monkeypatch.setattr(cli_module, "serve_multi_transport", mock_serve_multi)
+    monkeypatch.setattr(cli_module, "get_logger", mock_get_logger)
     # Patch Path.resolve to handle the tmp_path correctly
     original_resolve = Path.resolve
 
@@ -479,14 +478,14 @@ def test_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
         return original_resolve(self, strict)
 
     monkeypatch.setattr(Path, "resolve", specific_resolve)
-    monkeypatch.setattr(cli_main, "is_git_repository", mock_is_git_repo)
+    monkeypatch.setattr(cli_module, "is_git_repository", mock_is_git_repo)
     monkeypatch.setattr(sys, "exit", mock_exit)
     monkeypatch.setattr(asyncio, "run", mock_asyncio_run)  # Mock asyncio.run
     monkeypatch.setattr(sys, "argv", ["script_name"] + args)
 
-    # Run main, expecting it to exit
+    # Run cli_module, expecting it to exit
     with pytest.raises(SystemExit):
-        cli_main.main()
+        cli_module.main()
 
     # Assertions
     # Check that is_git_repository was called with the *resolved* Path object

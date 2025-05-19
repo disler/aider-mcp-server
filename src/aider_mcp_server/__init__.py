@@ -8,8 +8,8 @@ supporting multiple transport mechanisms like Standard I/O (stdio) and Server-Se
 import importlib.metadata
 import logging
 
-# Use absolute imports from the package root
-from .__main__ import main as main
+# Import main from cli.py instead of __main__.py to avoid circular imports
+from .cli import main  # Import main function for entry point
 from .interfaces.transport_adapter import ITransportAdapter, TransportAdapterBase
 from .multi_transport_server import serve_multi_transport
 from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
@@ -33,7 +33,7 @@ except importlib.metadata.PackageNotFoundError:
 
 # Define the public API of the package
 __all__ = [
-    "main",
+    "main",  # Re-added to support entry points in setup.py
     "serve_sse",
     "serve_multi_transport",
     "ApplicationCoordinator",
