@@ -14,6 +14,7 @@ from mcp.types import Tool, TextContent
 from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.atoms.tools.aider_ai_ask import ask_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
 
 # Configure logging
@@ -46,6 +47,30 @@ AIDER_AI_CODE_TOOL = Tool(
             },
         },
         "required": ["ai_coding_prompt", "relative_editable_files"],
+    },
+)
+
+AIDER_AI_ASK_TOOL = Tool(
+    name="aider_ai_ask",
+    description="Run Aider in ask mode to explain code or answer questions without modifying files",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "ai_coding_prompt": {
+                "type": "string",
+                "description": "The prompt for the AI to execute",
+            },
+            "relative_readonly_files": {
+                "type": "array",
+                "description": "LIST of relative paths to files that can be read but not edited, add files that are relevant for the question or explanation",
+                "items": {"type": "string"},
+            },
+            "model": {
+                "type": "string",
+                "description": "The primary AI model Aider should use for the explanation, leave blank unless model is specified in the request",
+            },
+        },
+        "required": ["ai_coding_prompt"],
     },
 )
 
@@ -176,6 +201,72 @@ def process_aider_ai_code_request(
     }
 
 
+def process_aider_ai_ask_request(
+    params: Dict[str, Any],
+    editor_model: str,
+    current_working_dir: str,
+) -> Dict[str, Any]:
+    """
+    Process an aider_ai_ask request.
+
+    Args:
+        params (Dict[str, Any]): The request parameters.
+        editor_model (str): The editor model to use.
+        current_working_dir (str): The current working directory where git repo is located.
+
+    Returns:
+        Dict[str, Any]: The response data.
+    """
+    ai_coding_prompt = params.get("ai_coding_prompt", "")
+    relative_readonly_files = params.get("relative_readonly_files", [])
+
+    # Ensure relative_readonly_files is a list
+    if isinstance(relative_readonly_files, str):
+        logger.info(
+            f"Converting single readonly file string to list: {relative_readonly_files}"
+        )
+        relative_readonly_files = [relative_readonly_files]
+
+    # Get the model from request parameters if provided
+    request_model = params.get("model")
+
+    # Log the request details
+    logger.info(f"AI Ask Request: Prompt: '{ai_coding_prompt}'")
+    logger.info(f"Readonly files: {relative_readonly_files}")
+    logger.info(f"Editor model: {editor_model}")
+    if request_model:
+        logger.info(f"Request-specified model: {request_model}")
+
+    # Use the model specified in the request if provided, otherwise use the editor model
+    model_to_use = request_model if request_model else editor_model
+
+    # Use the passed-in current_working_dir parameter
+    logger.info(f"Using working directory for ask_aider: {current_working_dir}")
+
+    result_json = ask_aider(
+        ai_coding_prompt=ai_coding_prompt,
+        relative_readonly_files=relative_readonly_files,
+        model=model_to_use,
+        working_dir=current_working_dir,
+    )
+
+    # Parse the JSON string result
+    try:
+        result_dict = json.loads(result_json)
+    except json.JSONDecodeError as e:
+        logger.error(f"Error: Failed to parse JSON response from ask_aider: {e}")
+        logger.error(f"Received raw response: {result_json}")
+        return {"error": "Failed to process AI ask result"}
+
+    logger.info(
+        f"AI Ask Request Completed. Success: {result_dict.get('success', False)}"
+    )
+    return {
+        "success": result_dict.get("success", False),
+        "response": result_dict.get("response", "Error retrieving response"),
+    }
+
+
 def process_list_models_request(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process a list_models request.
@@ -248,6 +339,11 @@ def handle_request(
             return process_aider_ai_code_request(
                 params, editor_model, current_working_dir
             )
+        
+        elif request_type == "aider_ai_ask":
+            return process_aider_ai_ask_request(
+                params, editor_model, current_working_dir
+            )
 
         elif request_type == "list_models":
             return process_list_models_request(params)
@@ -313,7 +409,7 @@ async def serve(
     @server.list_tools()
     async def list_tools() -> List[Tool]:
         """Register all available tools with the MCP server."""
-        return [AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL]
+        return [AIDER_AI_CODE_TOOL, AIDER_AI_ASK_TOOL, LIST_MODELS_TOOL]
 
     @server.call_tool()
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
@@ -325,6 +421,13 @@ async def serve(
             if name == "aider_ai_code":
                 logger.info(f"Processing 'aider_ai_code' tool call...")
                 result = process_aider_ai_code_request(
+                    arguments, editor_model, current_working_dir
+                )
+                return [TextContent(type="text", text=json.dumps(result))]
+            
+            elif name == "aider_ai_ask":
+                logger.info(f"Processing 'aider_ai_ask' tool call...")
+                result = process_aider_ai_ask_request(
                     arguments, editor_model, current_working_dir
                 )
                 return [TextContent(type="text", text=json.dumps(result))]
