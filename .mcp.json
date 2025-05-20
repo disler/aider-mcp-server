@@ -5,13 +5,25 @@
       "command": "uv",
       "args": [
         "--directory",
-        ".",
+        "/path/to/aider-mcp-server",
         "run",
         "aider-mcp-server",
         "--editor-model",
-        "gemini/gemini-2.5-pro-preview-03-25",
+        "gemini/gemini-2.5-pro-exp-03-25",
         "--current-working-dir",
-        "."
+        "/path/to/your/project"
+      ]
+    },
+    "just-prompt": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/just-prompt",
+        "run",
+        "just-prompt",
+        "--default-models",
+        "o:gpt-4o-mini,a:claude-3-5-haiku,g:gemini-2.0-flash,q:llama-3.1-70b-versatile,d:deepseek-coder"
       ],
       "env": {}
     }
