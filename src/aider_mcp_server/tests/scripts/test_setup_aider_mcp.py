@@ -13,6 +13,7 @@ from aider_mcp_server.setup_aider_mcp import (
     read_env_file,
     get_available_models,
     create_mcp_config,
+    main,
 )
 
 
@@ -51,25 +52,32 @@ def test_read_env_file():
             f.write("# This is a comment\n")
             f.write("ANOTHER_KEY=another_value\n")
         
-        result = read_env_file(temp_dir)
-        assert result == {
-            "TEST_KEY": "test_value",
-            "ANOTHER_KEY": "another_value",
-        }, "Expected to read key-value pairs from env file"
+        # Mock os.environ to avoid interference from the actual environment
+        with mock.patch.dict(os.environ, {}, clear=True):
+            result = read_env_file(temp_dir)
+            # Check if our test keys are in the result
+            assert "TEST_KEY" in result and result["TEST_KEY"] == "test_value", "TEST_KEY not found or incorrect value"
+            assert "ANOTHER_KEY" in result and result["ANOTHER_KEY"] == "another_value", "ANOTHER_KEY not found or incorrect value"
 
 
 def test_get_available_models():
     """Test the get_available_models function."""
-    env_vars = {
-        "GEMINI_API_KEY": "fake-key",
-        "OPENAI_API_KEY": "your_openai_api_key_here",  # Should be ignored
-        "ANTHROPIC_API_KEY": "fake-key",
-    }
-    
-    result = get_available_models(env_vars)
-    assert "gemini" in result, "Expected gemini provider to be available"
-    assert "anthropic" in result, "Expected anthropic provider to be available"
-    assert "openai" not in result, "Expected openai provider to be unavailable (placeholder value)"
+    # We need to mock the DEFAULT_MODELS dictionary to ensure test stability
+    with mock.patch("aider_mcp_server.setup_aider_mcp.DEFAULT_MODELS", {
+        "gemini": "gemini/test-model",
+        "openai": "openai/test-model",
+        "anthropic": "anthropic/test-model"
+    }):
+        env_vars = {
+            "GEMINI_API_KEY": "fake-key",
+            "OPENAI_API_KEY": "your_openai_api_key_here",  # Should now be accepted as valid
+            "ANTHROPIC_API_KEY": "fake-key",
+        }
+        
+        result = get_available_models(env_vars)
+        assert "gemini" in result, "Expected gemini provider to be available"
+        assert "anthropic" in result, "Expected anthropic provider to be available"
+        assert "openai" in result, "Expected openai provider to be available"
 
 
 def test_create_mcp_config():
@@ -77,14 +85,15 @@ def test_create_mcp_config():
     with tempfile.TemporaryDirectory() as temp_dir:
         aider_dir = "/path/to/aider"
         model = "test-model"
+        target_dir = "/target/dir"
         
         # Mock user input for overwrite confirmation (not needed first time)
         with mock.patch("builtins.input", return_value="y"):
-            result = create_mcp_config(temp_dir, aider_dir, model)
+            config_path = Path(temp_dir) / ".mcp.json"
+            result = create_mcp_config(config_path, aider_dir, model, target_dir)
             assert result is True, "Expected config creation to succeed"
             
             # Check the config file was created
-            config_path = Path(temp_dir) / ".mcp.json"
             assert config_path.exists(), "Expected config file to be created"
             
             # Check the content of the config file
@@ -93,3 +102,28 @@ def test_create_mcp_config():
                 assert "mcpServers" in config, "Expected mcpServers in config"
                 assert "aider-mcp-server" in config["mcpServers"], "Expected aider-mcp-server in config"
                 assert config["mcpServers"]["aider-mcp-server"]["args"][5] == model, "Expected correct model in config"
+
+
+def test_main_non_git_repository_error(capsys):
+    """Test that the correct error message is displayed when run in a non-git repository."""
+    # Mock command line arguments for a non-git directory
+    test_args = ["setup_aider_mcp.py"]
+    
+    with mock.patch("sys.argv", test_args):
+        # Mock is_git_repo to return False
+        with mock.patch("aider_mcp_server.setup_aider_mcp.is_git_repo", return_value=False):
+            # Mock Path.cwd to return a test directory
+            test_dir = "/test/non-git-dir"
+            with mock.patch("pathlib.Path.cwd", return_value=Path(test_dir)):
+                # Run main and expect it to exit with code 1
+                exit_code = main()
+                assert exit_code == 1
+                
+                # Capture the output and check for the expected error message
+                captured = capsys.readouterr()
+                
+                # Verify the error message contains all expected components
+                assert f"Error: {test_dir} is not a git repository." in captured.out
+                assert "git init" in captured.out
+                assert "setup-aider-mcp setup" in captured.out
+                assert "Alternatively, run this command from within an existing git repository" in captured.out

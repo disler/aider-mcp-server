@@ -15,10 +15,13 @@ from typing import Dict, List, Optional, Tuple
 # Default models for different providers
 DEFAULT_MODELS = {
     "gemini": "gemini/gemini-2.5-pro-exp-03-25",
+    "gemini-flash": "gemini/gemini-2.5-flash-preview-04-17",
     "openai": "openai/gpt-4o",
     "anthropic": "anthropic/claude-3-opus-20240229",
     "openrouter": "openrouter/openrouter/quasar-alpha",
     "fireworks": "fireworks_ai/accounts/fireworks/models/llama4-maverick-instruct-basic",
+    "groq": "groq/llama-3.1-70b-versatile",
+    "deepseek": "deepseek/deepseek-coder",
 }
 
 # Just-prompt default models
@@ -26,6 +29,7 @@ JUST_PROMPT_DEFAULT_MODELS = {
     "openai": "o:gpt-4o-mini",
     "anthropic": "a:claude-3-5-haiku",
     "gemini": "g:gemini-2.0-flash",
+    "gemini-flash": "g:gemini-2.5-flash-preview-04-17",
     "groq": "q:llama-3.1-70b-versatile",
     "deepseek": "d:deepseek-coder",
     "ollama": "l:llama3.1",
@@ -34,6 +38,7 @@ JUST_PROMPT_DEFAULT_MODELS = {
 # API key environment variables for each provider
 PROVIDER_ENV_VARS = {
     "gemini": "GEMINI_API_KEY",
+    "gemini-flash": "GEMINI_API_KEY",
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
@@ -47,6 +52,7 @@ JUST_PROMPT_PROVIDER_ENV_VARS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "gemini": "GEMINI_API_KEY",
+    "gemini-flash": "GEMINI_API_KEY",
     "groq": "GROQ_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
 }
@@ -62,6 +68,26 @@ def is_git_repo(directory: str) -> bool:
         return False
 
 
+def read_local_env_file() -> Dict[str, str]:
+    """Read environment variables from .env file in the current directory."""
+    local_env_path = Path.cwd() / ".env"
+    env_vars = {}
+    
+    if local_env_path.exists():
+        with open(local_env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    try:
+                        key, value = line.split("=", 1)
+                        env_vars[key.strip()] = value.strip().strip('"').strip("'")
+                    except ValueError:
+                        # Skip lines that don't have a key=value format
+                        pass
+    
+    return env_vars
+
+
 def find_aider_mcp_server(specified_path: Optional[str] = None) -> Optional[str]:
     """Find the aider-mcp-server installation directory."""
     if specified_path:
@@ -70,6 +96,20 @@ def find_aider_mcp_server(specified_path: Optional[str] = None) -> Optional[str]
             return str(path)
         print(f"Error: Could not find aider-mcp-server at {path}")
         return None
+    
+    # Check environment variable first
+    env_path = os.environ.get("AIDER_MCP_SERVER_PATH")
+    
+    # If not found in environment, check local .env file
+    if not env_path:
+        local_env = read_local_env_file()
+        env_path = local_env.get("AIDER_MCP_SERVER_PATH")
+    
+    if env_path:
+        path = Path(env_path).expanduser().resolve()
+        if path.exists() and (path / "src" / "aider_mcp_server").exists():
+            return str(path)
+        print(f"Warning: AIDER_MCP_SERVER_PATH is set to {env_path}, but aider-mcp-server not found there")
 
     # Check relative to the script location
     script_dir = Path(__file__).parent
@@ -85,7 +125,7 @@ def find_aider_mcp_server(specified_path: Optional[str] = None) -> Optional[str]
         git_root = git_root.parent
 
     print("Error: Could not find aider-mcp-server installation.")
-    print("Please specify the path using --aider-dir")
+    print("Please specify the path using --aider-dir or set AIDER_MCP_SERVER_PATH environment variable")
     return None
 
 
@@ -114,7 +154,11 @@ def get_available_models(env_vars: Dict[str, str]) -> Dict[str, str]:
     
     for provider, key_name in PROVIDER_ENV_VARS.items():
         if key_name in env_vars and env_vars[key_name]:
-            available[provider] = DEFAULT_MODELS[provider]
+            if provider in DEFAULT_MODELS:
+                available[provider] = DEFAULT_MODELS[provider]
+            else:
+                print(f"Warning: Provider '{provider}' has an API key but no default model configured. Skipping.")
+                continue
     
     return available
 
@@ -152,7 +196,7 @@ def create_mcp_config(config_path: Path, aider_dir: str, model: str, target_dir:
     """Create the .mcp.json configuration file."""
     config = {
         "mcpServers": {
-            "aider": {
+            "aider-mcp-server": {
                 "type": "stdio",
                 "command": "uv",
                 "args": [
@@ -246,13 +290,30 @@ def find_just_prompt_server(specified_path: Optional[str] = None) -> Optional[st
         print(f"Error: Could not find just-prompt at {path}")
         return None
 
-    # Default location
-    default_path = Path("/mnt/l/ToolNexusMCP_plugins/just-prompt")
-    if default_path.exists() and (default_path / "src" / "just_prompt").exists():
-        return str(default_path)
+    # Check environment variable first
+    env_path = os.environ.get("JUST_PROMPT_PATH")
+    
+    # If not found in environment, check local .env file
+    if not env_path:
+        local_env = read_local_env_file()
+        env_path = local_env.get("JUST_PROMPT_PATH")
+    
+    if env_path:
+        path = Path(env_path).expanduser().resolve()
+        if path.exists() and (path / "src" / "just_prompt").exists():
+            return str(path)
+        print(f"Warning: JUST_PROMPT_PATH is set to {env_path}, but just-prompt not found there")
+
+    # Look for just-prompt in common locations
+    # Try in sibling directory to aider-mcp-server
+    if find_aider_mcp_server():
+        aider_dir = Path(find_aider_mcp_server())
+        sibling_path = aider_dir.parent / "just-prompt"
+        if sibling_path.exists() and (sibling_path / "src" / "just_prompt").exists():
+            return str(sibling_path)
 
     print("Error: Could not find just-prompt installation.")
-    print("Please specify the path using --just-prompt-dir.")
+    print("Please specify the path using --just-prompt-dir or set JUST_PROMPT_PATH environment variable")
     return None
 
 
@@ -287,9 +348,14 @@ def select_just_prompt_models(available_providers: List[str], preselected: Optio
         return []
     
     print("\nAvailable just-prompt providers:")
+    valid_providers = []
     for i, provider in enumerate(available_providers, 1):
-        default_model = JUST_PROMPT_DEFAULT_MODELS.get(provider, "unknown")
-        print(f"{i}. {provider} (default: {default_model})")
+        default_model = JUST_PROMPT_DEFAULT_MODELS.get(provider)
+        if default_model is None:
+            print(f"  {i}. {provider} - No default model configured, skipping.")
+            continue
+        valid_providers.append(provider)
+        print(f"  {i}. {provider} (default: {default_model})")
     
     print("\nYou can:")
     print("1. Use all available providers (recommended)")
@@ -298,8 +364,7 @@ def select_just_prompt_models(available_providers: List[str], preselected: Optio
     try:
         choice = input("\nChoice (1-2): ").strip()
         if choice == "1":
-            return [JUST_PROMPT_DEFAULT_MODELS[p] for p in available_providers 
-                   if p in JUST_PROMPT_DEFAULT_MODELS]
+            return [JUST_PROMPT_DEFAULT_MODELS[p] for p in valid_providers]
         elif choice == "2":
             selected = []
             print("\nEnter provider numbers (comma-separated, e.g., 1,3,5):")
@@ -307,8 +372,8 @@ def select_just_prompt_models(available_providers: List[str], preselected: Optio
             for c in choices:
                 try:
                     idx = int(c.strip()) - 1
-                    if 0 <= idx < len(available_providers):
-                        provider = available_providers[idx]
+                    if 0 <= idx < len(valid_providers):
+                        provider = valid_providers[idx]
                         selected.append(JUST_PROMPT_DEFAULT_MODELS[provider])
                 except ValueError:
                     continue
@@ -403,26 +468,37 @@ def update_model_config(target_dir: str, new_model: str) -> bool:
             config = json.load(f)
         
         # Update the model in the aider configuration
-        if "mcpServers" in config and "aider" in config["mcpServers"]:
-            args = config["mcpServers"]["aider"]["args"]
-            # Find the --editor-model argument and update it
-            for i, arg in enumerate(args):
-                if arg == "--editor-model" and i + 1 < len(args):
-                    args[i + 1] = new_model
-                    break
-            
-            # Write the updated configuration
-            with open(config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            print(f"Updated model to: {new_model}")
-            print(f"Configuration saved to: {config_path}")
-            
-            # Show the command to apply the change
-            print("\nTo apply this change, run the following commands:")
-            print("\n" + generate_claude_command("", new_model, str(target_dir), True))
-            
-            return True
+        if "mcpServers" in config:
+            # Look for either "aider" or "aider-mcp-server" in mcpServers
+            server_name = None
+            if "aider" in config["mcpServers"]:
+                server_name = "aider"
+            elif "aider-mcp-server" in config["mcpServers"]:
+                server_name = "aider-mcp-server"
+                
+            if server_name:
+                args = config["mcpServers"][server_name]["args"]
+                # Find the --editor-model argument and update it
+                for i, arg in enumerate(args):
+                    if arg == "--editor-model" and i + 1 < len(args):
+                        args[i + 1] = new_model
+                        break
+                
+                # Write the updated configuration
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                
+                print(f"Updated model to: {new_model}")
+                print(f"Configuration saved to: {config_path}")
+                
+                # Show the command to apply the change
+                print("\nTo apply this change, run the following commands:")
+                print("\n" + generate_claude_command("", new_model, str(target_dir), True))
+                
+                return True
+            else:
+                print("Error: Couldn't find aider or aider-mcp-server in the configuration")
+                return False
         else:
             print("Error: Invalid .mcp.json configuration format")
             return False
@@ -586,12 +662,12 @@ def main():
     # Setup command (default behavior)
     setup_parser = subparsers.add_parser('setup', help='Set up aider-mcp configuration')
     setup_parser.add_argument("--current-dir", help="Target project directory (defaults to current directory)")
-    setup_parser.add_argument("--aider-dir", help="Path to aider-mcp-server installation")
+    setup_parser.add_argument("--aider-dir", help="Path to aider-mcp-server installation (or set AIDER_MCP_SERVER_PATH env var)")
     setup_parser.add_argument("--model", help="Model to use (will list available options if not specified)")
     
     # Just-prompt integration options for setup
     setup_parser.add_argument("--also-just-prompt", action="store_true", help="Also set up the just-prompt MCP plugin")
-    setup_parser.add_argument("--just-prompt-dir", help="Path to just-prompt installation")
+    setup_parser.add_argument("--just-prompt-dir", help="Path to just-prompt installation (or set JUST_PROMPT_PATH env var)")
     setup_parser.add_argument("--just-prompt-models", help="Comma-separated list of models")
     setup_parser.set_defaults(func=setup_command)
     

@@ -169,6 +169,19 @@ setup-aider-mcp --model "gemini/gemini-2.5-pro-exp-03-25"
 setup-aider-mcp --also-just-prompt --just-prompt-models "o:gpt-4o,a:claude-3-5-haiku"
 ```
 
+**Tip**: You can set paths in a `.env` file in your project directory:
+```
+AIDER_MCP_SERVER_PATH=/path/to/aider-mcp-server
+JUST_PROMPT_PATH=/path/to/just-prompt
+```
+
+The script will automatically read these variables, so you can simply run:
+```bash
+setup-aider-mcp setup --also-just-prompt
+```
+
+See [docs/setup-aider-mcp-env-var.md](docs/setup-aider-mcp-env-var.md) for more details on environment variable usage.
+
 For more details on the just-prompt integration, see [just-prompt-integration.md](just-prompt-integration.md).
 
 The script will:
