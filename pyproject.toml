@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Model context protocol server for offloading ai coding work to Aider"
 readme = "README.md"
 authors = [
-    { name = "IndyDevDan", email = "minor7addfloortom@gmail.com" }
+    { name = "TriepodAI" }
 ]
 requires-python = ">=3.12"
 dependencies = [
