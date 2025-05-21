@@ -31,11 +31,8 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp-aider-server = "aider_mcp_server:main" # Generic entry point
-# Specific entry points
-mcp-aider-stdio = "aider_mcp_server:main"
-mcp-aider-sse = "aider_mcp_server.sse_server:main"
-mcp-aider-multi = "aider_mcp_server:main"
+mcp-aider-server = "aider_mcp_server:main"
+mcp-aider = "aider_mcp_server:main"
 
 [project.optional-dependencies]
 dev = [
@@ -77,10 +74,6 @@ package-dir = {"" = "src"}
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aider_mcp_server"]
-
-# [tool.hatch.build.targets.wheel.sources]
-# # Ensure py.typed is included in the package
-# include = ["src/aider_mcp_server/py.typed"]
 
 [tool.hatch.envs.dev]
 dependencies = ["aider-mcp-server[dev]"]

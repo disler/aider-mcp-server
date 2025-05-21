@@ -1,1 +1,0 @@
-Run a multi aider_ai_code call with a sub agent call to fulfill the following tasks back to back in the most sensible order. If the given task(s) can be broken down into smaller tasks, do that. If tasks are dependent on certain changes to be made first, make sure to run the dependent tasks first. $ARGUMENTS
