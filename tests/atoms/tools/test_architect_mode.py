@@ -119,9 +119,9 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
     mock_setup_coder.return_value = mock_coder
 
     mock_run_aider.return_value = {
-        "error": None,
         "success": True,
-        "diff": "Some diff content",
+        "changes_summary": {"summary": "Some diff content"},
+        "file_status": {"has_changes": True, "status_summary": "Changes detected"},
         "is_cached_diff": False,
     }
 
@@ -156,9 +156,9 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
 
         # Check that the result is correct
         result_data = json.loads(result)
-        assert result_data["error"] is None
         assert result_data["success"] is True
-        assert result_data["diff"] == "Some diff content"
+        assert "changes_summary" in result_data
+        assert result_data["changes_summary"]["summary"] == "Some diff content"
 
 
 @pytest.mark.asyncio
@@ -175,9 +175,9 @@ async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mo
     mock_setup_coder.return_value = mock_coder
 
     mock_run_aider.return_value = {
-        "error": None,
         "success": True,
-        "diff": "Some diff content",
+        "changes_summary": {"summary": "Some diff content"},
+        "file_status": {"has_changes": True, "status_summary": "Changes detected"},
         "is_cached_diff": False,
     }
 
@@ -208,6 +208,6 @@ async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mo
 
         # Check that the result is correct
         result_data = json.loads(result)
-        assert result_data["error"] is None
         assert result_data["success"] is True
-        assert result_data["diff"] == "Some diff content"
+        assert "changes_summary" in result_data
+        assert result_data["changes_summary"]["summary"] == "Some diff content"

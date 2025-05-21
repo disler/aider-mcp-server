@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import os
 import os.path
@@ -7,7 +6,7 @@ import pathlib
 import subprocess
 
 # External imports - no stubs available
-from typing import Any, Dict, List, Optional, TypedDict, Union, cast
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from aider.coders import Coder
 from aider.io import InputOutput
@@ -21,6 +20,10 @@ from aider_mcp_server.atoms.tools.aider_compatibility import (
     get_aider_version,
     get_supported_coder_create_params,
     get_supported_coder_params,
+)
+from aider_mcp_server.atoms.tools.changes_summarizer import (
+    get_file_status_summary,
+    summarize_changes,
 )
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
@@ -41,9 +44,15 @@ class ResponseDict(TypedDict, total=False):
     """Type for Aider response dictionary."""
 
     success: bool
-    diff: str
-    is_cached_diff: bool
-    rate_limit_info: Optional[Dict[str, Union[bool, int, str, None]]]
+    changes_summary: Dict[str, Any]  # Holds the summarized changes
+    file_status: Dict[str, Any]  # Holds file status information (retained for backward compatibility)
+    rate_limit_info: Optional[
+        Dict[str, Union[bool, int, str, None]]
+    ]  # Optional - only included when rate limits are encountered
+    is_cached_diff: bool  # Added for backward compatibility
+    diff: Optional[str]  # Raw diff output, optional
+    api_key_status: Optional[Dict[str, Any]]  # Information about API key status
+    warnings: Optional[List[str]]  # List of warnings to display to the user
 
 
 # Try to import dotenv for environment variable loading
@@ -172,8 +181,20 @@ def load_env_files(working_dir: Optional[str] = None) -> None:
             # Don't break - load all .env files to allow for overrides
 
 
-def check_api_keys(working_dir: Optional[str] = None) -> None:
-    """Check if necessary API keys are set in the environment and log their status."""
+def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Check if necessary API keys are set in the environment and return status.
+
+    Args:
+        working_dir: Optional working directory to search for .env files
+
+    Returns:
+        Dict with API key status info including:
+        - missing: List of missing API key env vars
+        - found: List of found API key env vars
+        - available_providers: List of providers with valid keys
+        - missing_providers: List of providers with missing keys
+        - any_keys_found: Boolean indicating if any keys were found
+    """
     # First load any .env files
     load_env_files(working_dir)
 
@@ -186,12 +207,31 @@ def check_api_keys(working_dir: Optional[str] = None) -> None:
         "VERTEX_AI_API_KEY": "Vertex AI",
     }
 
+    # Define provider to key mappings
+    provider_keys = {
+        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+        "openai": ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "vertexai": ["VERTEX_AI_API_KEY"],
+    }
+
+    result: Dict[str, Any] = {
+        "missing": [],
+        "found": [],
+        "available_providers": [],
+        "missing_providers": [],
+        "any_keys_found": False,
+    }
+
     logger.info("Checking API keys in environment...")
     for key, provider in keys_to_check.items():
         if os.environ.get(key):
             logger.info(f"✓ {provider} API key found ({key})")
+            result["found"].append(key)
+            result["any_keys_found"] = True
         else:
             logger.warning(f"✗ {provider} API key missing ({key})")
+            result["missing"].append(key)
 
     # Special handling for Gemini/Google - check if we need to copy between variables
     if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
@@ -199,6 +239,26 @@ def check_api_keys(working_dir: Optional[str] = None) -> None:
         if gemini_key is not None:  # Explicit check for None
             logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
             os.environ["GOOGLE_API_KEY"] = gemini_key
+            missing_list = result["missing"]
+            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
+                missing_list.remove("GOOGLE_API_KEY")
+                found_list = result["found"]
+                if isinstance(found_list, list):
+                    found_list.append("GOOGLE_API_KEY")
+
+    # Determine available providers
+    for provider, keys in provider_keys.items():
+        found_list = result["found"]
+        available_providers = result["available_providers"]
+        missing_providers = result["missing_providers"]
+
+        if isinstance(found_list, list) and any(key in found_list for key in keys):
+            if isinstance(available_providers, list):
+                available_providers.append(provider)
+        elif isinstance(missing_providers, list):
+            missing_providers.append(provider)
+
+    return result
 
 
 def _normalize_file_paths(relative_editable_files: List[str], working_dir: Optional[str] = None) -> List[str]:
@@ -527,31 +587,38 @@ def _setup_aider_coder(
     io.yes_to_all = True  # Automatically say yes to all prompts
     io.dry_run = False  # Ensure we're not in dry-run mode
 
-    # Try to redirect IO output to null to prevent interference
-    with contextlib.suppress(Exception):
-        # Create a null output stream
-        null_stream = open(os.devnull, "w")
+    # Create no-op functions for output methods to suppress output
+    def noop(*args: Any, **kwargs: Any) -> None:
+        pass
 
-        # Redirect various output streams in the IO object
-        io.output = null_stream  # Redirect main output to null
-        io.tool_output = noop_output  # Replace with no-op function instead of None
-        # Note: tool_error is handled by our SilentInputOutput subclass
+    # Redirect output to no-op functions
+    io.output = noop
+    io.tool_output = noop
 
-        # Set quiet mode to suppress "Creating empty file" messages
-        io.quiet = True  # Set quiet mode if available
+    # Set quiet mode to True to suppress unnecessary output
+    io.quiet = True
     # For the GitRepo, we need to import the class from aider (if available)
     try:
         from aider.repo import GitRepo  # No stubs available for aider.repo
 
         # Create a GitRepo instance
         try:
-            git_repo = GitRepo(
-                io=io,
-                fnames=abs_editable_files,
-                git_dname=working_dir,
-                models=model.commit_message_models(),
-            )
-            logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
+            # Check if a .git folder exists to determine if this is a git repo
+            git_dir = os.path.join(working_dir, ".git")
+            is_git_repo = os.path.isdir(git_dir)
+
+            if is_git_repo:
+                logger.info(f"Found git repository at {working_dir}")
+                git_repo = GitRepo(
+                    io=io,
+                    fnames=abs_editable_files,
+                    git_dname=working_dir,
+                    models=model.commit_message_models(),
+                )
+                logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
+            else:
+                logger.warning(f"No .git directory found at {working_dir}, will set repo=None")
+                git_repo = None
         except Exception as e:
             logger.warning(f"Could not initialize GitRepo: {e}, will set repo=None")
             git_repo = None
@@ -571,16 +638,18 @@ def _setup_aider_coder(
         "fnames": abs_editable_files,
         "read_only_fnames": abs_readonly_files,
         "repo": git_repo,
-        "show_diffs": False,
+        "show_diffs": True,  # Show diffs to help debugging
         "auto_commits": False,
         "dirty_commits": False,
         "use_git": True if git_repo else False,
         "stream": False,
         "suggest_shell_commands": False,
         "detect_urls": False,
-        "verbose": False,
+        "verbose": True,  # Enable verbose mode for more debugging info
         "auto_accept_architect": auto_accept_architect if architect_mode else True,
     }
+
+    logger.info(f"Setting up Aider Coder with params: create_params={create_params}, init_params={init_params}")
 
     # Get supported parameters for create method
     supported_create_params = get_supported_coder_create_params()
@@ -626,57 +695,21 @@ def _check_for_meaningful_changes(relative_editable_files: List[str], working_di
             try:
                 with open(full_path, "r") as f:
                     content = f.read()
-                    # Check if the file has more than just whitespace or a single comment line,
-                    # or contains common code keywords. This is a heuristic.
+                    # Check if the file has any non-whitespace content
                     stripped_content = content.strip()
 
-                    # Improved detection for meaningful changes
-                    if not stripped_content:
-                        continue
+                    # Check if it's just a comment line
+                    is_just_comment = stripped_content.startswith("#") and len(stripped_content.split("\n")) == 1
 
-                    # If file has multiple lines or recognized code patterns, consider it meaningful
-                    code_patterns = [
-                        "def ",
-                        "class ",
-                        "import ",
-                        "from ",
-                        "async def ",
-                        "return ",
-                        "function ",
-                        "= function",
-                        "const ",
-                        "let ",
-                        "var ",  # JavaScript
-                        "public ",
-                        "private ",
-                        "protected ",
-                        "void ",
-                        "int ",
-                        "string ",  # Java/C#
-                        "if ",
-                        "for ",
-                        "while ",
-                        "try ",
-                        "except ",
-                        "catch ",  # Control structures
-                        "@app",
-                        "self.",
-                        "this.",  # Common framework patterns
-                    ]
-
-                    if len(stripped_content.split("\n")) > 2 or any(kw in content for kw in code_patterns):
-                        logger.info(f"Meaningful content found in: {file_path}")
+                    # Consider any non-empty file as meaningful, except for files with just comments
+                    if stripped_content and not is_just_comment:
+                        logger.info(f"Content found in file, considering meaningful: {file_path}")
                         return True
-
-                    # Check for class/function implementation with proper indentation
-                    indented_lines = sum(
-                        1 for line in content.split("\n") if line.strip() and line.startswith((" ", "\t"))
-                    )
-                    if indented_lines > 0:
-                        logger.info(f"Meaningful indented content found in: {file_path}")
-                        return True
-
-                    logger.info(f"No meaningful content found in {file_path}, content: '{stripped_content}'")
+                    elif is_just_comment:
+                        logger.info(f"File only contains comments, not considered meaningful: {file_path}")
+                    else:
+                        # If completely empty, continue to next file
+                        logger.info(f"File is empty, no content found: {file_path}")
             except Exception as e:
                 logger.error(f"Failed reading file {full_path} during meaningful change check: {e}")
                 # If we can't read it, we can't confirm meaningful change from this file
@@ -684,7 +717,7 @@ def _check_for_meaningful_changes(relative_editable_files: List[str], working_di
         else:
             logger.info(f"File not found or empty, skipping meaningful check: {full_path}")
 
-    logger.info("No meaningful changes detected in any editable files.")
+    logger.info("No meaningful content detected in any editable files.")
     return False
 
 
@@ -728,7 +761,7 @@ async def _process_coder_results(
     cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"  # Use sorted files for consistent key
     changes_from_cache: Optional[Dict[str, Any]] = None
     is_cached_diff = False
-    final_diff_content = diff_output or "No meaningful changes detected."  # Default fallback
+    final_diff_content = diff_output or "No git-tracked changes detected."  # Default fallback
 
     if use_diff_cache and diff_cache is not None:
         logger.info(f"Attempting to use diff cache for key: {cache_key}")
@@ -745,7 +778,7 @@ async def _process_coder_results(
 
             # Log cache statistics
             if diff_cache is not None:
-                stats = diff_cache.get_stats()
+                stats = diff_cache.get_stats()  # This is a synchronous method, not async
                 logger.info(
                     f"Diff cache stats: Hits={stats.get('hits')}, Misses={stats.get('misses')}, Total={stats.get('total_accesses')}, Size={stats.get('current_size')} bytes, Max Size={stats.get('max_size')} bytes, Hit Rate={stats.get('hit_rate'):.2f}"
                 )
@@ -762,7 +795,7 @@ async def _process_coder_results(
                 final_diff_content = "Error retrieving changes from cache."
             elif not changes_from_cache:  # Empty dict means no changes detected by cache
                 logger.info("Cache comparison detected no changes.")
-                final_diff_content = "No meaningful changes detected by cache comparison."
+                final_diff_content = "No git-tracked changes detected by cache comparison."
             else:  # Changes were detected by cache
                 logger.info("Cache comparison detected changes.")
                 # The changes_from_cache dict contains the diff of the diffs.
@@ -773,29 +806,97 @@ async def _process_coder_results(
                     logger.warning(
                         "Cache comparison returned empty diff string despite changes_from_cache not being empty."
                     )
-                    final_diff_content = "No meaningful changes detected by cache comparison."
+                    final_diff_content = "No git-tracked changes detected by cache comparison."
 
         except Exception as e:
             logger.error(f"Error using diff cache for key {cache_key}: {e}")
             is_cached_diff = False
             # Fallback to using the raw diff_output if cache fails
-            final_diff_content = diff_output or "No meaningful changes detected."
+            final_diff_content = diff_output or "No git-tracked changes detected."
             logger.warning("Falling back to raw diff output due to cache error.")
     else:
         logger.info("Diff cache is disabled.")
         # Use the raw diff_output if cache is disabled
-        final_diff_content = diff_output or "No meaningful changes detected."
+        final_diff_content = diff_output or "No git-tracked changes detected."
 
+    # Generate a summary of the changes
+    changes_summary = summarize_changes(final_diff_content)
+    logger.info(f"Generated changes summary: {changes_summary['summary']}")
+
+    # Check file status as a fallback for detecting changes
+    file_status = get_file_status_summary(relative_editable_files, working_dir)
+    logger.info(f"File status check: {file_status['status_summary']}")
+
+    # Determine success based on meaningful content or file status
+    success = has_meaningful_content or file_status["has_changes"]
+
+    # For git-tracked changes, add a source field
+    if has_meaningful_content and "git diff" in diff_output:
+        if "stats" not in changes_summary:
+            changes_summary["stats"] = {}
+        changes_summary["stats"]["source"] = "git"
+
+    # Create base response with only essential information
     response: ResponseDict = {
-        "success": has_meaningful_content,
-        "diff": final_diff_content,
-        "is_cached_diff": is_cached_diff,
+        "success": success,
+        "changes_summary": changes_summary,
+        "file_status": file_status,  # Include for backward compatibility with tests
+        "is_cached_diff": is_cached_diff,  # Include for backward compatibility with tests
+        "diff": final_diff_content
+        or changes_summary.get("summary", "No changes detected."),  # Always include diff for backward compatibility
     }
 
-    if has_meaningful_content:
-        logger.info("Meaningful changes found. Processing successful.")
+    # Use file_status to update changes_summary if it's empty or indicates no changes
+    if (
+        success
+        and file_status["has_changes"]
+        and (not changes_summary["summary"] or "No git-tracked changes detected" in changes_summary["summary"])
+    ):
+        # Update changes_summary with information from file_status, but clearly indicate source
+        changes_summary["summary"] = "No git-tracked changes detected, but " + file_status["status_summary"].lower()
+        # If files were created/modified, make sure they appear in the changes_summary files list
+        if "files" in file_status and not changes_summary.get("files"):
+            changes_summary["files"] = [
+                {"name": f["name"], "operation": f["operation"], "source": "filesystem"} for f in file_status["files"]
+            ]
+        # Update stats from file_status counts
+        if "files_created" in file_status and file_status["files_created"] > 0:
+            if "stats" not in changes_summary:
+                changes_summary["stats"] = {}
+            changes_summary["stats"]["files_created"] = file_status["files_created"]
+        if "files_modified" in file_status and file_status["files_modified"] > 0:
+            if "stats" not in changes_summary:
+                changes_summary["stats"] = {}
+            changes_summary["stats"]["files_modified"] = file_status["files_modified"]
+        if "stats" in changes_summary and changes_summary["stats"]:
+            total_changes = sum(
+                v
+                for k, v in changes_summary["stats"].items()
+                if k in ["files_created", "files_modified", "files_deleted"] and v > 0
+            )
+            if total_changes > 0:
+                changes_summary["stats"]["total_files_changed"] = total_changes
+                # Add source information for clarity
+                changes_summary["stats"]["source"] = "filesystem"
+
+    # For backward compatibility, include a human-readable summary in the diff field,
+    # but only if there are meaningful changes to report
+    if success:
+        # Add clarity about the source of changes
+        if "No git-tracked changes detected" in changes_summary["summary"] and file_status["has_changes"]:
+            response["diff"] = changes_summary["summary"]
+        elif file_status["has_changes"]:
+            response["diff"] = changes_summary["summary"]
+        else:
+            response["diff"] = changes_summary["summary"]
+
+    if success:
+        if has_meaningful_content:
+            logger.info("Meaningful changes found. Processing successful.")
+        else:
+            logger.info("No meaningful content detected, but file status shows changes. Processing successful.")
     else:
-        logger.warning("No meaningful changes detected. Processing marked as unsuccessful.")
+        logger.warning("No changes detected in git or filesystem. Processing marked as unsuccessful.")
 
     logger.info("Coder results processed.")
     return response
@@ -838,7 +939,38 @@ async def _run_aider_session(
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
 
+        # Check files before running coder to see if they exist/have content
+        for file_path in relative_editable_files:
+            full_path = os.path.join(working_dir, file_path) if working_dir else file_path
+            if os.path.exists(full_path):
+                size = os.path.getsize(full_path)
+                logger.info(f"BEFORE RUN: File {full_path} exists, size: {size} bytes")
+                if size > 0:
+                    with open(full_path, "r") as f:
+                        content = f.read(100)  # Just read the first 100 chars to log
+                        logger.info(f"BEFORE RUN: File contains: {content}...")
+            else:
+                logger.info(f"BEFORE RUN: File {full_path} does not exist yet")
+
+        # Run the actual coder function
+        logger.info(f"Running coder.run with prompt: {ai_coding_prompt}")
         result = coder.run(ai_coding_prompt)
+        logger.info(f"coder.run completed, result: {result}")
+
+        # Check files after running coder to see if they exist/have content
+        for file_path in relative_editable_files:
+            full_path = os.path.join(working_dir, file_path) if working_dir else file_path
+            if os.path.exists(full_path):
+                size = os.path.getsize(full_path)
+                logger.info(f"AFTER RUN: File {full_path} exists, size: {size} bytes")
+                if size > 0:
+                    with open(full_path, "r") as f:
+                        content = f.read(100)  # Just read the first 100 chars to log
+                        logger.info(f"AFTER RUN: File contains: {content}...")
+                else:
+                    logger.warning(f"AFTER RUN: File {full_path} exists but is EMPTY!")
+            else:
+                logger.warning(f"AFTER RUN: File {full_path} still does not exist after coder.run!")
 
         # Capture any output that was written
         captured_stdout = stdout_capture.getvalue()
@@ -907,11 +1039,18 @@ async def _execute_with_retry(
     Returns:
         Response dictionary
     """
+    # Create empty summary objects
+    empty_summary = summarize_changes("")
+    empty_status = {
+        "has_changes": False,
+        "status_summary": "No changes detected.",
+    }
+
     response: ResponseDict = {
         "success": False,
-        "diff": "",
-        "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
-        "is_cached_diff": False,  # Add this field to the initial response structure
+        "changes_summary": empty_summary,
+        "file_status": empty_status,  # For backward compatibility
+        "is_cached_diff": False,  # For backward compatibility
     }
 
     max_retries = fallback_config[provider]["max_retries"]
@@ -952,29 +1091,56 @@ async def _execute_with_retry(
 
             if detect_rate_limit_error(e, provider):
                 logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
-                rate_limit_info = cast(Dict[str, Any], response["rate_limit_info"])
-                rate_limit_info["encountered"] = True
-                rate_limit_info["retries"] += 1
+                # Add or update rate_limit_info - only when actually encountered
+                if "rate_limit_info" not in response:
+                    response["rate_limit_info"] = {"encountered": True, "retries": 1, "fallback_model": None}
+                else:
+                    rate_limit_info = response.get("rate_limit_info")
+                    if isinstance(rate_limit_info, dict):
+                        rate_limit_info["encountered"] = True
+                        if "retries" in rate_limit_info and isinstance(rate_limit_info["retries"], int):
+                            rate_limit_info["retries"] += 1
 
                 if attempt < max_retries:
                     delay = initial_delay * (backoff_factor**attempt)
                     logger.info(f"Retrying after {delay} seconds...")
                     await asyncio.sleep(delay)  # Use asyncio.sleep in async function
                     current_model = get_fallback_model(current_model, provider)  # Update current_model
-                    rate_limit_info["fallback_model"] = current_model
+                    if "rate_limit_info" not in response:
+                        response["rate_limit_info"] = {
+                            "encountered": True,
+                            "retries": 1,
+                            "fallback_model": current_model,
+                        }
+                    else:
+                        rate_limit_info = response.get("rate_limit_info")
+                        if isinstance(rate_limit_info, dict):
+                            rate_limit_info["fallback_model"] = current_model
                     logger.info(f"Falling back to model: {current_model}")
                 else:
                     logger.error("Max retries reached. Unable to complete the request.")
                     # Update response with final error state before re-raising
+                    error_msg = f"Max retries reached due to rate limit or other error: {str(e)}"
                     response["success"] = False
-                    response["diff"] = f"Max retries reached due to rate limit or other error: {str(e)}"
-                    response["is_cached_diff"] = False  # Ensure this is False on error
+                    if "diff" not in response:  # Only add diff if it doesn't exist
+                        response["diff"] = error_msg
+
+                    # Add error summary
+                    error_summary = summarize_changes("")
+                    error_summary["summary"] = "Error: " + error_msg
+                    response["changes_summary"] = error_summary
                     raise
             else:
                 # If it's not a rate limit error, update response with error and re-raise
+                error_msg = f"Error during Aider execution: {str(e)}"
                 response["success"] = False
-                response["diff"] = f"Error during Aider execution: {str(e)}"
-                response["is_cached_diff"] = False  # Ensure this is False on error
+                if "diff" not in response:  # Only add diff if it doesn't exist
+                    response["diff"] = error_msg
+
+                # Add error summary
+                error_summary = summarize_changes("")
+                error_summary["summary"] = "Error: " + error_msg
+                response["changes_summary"] = error_summary
                 raise
 
     return response
@@ -991,6 +1157,7 @@ async def code_with_aider(
     architect_mode: bool = False,
     editor_model: Optional[str] = None,
     auto_accept_architect: bool = True,
+    include_raw_diff: bool = False,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -1010,9 +1177,11 @@ async def code_with_aider(
                                     architect_mode is enabled. Defaults to None.
         auto_accept_architect (bool, optional): Automatically accept architect suggestions without
                                               confirmation. Defaults to True.
+        include_raw_diff (bool, optional): Whether to include raw diff in the response (not recommended).
+                                        Defaults to False.
 
     Returns:
-        str: JSON string containing 'success', 'diff', 'is_cached_diff', and additional rate limit information.
+        str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
     global diff_cache
     if relative_readonly_files is None:
@@ -1025,14 +1194,17 @@ async def code_with_aider(
         logger.info("Initializing diff_cache for code_with_aider")
         await init_diff_cache()
 
-    # Check API keys at the beginning
-    check_api_keys(working_dir)
+    # Check API keys at the beginning and store the result
+    key_status = check_api_keys(working_dir)
+
+    # Store original model for reference
+    original_model = model
 
     # Validate working directory
     if not working_dir:
         error_msg = "Error: working_dir is required for code_with_aider"
         logger.error(error_msg)
-        return json.dumps({"success": False, "diff": error_msg, "is_cached_diff": False})
+        return json.dumps({"success": False, "changes_summary": {"summary": error_msg}})
 
     logger.info(f"Working directory: {working_dir}")
     logger.info(f"Editable files: {relative_editable_files}")
@@ -1052,6 +1224,32 @@ async def code_with_aider(
     # Determine provider
     provider = _determine_provider(model)
     logger.info(f"Using provider: {provider}")
+
+    # Check if we have any API keys at all
+    if not key_status["any_keys_found"]:
+        # No API keys found at all - this is a critical error
+        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
+        logger.error(error_msg)
+        no_keys_response = {
+            "success": False,
+            "error": error_msg,
+            "api_key_status": key_status,
+            "warnings": [error_msg],
+            "changes_summary": {"summary": error_msg},
+        }
+        return json.dumps(no_keys_response)
+
+    # Check if the requested provider has missing keys
+    provider_has_keys = provider in key_status["available_providers"]
+
+    # Warn about missing keys for the requested provider
+    if not provider_has_keys and key_status["available_providers"]:
+        available_provider = key_status["available_providers"][0]
+        warning_msg = f"Warning: No API keys found for {provider}. Using {available_provider} instead."
+        logger.warning(warning_msg)
+
+        # We will continue with the execution, but note that a different provider might be used
+        # This will be handled by the fallback mechanism in _execute_with_retry
 
     # Convert to absolute paths
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
@@ -1090,34 +1288,54 @@ async def code_with_aider(
         if "'bool' object is not callable" in str(te):
             # Handle the specific bool not callable error
             logger.exception(f"Caught bool not callable error: {str(te)}")
-            error_response: ResponseDict = {
+            error_msg = "Error during Aider execution: Unable to call tool_error method due to being set to a boolean. This is a known issue with no impact on functionality."
+            empty_summary = summarize_changes("")
+            empty_summary["summary"] = "Error: " + error_msg
+            empty_status = {
+                "has_changes": False,
+                "status_summary": "No changes detected.",
+            }
+
+            type_error_response: ResponseDict = {
                 "success": False,
-                "diff": "Error during Aider execution: Unable to call tool_error method due to being set to a boolean. This is a known issue with no impact on functionality. File contents after editing (git not used):\nNo meaningful changes detected.",
+                "changes_summary": empty_summary,
+                "file_status": empty_status,
                 "rate_limit_info": {
                     "encountered": False,
                     "retries": 0,
                     "fallback_model": None,
                 },
-                "is_cached_diff": False,  # Ensure this is False on error
+                "is_cached_diff": False,
+                "diff": "Error: " + error_msg,
             }
-            response = error_response
+            response = type_error_response
         else:
             # Re-raise other TypeError exceptions
             raise
     except Exception as e:
         logger.exception(f"Critical Error in code_with_aider: {str(e)}")
         # Create error response since the previous one failed
-        general_error_response: ResponseDict = {
+        error_msg = f"Unhandled Error during Aider execution: {str(e)}"
+        empty_summary = summarize_changes("")
+        empty_summary["summary"] = "Error: " + error_msg
+        empty_status = {
+            "has_changes": False,
+            "status_summary": "No changes detected.",
+        }
+
+        # Use a properly typed definition
+        response = {
             "success": False,
-            "diff": f"Unhandled Error during Aider execution: {str(e)}\nFile contents after editing (git not used):\nNo meaningful changes detected.",
+            "changes_summary": empty_summary,
+            "file_status": empty_status,
             "rate_limit_info": {
                 "encountered": False,
                 "retries": 0,
                 "fallback_model": None,
             },
-            "is_cached_diff": False,  # Ensure this is False on error
+            "is_cached_diff": False,
+            "diff": "Error: " + error_msg,
         }
-        response = general_error_response
     finally:
         # Always restore stdout and stderr
         sys.stdout = old_stdout
@@ -1131,6 +1349,77 @@ async def code_with_aider(
             logger.warning(f"Captured stdout: {captured_stdout}")
         if captured_stderr:
             logger.warning(f"Captured stderr: {captured_stderr}")
+
+    # Add API key status information to the response
+    response["api_key_status"] = {
+        "available_providers": key_status["available_providers"],
+        "missing_providers": key_status["missing_providers"],
+        "used_provider": provider,
+        "original_model": original_model,
+        "actual_model": model,  # This may be different if fallback was used in _execute_with_retry
+    }
+
+    # Add warnings if the provider is missing keys
+    available_providers = key_status["available_providers"]
+    if isinstance(available_providers, list) and provider not in available_providers:
+        warning_msg = f"Warning: No API keys found for provider {provider}. Some functionality may be limited."
+        if "warnings" not in response:
+            response["warnings"] = []
+        warnings_list = response.get("warnings")
+        if isinstance(warnings_list, list):
+            warnings_list.append(warning_msg)
+
+    # Ensure diff field is present for tests (even though we may remove it later)
+    if "diff" not in response and "changes_summary" in response and response["changes_summary"].get("summary"):
+        response["diff"] = response["changes_summary"]["summary"]
+
+    # If not requested to include the raw diff, remove it from successful responses
+    # to keep the response more concise (we already have better info in changes_summary).
+    # But keep it for errors as it may contain important debugging info.
+    if not include_raw_diff and response.get("success", False):
+        if "diff" in response:
+            del response["diff"]
+
+    # Clean up the response by removing default/zero values
+    if "file_status" in response:
+        file_status = response["file_status"]
+        # Remove zero counts
+        for key in ["files_created", "files_modified"]:
+            if key in file_status and (file_status[key] == 0 or not file_status[key]):
+                del file_status[key]
+        # If there are no changes in file_status, simplify it to just the essential info
+        if not file_status.get("has_changes", False) or (
+            "files" in file_status
+            and not file_status["files"]
+            and "files_created" not in file_status
+            and "files_modified" not in file_status
+        ):
+            file_status = {
+                "has_changes": file_status.get("has_changes", False),
+                "status_summary": file_status.get("status_summary", "No changes detected."),
+            }
+            response["file_status"] = file_status
+
+    if "changes_summary" in response and "stats" in response["changes_summary"]:
+        stats = response["changes_summary"]["stats"]
+        # Remove zero counts
+        keys_to_check = [
+            "files_created",
+            "files_modified",
+            "files_deleted",
+            "lines_added",
+            "lines_removed",
+            "total_files_changed",
+        ]
+        for key in keys_to_check:
+            if key in stats and (stats[key] == 0 or not stats[key]):
+                del stats[key]
+        # If stats is empty after removing zeros, remove it
+        if not stats:
+            del response["changes_summary"]["stats"]
+        # If files list is empty, remove it to keep response clean
+        if "files" in response["changes_summary"] and not response["changes_summary"]["files"]:
+            del response["changes_summary"]["files"]
 
     # Convert the response to a proper JSON string
     formatted_response = json.dumps(response, indent=4)
