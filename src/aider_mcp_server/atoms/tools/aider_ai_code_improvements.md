@@ -219,21 +219,23 @@ AIDER_AI_CODE_TOOL = Tool(
 There are several issues that still need to be addressed in a future refactoring:
 
 1. **Complex Functions**: Several functions have high complexity (C901 warnings):
-   - _process_coder_results
-   - _run_aider_session
-   - code_with_aider
-   - _summarize_git_diff
-   - _summarize_file_contents
-   - get_file_status_summary
-   
-   These functions should be refactored into smaller, more focused components.
+   - _process_coder_results (complexity 23 > 10)
+   - _run_aider_session (complexity 12 > 10)
+   - _execute_with_retry (complexity 12 > 10)
+   - code_with_aider (complexity 27 > 10)
+   - check_api_keys (complexity 11 > 10)
+   - _summarize_git_diff (complexity 34 > 10)
+   - _summarize_file_contents (complexity 22 > 10)
+   - get_file_status_summary (complexity 13 > 10)
 
-2. **Type Issues**: There are still some type checking issues in aider_ai_code.py:
-   - Potential None operations (attempting to call append, remove on objects that might be None)
-   - Dictionary key assignments with incompatible types
-   - Name redefinitions
+   These functions should be refactored into smaller, more focused components in a future task.
+
+2. **Type Issues**: We have fixed many type checking issues in aider_ai_code.py, including:
+   - Fixed potential None operations (attempting to call append, remove on objects that might be None)
+   - Fixed dictionary key assignments with incompatible types
+   - Fixed name redefinitions
    
-   A thorough type system review and consistent typing is needed throughout the codebase.
+   However, a more thorough type system review and consistent typing is still needed throughout the codebase to address complexity issues.
 
 3. **Error Handling**: Error handling is inconsistent across the codebase. A more uniform approach would improve reliability.
 

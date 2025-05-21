@@ -6,7 +6,7 @@ import pathlib
 import subprocess
 
 # External imports - no stubs available
-from typing import Any, Dict, List, Optional, TypedDict, Union, cast
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from aider.coders import Coder
 from aider.io import InputOutput
@@ -215,7 +215,13 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         "vertexai": ["VERTEX_AI_API_KEY"],
     }
 
-    result = {"missing": [], "found": [], "available_providers": [], "missing_providers": [], "any_keys_found": False}
+    result: Dict[str, Any] = {
+        "missing": [],
+        "found": [],
+        "available_providers": [],
+        "missing_providers": [],
+        "any_keys_found": False,
+    }
 
     logger.info("Checking API keys in environment...")
     for key, provider in keys_to_check.items():
@@ -233,16 +239,24 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         if gemini_key is not None:  # Explicit check for None
             logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
             os.environ["GOOGLE_API_KEY"] = gemini_key
-            if "GOOGLE_API_KEY" in result["missing"]:
-                result["missing"].remove("GOOGLE_API_KEY")
-                result["found"].append("GOOGLE_API_KEY")
+            missing_list = result["missing"]
+            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
+                missing_list.remove("GOOGLE_API_KEY")
+                found_list = result["found"]
+                if isinstance(found_list, list):
+                    found_list.append("GOOGLE_API_KEY")
 
     # Determine available providers
     for provider, keys in provider_keys.items():
-        if any(key in result["found"] for key in keys):
-            result["available_providers"].append(provider)
-        else:
-            result["missing_providers"].append(provider)
+        found_list = result["found"]
+        available_providers = result["available_providers"]
+        missing_providers = result["missing_providers"]
+
+        if isinstance(found_list, list) and any(key in found_list for key in keys):
+            if isinstance(available_providers, list):
+                available_providers.append(provider)
+        elif isinstance(missing_providers, list):
+            missing_providers.append(provider)
 
     return result
 
@@ -1081,9 +1095,11 @@ async def _execute_with_retry(
                 if "rate_limit_info" not in response:
                     response["rate_limit_info"] = {"encountered": True, "retries": 1, "fallback_model": None}
                 else:
-                    rate_limit_info = cast(Dict[str, Any], response["rate_limit_info"])
-                    rate_limit_info["encountered"] = True
-                    rate_limit_info["retries"] += 1
+                    rate_limit_info = response.get("rate_limit_info")
+                    if isinstance(rate_limit_info, dict):
+                        rate_limit_info["encountered"] = True
+                        if "retries" in rate_limit_info and isinstance(rate_limit_info["retries"], int):
+                            rate_limit_info["retries"] += 1
 
                 if attempt < max_retries:
                     delay = initial_delay * (backoff_factor**attempt)
@@ -1097,7 +1113,9 @@ async def _execute_with_retry(
                             "fallback_model": current_model,
                         }
                     else:
-                        response["rate_limit_info"]["fallback_model"] = current_model
+                        rate_limit_info = response.get("rate_limit_info")
+                        if isinstance(rate_limit_info, dict):
+                            rate_limit_info["fallback_model"] = current_model
                     logger.info(f"Falling back to model: {current_model}")
                 else:
                     logger.error("Max retries reached. Unable to complete the request.")
@@ -1212,14 +1230,14 @@ async def code_with_aider(
         # No API keys found at all - this is a critical error
         error_msg = "Error: No API keys found for any provider. Please set at least one API key."
         logger.error(error_msg)
-        error_response = {
+        no_keys_response = {
             "success": False,
             "error": error_msg,
             "api_key_status": key_status,
             "warnings": [error_msg],
             "changes_summary": {"summary": error_msg},
         }
-        return json.dumps(error_response)
+        return json.dumps(no_keys_response)
 
     # Check if the requested provider has missing keys
     provider_has_keys = provider in key_status["available_providers"]
@@ -1278,7 +1296,7 @@ async def code_with_aider(
                 "status_summary": "No changes detected.",
             }
 
-            error_response: ResponseDict = {
+            type_error_response: ResponseDict = {
                 "success": False,
                 "changes_summary": empty_summary,
                 "file_status": empty_status,
@@ -1290,7 +1308,7 @@ async def code_with_aider(
                 "is_cached_diff": False,
                 "diff": "Error: " + error_msg,
             }
-            response = error_response
+            response = type_error_response
         else:
             # Re-raise other TypeError exceptions
             raise
@@ -1305,7 +1323,8 @@ async def code_with_aider(
             "status_summary": "No changes detected.",
         }
 
-        general_error_response: ResponseDict = {
+        # Use a properly typed definition
+        response = {
             "success": False,
             "changes_summary": empty_summary,
             "file_status": empty_status,
@@ -1317,7 +1336,6 @@ async def code_with_aider(
             "is_cached_diff": False,
             "diff": "Error: " + error_msg,
         }
-        response = general_error_response
     finally:
         # Always restore stdout and stderr
         sys.stdout = old_stdout
@@ -1342,12 +1360,14 @@ async def code_with_aider(
     }
 
     # Add warnings if the provider is missing keys
-    if provider not in key_status["available_providers"]:
+    available_providers = key_status["available_providers"]
+    if isinstance(available_providers, list) and provider not in available_providers:
         warning_msg = f"Warning: No API keys found for provider {provider}. Some functionality may be limited."
         if "warnings" not in response:
             response["warnings"] = []
-        if isinstance(response.get("warnings"), list):
-            response["warnings"].append(warning_msg)
+        warnings_list = response.get("warnings")
+        if isinstance(warnings_list, list):
+            warnings_list.append(warning_msg)
 
     # Ensure diff field is present for tests (even though we may remove it later)
     if "diff" not in response and "changes_summary" in response and response["changes_summary"].get("summary"):
