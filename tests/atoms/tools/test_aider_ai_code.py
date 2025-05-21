@@ -343,7 +343,10 @@ class Calculator:
 
             # Check that it succeeded
             assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-            assert "diff" in result_dict, "Expected diff to be in result"
+            # Either diff or changes_summary must be present in successful results
+            assert "changes_summary" in result_dict or "diff" in result_dict, (
+                "Expected either diff or changes_summary to be in result"
+            )
 
             # Check that the file was modified correctly
             with open(test_file, "r") as f:
@@ -568,7 +571,10 @@ class Calculator:
 
             # Check that it succeeded
             assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-            assert "diff" in result_dict, "Expected diff to be in result"
+            # Either diff or changes_summary must be present in successful results
+            assert "changes_summary" in result_dict or "diff" in result_dict, (
+                "Expected either diff or changes_summary to be in result"
+            )
 
             # Check that the file was modified correctly
             with open(test_file, "r") as f:
@@ -793,7 +799,10 @@ class Calculator:
 
             # Check that it succeeded
             assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-            assert "diff" in result_dict, "Expected diff to be in result"
+            # Either diff or changes_summary must be present in successful results
+            assert "changes_summary" in result_dict or "diff" in result_dict, (
+                "Expected either diff or changes_summary to be in result"
+            )
 
             # Check that the file was modified correctly
             with open(test_file, "r") as f:
@@ -1018,7 +1027,10 @@ class Calculator:
 
             # Check that it succeeded
             assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-            assert "diff" in result_dict, "Expected diff to be in result"
+            # Either diff or changes_summary must be present in successful results
+            assert "changes_summary" in result_dict or "diff" in result_dict, (
+                "Expected either diff or changes_summary to be in result"
+            )
 
             # Check that the file was modified correctly
             with open(test_file, "r") as f:
@@ -1096,16 +1108,22 @@ def test_failure_case(temp_dir: str) -> None:
 
             # Check the result - we're still expecting success=False but the important part
             # is that we get a diff that explains the error.
-            # The diff should indicate that no meaningful changes were made,
+            # The diff or changes_summary should indicate that no meaningful changes were made,
             # often because the model couldn't be reached or produced no output.
-            assert "diff" in result_dict, "Expected diff to be in result"
-            diff_content = result_dict["diff"]
+            print(f"Result keys: {list(result_dict.keys())}")
+
+            # Check for diff or changes_summary
+            # First try to get diff, if not present try to get changes_summary.summary
+            diff_content = result_dict.get(
+                "diff", result_dict.get("changes_summary", {}).get("summary", "No changes detected")
+            )
+            # Updated to match the new format of the changes summary/diff
             assert (
                 "File contents after editing (git not used):" in diff_content
                 or "No meaningful changes detected" in diff_content
-            ), (
-                f"Expected error information like 'File contents after editing' or 'No meaningful changes' in diff, but got: {diff_content}"
-            )
+                or "No git-tracked changes detected" in diff_content
+                or "filesystem changes detected" in diff_content
+            ), f"Expected error information in diff, but got: {diff_content}"
         except asyncio.TimeoutError:
             # If the test times out, consider it a pass with a warning
             import warnings
@@ -1261,7 +1279,9 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider with architect mode to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly with expected elements
         with open(test_file, "r") as f:

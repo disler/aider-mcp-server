@@ -47,6 +47,25 @@ AIDER_AI_CODE_TOOL = Tool(
                 "type": "string",
                 "description": "The primary AI model Aider should use for generating code, leave blank unless model is specified in the request",
             },
+            "architect_mode": {
+                "type": "boolean",
+                "description": "Enable two-phase code generation with an architect model planning first, then an editor model implementing",
+                "default": False,
+            },
+            "editor_model": {
+                "type": "string",
+                "description": "The secondary AI model to use for code implementation when architect_mode is enabled",
+            },
+            "auto_accept_architect": {
+                "type": "boolean",
+                "description": "Automatically accept architect suggestions without confirmation",
+                "default": True,
+            },
+            "include_raw_diff": {
+                "type": "boolean",
+                "description": "Whether to include raw diff in the response (not recommended)",
+                "default": False,
+            },
         },
         "required": ["ai_coding_prompt", "relative_editable_files"],
     },

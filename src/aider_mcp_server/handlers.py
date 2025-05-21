@@ -92,9 +92,20 @@ async def _execute_aider_code(
     relative_readonly_files: List[str],
     model_to_use: str,
     current_working_dir: str,
+    params: RequestParameters,
 ) -> OperationResult:
     """Execute the Aider code generation and process the results."""
     try:
+        # Extract additional optional parameters
+        architect_mode = params.get("architect_mode", False)
+        editor_model = params.get("editor_model", None)
+        auto_accept_architect = params.get("auto_accept_architect", True)
+        include_raw_diff = params.get("include_raw_diff", False)
+
+        # Log the architect mode configuration
+        if architect_mode:
+            logger.info(f"Request {request_id}: Using architect mode with editor model: {editor_model or model_to_use}")
+
         # Call the underlying tool function which returns a JSON string
         # The actual implementation always returns a string
         result_json_str = await code_with_aider(
@@ -103,9 +114,29 @@ async def _execute_aider_code(
             relative_readonly_files=relative_readonly_files,
             model=model_to_use,
             working_dir=current_working_dir,
+            architect_mode=architect_mode,
+            editor_model=editor_model,
+            auto_accept_architect=auto_accept_architect,
+            include_raw_diff=include_raw_diff,
         )
 
-        return _parse_aider_result(request_id, result_json_str)
+        result = _parse_aider_result(request_id, result_json_str)
+
+        # If there are warnings in the response related to API keys, log them
+        if "warnings" in result:
+            for warning in result["warnings"]:
+                if "API key" in warning or "api key" in warning.lower():
+                    logger.warning(f"Request {request_id}: API key warning: {warning}")
+
+            # Add a user-friendly message if there are API key warnings
+            if any("API key" in warning or "api key" in warning.lower() for warning in result["warnings"]):
+                result["user_message"] = "⚠️ API key issue detected. Some features may not work as expected."
+
+        # If there's API key information, log it at debug level
+        if "api_key_status" in result:
+            logger.debug(f"Request {request_id}: API key status: {result['api_key_status']}")
+
+        return result
 
     except Exception as e:
         logger.exception(f"Request {request_id}: Unhandled exception during code_with_aider execution: {e}")
@@ -214,6 +245,7 @@ async def process_aider_ai_code_request(
         relative_readonly_files,
         model_to_use,
         current_working_dir,
+        params,
     )
 
 

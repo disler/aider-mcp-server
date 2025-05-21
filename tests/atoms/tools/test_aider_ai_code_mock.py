@@ -101,7 +101,9 @@ async def test_addition_mock(temp_dir: str) -> None:
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly
         with open(test_file, "r") as f:
@@ -151,7 +153,9 @@ async def test_subtraction_mock(temp_dir: str) -> None:
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly
         with open(test_file, "r") as f:
@@ -201,7 +205,9 @@ async def test_multiplication_mock(temp_dir: str) -> None:
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly
         with open(test_file, "r") as f:
@@ -251,7 +257,9 @@ async def test_division_mock(temp_dir: str) -> None:
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly
         with open(test_file, "r") as f:
@@ -312,9 +320,11 @@ async def test_failure_case_mock(temp_dir: str) -> None:
         result_dict = json.loads(result)
 
         # Check the result - we're expecting error information
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
-        # Test for expected message patterns in the diff
+        # Test for expected message patterns in the diff or changes_summary
         expected_patterns = [
             "File contents after editing",
             "No meaningful changes detected",
@@ -323,9 +333,10 @@ async def test_failure_case_mock(temp_dir: str) -> None:
 
         # Any of these patterns is acceptable - we're testing the high-level behavior,
         # not the specific error message format
-        pattern_found = any(pattern in result_dict["diff"] for pattern in expected_patterns)
+        diff_content = result_dict.get("diff", result_dict.get("changes_summary", {}).get("summary", ""))
+        pattern_found = any(pattern in diff_content for pattern in expected_patterns)
         if not pattern_found:
-            print(f"WARNING: Expected one of {expected_patterns} in diff, but got: {result_dict['diff']}")
+            print(f"WARNING: Expected one of {expected_patterns} in content, but got: {diff_content}")
 
     except asyncio.TimeoutError:
         # If the test times out, consider it a pass with a warning
@@ -380,7 +391,9 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
 
         # Check that it succeeded
         assert result_dict["success"] is True, "Expected code_with_aider to succeed"
-        assert "diff" in result_dict, "Expected diff to be in result"
+        assert "changes_summary" in result_dict or "diff" in result_dict, (
+            "Expected either diff or changes_summary to be in result"
+        )
 
         # Check that the file was modified correctly with expected elements
         with open(test_file, "r") as f:
