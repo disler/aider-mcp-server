@@ -1,7 +1,7 @@
 import json
 import sys
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,19 +32,19 @@ index 1234567..abcdef0 100644
  def hello():
      print("Hello")
 +    print("World")
- 
+
  def goodbye():
      print("Goodbye")
 """
         # Create summary and status
         mock_summary = summarize_changes(git_diff)
         mock_status = {
-            "has_changes": True, 
-            "status_summary": "Changes detected: 1 files modified", 
-            "files": [{"name": "test_file.py", "operation": "modified"}], 
-            "files_modified": 1
+            "has_changes": True,
+            "status_summary": "Changes detected: 1 files modified",
+            "files": [{"name": "test_file.py", "operation": "modified"}],
+            "files_modified": 1,
         }
-        
+
         # Setup mock result
         mock_run_aider.return_value = {
             "success": True,
@@ -61,27 +61,27 @@ index 1234567..abcdef0 100644
             working_dir=temp_dir,
             model="test-model",
         )
-        
+
         # Parse the JSON result
         result = json.loads(result_json)
-        
+
         # Print the result to console for verification
         print("\nRESPONSE FORMAT:", file=sys.stderr)
         print(json.dumps(result, indent=2), file=sys.stderr)
-        
+
         # Verify the response includes essential information
         # Note: diff might be removed in some cases but changes_summary should always be present
         assert "changes_summary" in result
         assert "file_status" in result
-        
+
         # Verify the summary content
         assert "summary" in result["changes_summary"]
         assert "files" in result["changes_summary"]
         assert "stats" in result["changes_summary"]
-        
+
         # Verify useful information is included
         assert result["changes_summary"]["stats"]["lines_added"] > 0
-        
+
         # Find the test_file.py in the files array
         found_file = False
         for file_entry in result["changes_summary"]["files"]:
@@ -89,5 +89,5 @@ index 1234567..abcdef0 100644
                 found_file = True
                 break
         assert found_file, "test_file.py should be in the files array"
-        
-        assert "print(\"World\")" in git_diff
+
+        assert 'print("World")' in git_diff

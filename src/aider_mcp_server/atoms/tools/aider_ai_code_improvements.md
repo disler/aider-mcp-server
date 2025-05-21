@@ -65,7 +65,7 @@ async def _process_coder_results(
     logger.info(f"Changes summary generated: {changes_summary['summary']}")
 
     # Rest of the function remains similar...
-    
+
     # Modify the response to include both diff and summary
     response: ResponseDict = {
         "success": success,
@@ -102,14 +102,14 @@ async def code_with_aider(
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
-    
+
     Args:
         ...existing params...
         summary_only: If True, only include the changes summary in the response, not the full diff.
                      This reduces token usage significantly.
     """
     # ...existing code...
-    
+
     try:
         # Execute with retry logic
         response: ResponseDict = await _execute_with_retry(
@@ -138,7 +138,7 @@ async def code_with_aider(
     if summary_only and "changes_summary" in response:
         # Keep the full summary in the response
         response["diff"] = json.dumps(response["changes_summary"], indent=2)
-        
+
     # Convert the response to a proper JSON string
     formatted_response = json.dumps(response, indent=4)
     logger.info(f"code_with_aider process completed. Success: {response['success']}")

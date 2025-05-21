@@ -7,7 +7,6 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
-import pytest_asyncio
 
 from aider_mcp_server.atoms.tools.aider_ai_code import (
     _check_for_meaningful_changes,
@@ -43,8 +42,7 @@ class TestAiderChangesHandling:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create an empty file
             test_file = os.path.join(temp_dir, "empty_file.py")
-            with open(test_file, "w") as f:
-                pass  # Empty file
+            open(test_file, "w").close()  # Create empty file without unused variable
 
             # Relative path for the function
             relative_path = "empty_file.py"
@@ -77,12 +75,12 @@ class TestAiderChangesHandling:
                 ("import_file.py", "import os\nimport sys\n"),
                 ("indented_file.py", "if True:\n    do_something()\n"),
             ]
-            
+
             for filename, content in test_files:
                 file_path = os.path.join(temp_dir, filename)
                 with open(file_path, "w") as f:
                     f.write(content)
-                
+
                 # Test each file individually
                 has_meaningful_changes = _check_for_meaningful_changes([filename], temp_dir)
                 assert has_meaningful_changes is True, f"Failed for {filename}"
@@ -94,15 +92,15 @@ class TestAiderChangesHandling:
             test_file = os.path.join(temp_dir, "test_file.py")
             with open(test_file, "w") as f:
                 f.write("def hello():\n    print('Hello')\n")
-            
+
             # Mock git diff command
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "mock git diff output"
-            
+
             with patch("subprocess.run", return_value=mock_result) as mock_run:
                 diff_output = _get_changes_diff_or_content(["test_file.py"], temp_dir)
-                
+
                 # Verify git command was called
                 mock_run.assert_called_once()
                 # Check that git diff output was returned
@@ -116,15 +114,15 @@ class TestAiderChangesHandling:
             test_file = os.path.join(temp_dir, "test_file.py")
             with open(test_file, "w") as f:
                 f.write("def hello():\n    print('Hello')\n")
-            
+
             # Mock git diff command to fail
             mock_result = MagicMock()
             mock_result.returncode = 1
             mock_result.stderr = "git command failed"
-            
+
             with patch("subprocess.run", side_effect=Exception("git error")) as mock_run:
                 diff_output = _get_changes_diff_or_content(["test_file.py"], temp_dir)
-                    
+
                 # Verify git command was called
                 mock_run.assert_called_once()
                 # Check that file content fallback was used
@@ -136,16 +134,16 @@ class TestAiderChangesHandling:
         """Test _process_coder_results with meaningful changes."""
         with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
-            
+
             with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = True
-                
+
                 with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
                     mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
-                    
+
                     # Call the function
                     result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)
-                    
+
                     # Verify the result
                     assert result["success"] is True
                     # Updated test to check for diff field presence but not exact content
@@ -157,28 +155,28 @@ class TestAiderChangesHandling:
         """Test _process_coder_results with no meaningful changes."""
         with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
-            
+
             with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = False
-                
-                # Also mock get_file_status_summary 
+
+                # Also mock get_file_status_summary
                 with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_file_status_summary") as mock_status:
                     mock_status.return_value = {
                         "has_changes": False,
                         "status_summary": "No changes detected.",
                         "files_created": 0,
-                        "files_modified": 0
+                        "files_modified": 0,
                     }
-                
+
                     with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
                         mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
-                        
+
                         # Call the function
                         result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)
-                        
+
                         # Verify the result
                         assert result["success"] is False
-                        
+
                         # Check that we have the summary fields
                         assert "changes_summary" in result
                         assert "file_status" in result
@@ -192,15 +190,15 @@ class TestAiderChangesHandling:
                 ("minimal.py", "# Just a comment"),
                 ("code.py", "def function():\n    return True"),
             ]
-            
+
             for filename, content in files:
                 file_path = os.path.join(temp_dir, filename)
                 with open(file_path, "w") as f:
                     f.write(content)
-            
+
             # Get status summary for all files
             result = get_file_status_summary([f[0] for f in files], temp_dir)
-            
+
             # Check the results
             assert result["has_changes"] is True
             assert result["files_created"] > 0  # At least the empty file should be counted as created
@@ -217,7 +215,7 @@ index 1234567..abcdef0 100644
  def hello():
      print("Hello")
 +    print("World")
- 
+
  def goodbye():
      print("Goodbye")
 """
@@ -236,11 +234,11 @@ def goodbye():
         # Test both formats
         git_result = summarize_changes(git_diff)
         file_result = summarize_changes(file_contents)
-        
+
         # Verify git diff summary
         assert "Changed 1 files" in git_result["summary"]
         assert git_result["stats"]["lines_added"] == 1
-        
+
         # Check for test_file.py in git result files array
         found_file = False
         for file_entry in git_result["files"]:
@@ -248,10 +246,10 @@ def goodbye():
                 found_file = True
                 break
         assert found_file, "test_file.py should be in the files array"
-        
+
         # Verify file contents summary
         assert "Changed 1 files" in file_result["summary"]
-        
+
         # Check for test_file.py in file result files array
         found_file = False
         for file_entry in file_result["files"]:
@@ -275,17 +273,17 @@ index 0000000..1234567
 """
         # Test summarization
         result = summarize_changes(git_diff)
-        
+
         # Verify new file is correctly identified
         assert result["stats"]["files_created"] == 1
         assert result["stats"]["lines_added"] == 3
-        
+
         # Find the new file in the array
         new_file_entry = None
         for file_entry in result["files"]:
             if file_entry["name"] == "new_file.py":
                 new_file_entry = file_entry
                 break
-                
+
         assert new_file_entry is not None, "new_file.py should be in the files array"
         assert new_file_entry["operation"] == "created", "Operation should be 'created'"

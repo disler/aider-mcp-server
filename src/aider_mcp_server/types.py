@@ -5,7 +5,7 @@ This module provides type aliases for common complex types used throughout the c
 enhancing readability and type safety while reducing duplication.
 """
 
-from typing import Any, Dict, List, Optional, TypedDict, Union
+from typing import Any, Dict, Optional, TypedDict, Union
 
 # ====== Basic Type Aliases ======
 
@@ -26,28 +26,36 @@ TransportMessage = Dict[str, Any]
 
 # ====== Typed Dictionaries for more specific type definitions ======
 
+
 class ErrorResponseDict(TypedDict):
     """Type definition for standardized error responses."""
+
     success: bool  # Always False for errors
     error: str
     details: Optional[str]
 
+
 class SuccessResponseDict(TypedDict, total=False):
     """Type definition for standardized success responses."""
+
     success: bool  # Always True for success
     data: Any
     message: Optional[str]
 
+
 # Combined response type
 ResponseDict = Union[ErrorResponseDict, SuccessResponseDict]
+
 
 # File operation result type
 class FileOperationResult(TypedDict, total=False):
     """Type definition for file operation results."""
+
     success: bool
     path: str
     error: Optional[str]
     content: Optional[str]
+
 
 # Configuration settings type
 ConfigSettings = Dict[str, Any]
