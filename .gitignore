@@ -68,3 +68,7 @@ focus_output/
 # Log files
 logs/
 *.log
+**/.claude/settings.local.json
+
+# TODO files
+TODO_*.md

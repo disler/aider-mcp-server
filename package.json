@@ -1,0 +1,30 @@
+{
+  "name": "aider-mcp-setup",
+  "version": "0.1.0",
+  "description": "Setup script for aider-mcp integration with Claude Code",
+  "main": "bin/setup-aider-mcp.js",
+  "bin": {
+    "setup-aider-mcp": "./bin/setup-aider-mcp.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/disler/aider-mcp-server.git"
+  },
+  "keywords": [
+    "aider",
+    "claude",
+    "mcp",
+    "ai",
+    "coding"
+  ],
+  "author": "IndyDevDan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/disler/aider-mcp-server/issues"
+  },
+  "homepage": "https://github.com/disler/aider-mcp-server#readme",
+  "dependencies": {}
+}
