@@ -127,8 +127,8 @@ class EventMediator:
         self,
         event_type: EventTypes,
         data: Dict[str, Any],
-        exclude_transport_id: Optional[str] = None, # Not supported by simple EventSystem
-        test_mode: bool = False, # Not supported by simple EventSystem
+        exclude_transport_id: Optional[str] = None,  # Not supported by simple EventSystem
+        test_mode: bool = False,  # Not supported by simple EventSystem
     ) -> None:
         if exclude_transport_id is not None:
             self._logger.warning(

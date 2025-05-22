@@ -38,25 +38,25 @@ except ImportError:
         # Wrapper class to satisfy LoggerProtocol
         class CustomLogger(LoggerProtocol):
             def debug(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.debug(message, **kwargs)  # type: ignore
+                logger_instance.debug(message, **kwargs)
 
             def info(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.info(message, **kwargs)  # type: ignore
+                logger_instance.info(message, **kwargs)
 
             def warning(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.warning(message, **kwargs)  # type: ignore
+                logger_instance.warning(message, **kwargs)
 
             def error(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.error(message, **kwargs)  # type: ignore
+                logger_instance.error(message, **kwargs)
 
             def critical(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.critical(message, **kwargs)  # type: ignore
+                logger_instance.critical(message, **kwargs)
 
             def exception(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.exception(message, **kwargs)  # type: ignore
+                logger_instance.exception(message, **kwargs)
 
             def verbose(self, message: str, **kwargs: typing.Any) -> None:
-                logger_instance.debug(message, **kwargs)  # type: ignore
+                logger_instance.debug(message, **kwargs)
 
         return CustomLogger()
 

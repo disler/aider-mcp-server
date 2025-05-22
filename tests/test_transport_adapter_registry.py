@@ -192,22 +192,25 @@ class TestDiscoverAdapters:
     async def test_discover_adapters_successfully(self, registry: TransportAdapterRegistry, mock_logger_factory: Any):
         # Test direct module discovery by adding classes manually
         # This is a simpler approach that avoids complex mocking
-        mock_module = create_mock_module("test_module", {
-            "Adapter1": MockAdapterOne,
-            "Adapter2": MockAdapterTwo,
-            "NotAnAdapter": dict,  # Should be skipped
-        })
-        
+        mock_module = create_mock_module(
+            "test_module",
+            {
+                "Adapter1": MockAdapterOne,
+                "Adapter2": MockAdapterTwo,
+                "NotAnAdapter": dict,  # Should be skipped
+            },
+        )
+
         # Directly test the discovery logic
         registry._discover_adapters_from_module(mock_module)
-        
+
         # Verify adapters were discovered
         assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
         assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == MockAdapterOne
         assert MockAdapterTwo.TRANSPORT_TYPE_NAME in registry._adapter_classes
         assert registry._adapter_classes[MockAdapterTwo.TRANSPORT_TYPE_NAME] == MockAdapterTwo
         assert len(registry._adapter_classes) == 2
-        
+
         # Verify logging
         logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
         logger.info.assert_any_call(
@@ -244,7 +247,10 @@ class TestDiscoverAdapters:
         self, registry: TransportAdapterRegistry, mock_logger_factory: Any
     ):
         mock_pkg_name = "non_existent_pkg"
-        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module", side_effect=ImportError(f"No module named {mock_pkg_name}")):
+        with patch(
+            "aider_mcp_server.transport_adapter_registry.importlib.import_module",
+            side_effect=ImportError(f"No module named {mock_pkg_name}"),
+        ):
             registry.discover_adapters(mock_pkg_name)
 
             assert not registry._adapter_classes
@@ -256,10 +262,10 @@ class TestDiscoverAdapters:
     ):
         # Test that discover_adapters handles import errors gracefully
         mock_pkg_name = "non_existent_package"
-        
+
         # Try to discover adapters from a non-existent package
         registry.discover_adapters(mock_pkg_name)
-        
+
         # Should log error and not crash
         assert not registry._adapter_classes
         logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
@@ -269,19 +275,22 @@ class TestDiscoverAdapters:
         self, registry: TransportAdapterRegistry, mock_logger_factory: Any
     ):
         # Test that invalid adapters are skipped during discovery
-        mock_module = create_mock_module("test_module", {
-            "AdapterNoName": AdapterWithoutTypeName,
-            "AdapterInvalidName": AdapterWithInvalidTypeName,
-            "ValidAdapter": MockAdapterOne,
-        })
-        
+        mock_module = create_mock_module(
+            "test_module",
+            {
+                "AdapterNoName": AdapterWithoutTypeName,
+                "AdapterInvalidName": AdapterWithInvalidTypeName,
+                "ValidAdapter": MockAdapterOne,
+            },
+        )
+
         # Discover from the module
         registry._discover_adapters_from_module(mock_module)
-        
+
         # Only valid adapter should be registered
         assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
         assert len(registry._adapter_classes) == 1
-        
+
         # Verify warnings were logged
         logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
         logger.warning.assert_any_call(
@@ -305,19 +314,18 @@ class TestDiscoverAdapters:
         # First add MockAdapterOne
         mock_module1 = create_mock_module("test_module1", {"AdapterOriginal": MockAdapterOne})
         registry._discover_adapters_from_module(mock_module1)
-        
+
         # Then add duplicate
         mock_module2 = create_mock_module("test_module2", {"AdapterDuplicate": DuplicateAdapter})
         registry._discover_adapters_from_module(mock_module2)
-        
+
         # Should have overwritten with DuplicateAdapter
         assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == DuplicateAdapter
-        
+
         # Verify warning was logged
         logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
         logger.warning.assert_any_call(
-            "Duplicate transport type 'mock_one' found. "
-            "Class DuplicateAdapter will overwrite MockAdapterOne."
+            "Duplicate transport type 'mock_one' found. Class DuplicateAdapter will overwrite MockAdapterOne."
         )
 
 

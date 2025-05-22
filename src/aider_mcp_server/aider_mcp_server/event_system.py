@@ -33,7 +33,7 @@ class EventSystem:
     does not prevent others from executing.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes the EventSystem with an empty subscriber list and an asyncio Lock
         to ensure thread-safe modifications to subscribers.
