@@ -20,6 +20,8 @@ class Permissions(enum.Enum):
     EXECUTE_AIDER = "execute_aider"  # Renamed for clarity
     VIEW_CONFIG = "view_config"
     LIST_MODELS = "list_models"  # Added permission
+    READ = "read"
+    WRITE = "write"
     # Add other relevant permissions as needed
 
     @classmethod

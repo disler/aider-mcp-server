@@ -75,8 +75,7 @@ async def test_send_event_json_serialization_error(adapter):
         # Verify that an error was logged
         mock_logger.error.assert_called_once()
         log_message = mock_logger.error.call_args[0][0]
-        assert "Error putting event into queue" in log_message
-        assert "test-connection" in log_message
+        assert "JSON serialization error for event type status: Object not serializable" in log_message
 
         # Verify that the queue is still empty (no message was sent)
         assert test_queue.empty()
@@ -236,8 +235,6 @@ async def test_run_sse_server_network_bind_error():
     """Test handling network bind errors when starting the SSE server."""
     # Mock the ApplicationCoordinator.getInstance method
     mock_coordinator = AsyncMock()
-    mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
-    mock_coordinator.__aexit__ = AsyncMock(return_value=None)
 
     # Mock SSETransportAdapter to simulate a network bind error
     mock_adapter = AsyncMock()
@@ -281,12 +278,9 @@ async def test_run_sse_server_network_bind_error():
 async def test_run_sse_server_async_error_during_setup():
     """Test handling async errors during SSE server setup."""
     # Mock the ApplicationCoordinator.getInstance method to raise an error
-    mock_future = asyncio.Future()
-    mock_future.set_exception(RuntimeError("Test error during coordinator instantiation"))
-
     # Path ApplicationCoordinator.getInstance and other components
     with (
-        patch("aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", return_value=mock_future),
+        patch("aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", new_callable=AsyncMock, side_effect=RuntimeError("Test error during coordinator instantiation")),
         patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
         patch("aider_mcp_server.sse_server.get_logger") as mock_get_logger,
     ):

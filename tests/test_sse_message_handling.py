@@ -124,34 +124,30 @@ async def test_send_event_queue_full():
 @pytest.mark.asyncio
 async def test_send_event_removed_connection(adapter):
     """Test that the adapter handles sending an event to a removed connection."""
-    # Set up a connection that will be removed
-    adapter._active_connections = {"test-connection": asyncio.Queue()}
-
     # Create a test event
     event_type = EventTypes.STATUS
     event_data = {"message": "Test message", "id": "test-id"}
 
-    # Mock the connections dict to simulate concurrent removal
-    original_get = adapter._active_connections.get
-    call_count = 0
+    # Create a mock for _active_connections that simulates the race condition
+    # where a connection is present when keys() is called, but gone when get() is called.
+    mock_connections_dict = MagicMock(spec=dict)
+    mock_connections_dict.keys.return_value = ["test-connection"]  # Simulate key was present initially
+    mock_connections_dict.get.return_value = None  # Simulate key is gone/connection removed when .get() is called
 
-    def mock_get(key, default=None):
-        nonlocal call_count
-        call_count += 1
-        if call_count > 1:  # Return the queue for the first call, then None
-            return None
-        return original_get(key, default)
+    # Patch adapter._active_connections with our mock
+    with patch.object(adapter, "_active_connections", mock_connections_dict):
+        with patch.object(adapter, "logger") as mock_logger:
+            await adapter.send_event(event_type, event_data)
 
-    adapter._active_connections.get = mock_get
+            # Verify that a debug message was logged for the removed connection
+            mock_logger.debug.assert_called_once()
+            log_message = mock_logger.debug.call_args[0][0]
+            assert "Connection test-connection removed" in log_message
+            assert f"event {event_type.value}" in log_message
 
-    # Send the event
-    with patch.object(adapter, "logger") as mock_logger:
-        await adapter.send_event(event_type, event_data)
-
-        # Verify that a debug message was logged
-        mock_logger.debug.assert_called_once()
-        log_message = mock_logger.debug.call_args[0][0]
-        assert "Connection test-connection removed" in log_message
+            # Verify that our mock was used as expected
+            mock_connections_dict.keys.assert_called_once()
+            mock_connections_dict.get.assert_called_once_with("test-connection")
 
 
 @pytest.mark.asyncio

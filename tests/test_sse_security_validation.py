@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.security import SecurityContext, Permissions
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 
 
@@ -76,7 +76,7 @@ def test_validate_request_security_with_token():
     # Verify that the security context has the expected values
     assert security_context.is_anonymous is False
     assert security_context.user_id == "test-user"
-    assert security_context.permissions == {"read", "write"}
+    assert security_context.permissions == {Permissions.READ, Permissions.WRITE}
     assert security_context.transport_id == "sse"
 
     # Verify that the token was validated
@@ -108,10 +108,10 @@ def test_validate_request_security_with_invalid_token():
                 # Try to validate the token
                 return adapter._security_service.validate_token(token)
             except ValueError:
-                # Return anonymous context with limited permissions on token validation failure
+                # Return anonymous context on token validation failure
                 return SecurityContext(
                     user_id=None,
-                    permissions={"read"},  # Limited permissions
+                    permissions=set(), # Anonymous context will always have empty permissions
                     is_anonymous=True,
                     transport_id=adapter.get_transport_id(),
                 )
@@ -130,7 +130,7 @@ def test_validate_request_security_with_invalid_token():
     # Verify that the security context has the expected values
     assert security_context.is_anonymous is True
     assert security_context.user_id is None
-    assert security_context.permissions == {"read"}  # Limited permissions
+    assert security_context.permissions == set()
     assert security_context.transport_id == adapter.get_transport_id()
 
     # Verify that the token was attempted to be validated
@@ -320,7 +320,7 @@ async def test_security_in_handle_sse_request():
             security_context = adapter.validate_request_security(request_details)
 
             # Check if the request is allowed
-            if not security_context.is_anonymous or "read" in security_context.permissions:
+            if not security_context.is_anonymous or Permissions.READ in security_context.permissions:
                 # Allow the request to proceed
                 return await original_handle_sse(request)
             else:
@@ -410,7 +410,7 @@ async def test_security_validation_with_custom_security_service():
     # Verify that the security context has the expected values
     assert security_context.is_anonymous is False
     assert security_context.user_id == "test-user"
-    assert security_context.permissions == {"read", "write"}
+    assert security_context.permissions == {Permissions.READ, Permissions.WRITE}
     assert security_context.transport_id == "sse"
 
     # Test with an invalid token

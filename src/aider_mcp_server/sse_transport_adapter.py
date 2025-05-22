@@ -298,8 +298,15 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
     async def send_event(self, event_type: EventTypes, data: EventData) -> None:
         """Send an event to all connected SSE clients."""
-        # Format as SSE message
-        sse_message = f"event: {event_type.value}\ndata: {json.dumps(data)}\n\n"
+        try:
+            # Format as SSE message
+            json_data_str = json.dumps(data)
+            sse_message = f"event: {event_type.value}\ndata: {json_data_str}\n\n"
+        except TypeError as e:
+            self.logger.error(
+                f"JSON serialization error for event type {event_type.value}: {e}. Data: {str(data)[:200]}..."
+            )
+            return  # Do not proceed if data cannot be serialized
 
         if event_type == EventTypes.PROGRESS:
             self.logger.debug(f"Broadcasting progress event to SSE clients: {data}")

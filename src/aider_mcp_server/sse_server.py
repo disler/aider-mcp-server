@@ -149,22 +149,23 @@ async def run_sse_server(
     # Get coordinator instance
     coordinator = await ApplicationCoordinator.getInstance(get_logger)
 
-    # Use the coordinator in async context
-    async with coordinator:
-        logger.debug("Coordinator context entered")
+    logger.debug("Coordinator instance obtained")
 
-        # Create the SSE adapter with coordinator
-        sse_adapter = SSETransportAdapter(
-            coordinator=coordinator,
-            host=host,
-            port=port,
-            get_logger=get_logger,
-            editor_model=editor_model,
-            current_working_dir=current_working_dir,
-        )
+    # Create the SSE adapter with coordinator
+    sse_adapter = SSETransportAdapter(
+        coordinator=coordinator,
+        host=host,
+        port=port,
+        get_logger=get_logger,
+        editor_model=editor_model,
+        current_working_dir=current_working_dir,
+    )
 
+    initialized_successfully = False
+    try:
         # Initialize the adapter (this will create the FastMCP server and register with coordinator)
         await sse_adapter.initialize()
+        initialized_successfully = True  # Set flag only after successful initialization
 
         # Start the SSE server
         await sse_adapter.start_listening()
@@ -174,36 +175,70 @@ async def run_sse_server(
         shutdown_event = asyncio.Event()
 
         async def handle_shutdown() -> None:
-            """Handle graceful shutdown"""
-            logger.info("Graceful shutdown initiated")
-            shutdown_event.set()
+            """Handle graceful shutdown by setting the event."""
+            logger.info("Graceful shutdown initiated by signal.")
+            if not shutdown_event.is_set():
+                shutdown_event.set()
 
         # Setup signal handlers
         loop = asyncio.get_event_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-
-            def create_handler(s: int = sig) -> None:
+        for sig_val in (signal.SIGTERM, signal.SIGINT):
+            # Capture sig_val correctly in the closure
+            def create_handler(s: int = sig_val) -> None:
+                logger.debug(f"Signal handler for {signal.Signals(s).name} creating task for handle_shutdown.")
                 asyncio.create_task(handle_shutdown())
 
-            loop.add_signal_handler(sig, create_handler)
+            loop.add_signal_handler(sig_val, create_handler)
 
-        # Wait for shutdown signal and server task
+        # Wait for shutdown signal and server task (nested try for server operation phase)
         try:
-            # Get the server task from the adapter if available
             server_task = getattr(sse_adapter, "_server_task", None)
             if server_task:
-                await asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True)
+                logger.debug("Waiting on shutdown_event and server_task.")
+                # Gather tasks, return_exceptions=True allows us to inspect individual task outcomes
+                results = await asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True)
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        task_name = "shutdown_event.wait()" if i == 0 else "server_task"
+                        if not isinstance(result, asyncio.CancelledError):
+                            logger.error(f"Exception in gathered task '{task_name}': {result}", exc_info=result)
+                            raise result # Propagate critical exceptions
+                        else:
+                            logger.info(f"Task '{task_name}' was cancelled.")
             else:
+                logger.debug("Waiting on shutdown_event (no server_task).")
                 await shutdown_event.wait()
-            logger.info("Shutdown event received. Closing SSE server...")
+            
+            logger.info("Shutdown event processed or server task completed. Proceeding to close server.")
+
         except asyncio.CancelledError:
-            logger.info("Server tasks cancelled")
+            logger.info("Server operation tasks were cancelled.")
+            # Do not re-raise CancelledError from here; allow graceful shutdown path via finally.
         except Exception as e:
-            logger.error(f"Error during server operation: {e}")
-        finally:
-            # Shutdown the adapter
-            await sse_adapter.shutdown()
-            logger.info("SSE server shutdown complete")
+            logger.error(f"Error during server operation: {e}", exc_info=True)
+            raise # Re-raise to be caught by the outer exception handler, ensuring cleanup
+
+    except Exception as e:
+        # This outer except catches:
+        # - Errors from initialize() (initialized_successfully will be False)
+        # - Errors from start_listening() (initialized_successfully will be True)
+        # - Errors re-raised from the inner try's exception block (initialized_successfully will be True)
+        # - Any other unexpected errors in the main try block before the inner try
+        logger.error(f"Unhandled exception in run_sse_server: {e}", exc_info=True)
+        raise # Re-raise the exception to signal failure to the caller
+    finally:
+        # This is the new outer finally block.
+        # It will execute regardless of where an exception occurred in the try block,
+        # or if no exception occurred.
+        if initialized_successfully:
+            logger.info("Attempting to shut down SSE adapter (as initialization was successful)...")
+            try:
+                await sse_adapter.shutdown()
+                logger.info("SSE adapter shutdown process completed.")
+            except Exception as e_shutdown:
+                logger.error(f"Error during SSE adapter shutdown: {e_shutdown}", exc_info=True)
+        else:
+            logger.info("SSE adapter initialization did not complete successfully; skipping shutdown.")
 
 
 # Keep the old function signature for compatibility
