@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.security import SecurityContext, Permissions
+from aider_mcp_server.security import Permissions, SecurityContext
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 
 
@@ -111,7 +111,7 @@ def test_validate_request_security_with_invalid_token():
                 # Return anonymous context on token validation failure
                 return SecurityContext(
                     user_id=None,
-                    permissions=set(), # Anonymous context will always have empty permissions
+                    permissions=set(),  # Anonymous context will always have empty permissions
                     is_anonymous=True,
                     transport_id=adapter.get_transport_id(),
                 )

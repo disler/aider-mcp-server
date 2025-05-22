@@ -280,7 +280,11 @@ async def test_run_sse_server_async_error_during_setup():
     # Mock the ApplicationCoordinator.getInstance method to raise an error
     # Path ApplicationCoordinator.getInstance and other components
     with (
-        patch("aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", new_callable=AsyncMock, side_effect=RuntimeError("Test error during coordinator instantiation")),
+        patch(
+            "aider_mcp_server.sse_server.ApplicationCoordinator.getInstance",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Test error during coordinator instantiation"),
+        ),
         patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
         patch("aider_mcp_server.sse_server.get_logger") as mock_get_logger,
     ):
