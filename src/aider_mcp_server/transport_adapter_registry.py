@@ -129,42 +129,22 @@ class TransportAdapterRegistry:
             if issubclass(cls, AbstractTransportAdapter) and cls is not AbstractTransportAdapter:
                 transport_type_name = getattr(cls, "TRANSPORT_TYPE_NAME", None)
                 if isinstance(transport_type_name, str) and transport_type_name:
-                    # Run _register_adapter_class in a way that doesn't block discover_adapters
-                    # If discover_adapters is called from sync code, this needs careful handling.
-                    # For now, assuming discover_adapters might be part of an async setup or called from sync context
-                    # where blocking briefly for lock acquisition is acceptable.
-                    # If discover_adapters itself needs to be async, this changes.
-                    # The prompt implies discover_adapters is sync, but _register_adapter_class is async.
-                    # This is a conflict. Let's make _register_adapter_class sync for now or use asyncio.run()
-                    # as a bridge if absolutely necessary and if discover_adapters is truly sync.
-                    # Given the user's example, they used asyncio.run()
-                    try:
-                        asyncio.get_running_loop()
-                        # If a loop is running, schedule it. This is tricky if discover_adapters is purely sync.
-                        # A better pattern might be to make discover_adapters async if it uses async helpers.
-                        # For now, sticking to the user's asyncio.run() pattern.
-                        asyncio.ensure_future(self._register_adapter_class(transport_type_name, cls))
-                    except RuntimeError:  # No running event loop
-                        asyncio.run(self._register_adapter_class(transport_type_name, cls))
+                    # Since discover_adapters is synchronous, we'll do the registration directly
+                    # without using the async lock. This is safe because discover_adapters
+                    # should be called during initialization before concurrent access begins.
+                    if transport_type_name in self._adapter_classes:
+                        self.logger.warning(
+                            f"Duplicate transport type '{transport_type_name}' found. "
+                            f"Class {cls.__name__} will overwrite "
+                            f"{self._adapter_classes[transport_type_name].__name__}."
+                        )
+                    self._adapter_classes[transport_type_name] = cls
+                    self.logger.info(f"Discovered transport adapter: {cls.__name__} for type '{transport_type_name}'")
                 else:
                     self.logger.warning(
                         f"Adapter class {cls.__name__} in module {module.__name__} "
                         f"does not define a valid TRANSPORT_TYPE_NAME string attribute. Skipping."
                     )
-
-    async def _register_adapter_class(
-        self, transport_type_name: str, adapter_class: Type[AbstractTransportAdapter]
-    ) -> None:
-        """Registers an adapter class. Made async to use self._lock."""
-        async with self._lock:
-            if transport_type_name in self._adapter_classes:
-                self.logger.warning(
-                    f"Duplicate transport type '{transport_type_name}' found. "
-                    f"Class {adapter_class.__name__} will overwrite "
-                    f"{self._adapter_classes[transport_type_name].__name__}."
-                )
-            self._adapter_classes[transport_type_name] = adapter_class
-        self.logger.info(f"Discovered transport adapter: {adapter_class.__name__} for type '{transport_type_name}'")
 
     async def initialize_adapter(
         self,

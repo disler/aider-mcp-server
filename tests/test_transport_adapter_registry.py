@@ -43,7 +43,9 @@ class MockAdapterBase(AbstractTransportAdapter):
         self.init_called = False
         self.shutdown_called = False
         self._send_event_mock = AsyncMock()
-        self._validate_request_security_mock = MagicMock(return_value=SecurityContext(is_secure=True))
+        self._validate_request_security_mock = MagicMock(
+            return_value=SecurityContext(user_id="test_user", permissions=set())
+        )
 
     async def initialize(self) -> None:
         await super().initialize()
@@ -162,12 +164,13 @@ def create_mock_module(
     name: str, classes: Optional[Dict[str, Type[AbstractTransportAdapter]]] = None, has_path: bool = True
 ) -> ModuleType:
     module = ModuleType(name)
-    module.__file__ = f"{name.replace('.', '/')}.py"
+    module.__file__ = f"/fake/path/{name.replace('.', '/')}.py"
     if classes:
         for cls_name, cls_obj in classes.items():
             setattr(module, cls_name, cls_obj)
     if has_path:
-        module.__path__ = [os.path.dirname(module.__file__)] if module.__file__ else ["dummy_path"]
+        # Use a fake path that doesn't exist on the filesystem
+        module.__path__ = [f"/fake/path/{name.replace('.', '/')}"]
     return module
 
 
@@ -194,7 +197,8 @@ class TestDiscoverAdapters:
         module2 = create_mock_module(f"{mock_pkg_name}.module2", {"Adapter2": MockAdapterTwo})
         pkg_module = create_mock_module(mock_pkg_name)
 
-        with patch("importlib.import_module") as mock_import_module, patch("pkgutil.iter_modules") as mock_iter_modules:
+        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module") as mock_import_module, \
+             patch("aider_mcp_server.transport_adapter_registry.pkgutil.iter_modules") as mock_iter_modules:
 
             def import_module_side_effect(name):
                 if name == mock_pkg_name:
@@ -208,12 +212,11 @@ class TestDiscoverAdapters:
             mock_import_module.side_effect = import_module_side_effect
 
             mock_iter_modules.return_value = [
-                (None, f"{mock_pkg_name}.module1", False),
-                (None, f"{mock_pkg_name}.module2", False),
+                (None, "module1", False),
+                (None, "module2", False),
             ]
 
             registry.discover_adapters(mock_pkg_name)
-            await asyncio.sleep(0)  # Allow ensure_future tasks to complete
 
             assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
             assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == MockAdapterOne
@@ -257,9 +260,8 @@ class TestDiscoverAdapters:
         self, registry: TransportAdapterRegistry, mock_logger_factory: Any
     ):
         mock_pkg_name = "non_existent_pkg"
-        with patch("importlib.import_module", side_effect=ImportError(f"No module named {mock_pkg_name}")):
+        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module", side_effect=ImportError(f"No module named {mock_pkg_name}")):
             registry.discover_adapters(mock_pkg_name)
-            await asyncio.sleep(0)
 
             assert not registry._adapter_classes
             logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
@@ -271,16 +273,16 @@ class TestDiscoverAdapters:
         mock_pkg_name = "pkg_with_bad_module"
         pkg_module = create_mock_module(mock_pkg_name)
 
-        with patch("importlib.import_module") as mock_import_module, patch("pkgutil.iter_modules") as mock_iter_modules:
+        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module") as mock_import_module, \
+             patch("aider_mcp_server.transport_adapter_registry.pkgutil.iter_modules") as mock_iter_modules:
             mock_import_module.side_effect = (
                 lambda name: pkg_module
                 if name == mock_pkg_name
                 else (_ for _ in ()).throw(ImportError("Module load failed"))
             )
-            mock_iter_modules.return_value = [(None, f"{mock_pkg_name}.bad_module", False)]
+            mock_iter_modules.return_value = [(None, "bad_module", False)]
 
             registry.discover_adapters(mock_pkg_name)
-            await asyncio.sleep(0)
 
             assert not registry._adapter_classes
             logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
@@ -302,12 +304,12 @@ class TestDiscoverAdapters:
         )
         pkg_module = create_mock_module(mock_pkg_name)
 
-        with patch("importlib.import_module") as mock_import_module, patch("pkgutil.iter_modules") as mock_iter_modules:
+        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module") as mock_import_module, \
+             patch("aider_mcp_server.transport_adapter_registry.pkgutil.iter_modules") as mock_iter_modules:
             mock_import_module.side_effect = lambda name: pkg_module if name == mock_pkg_name else module_with_invalid
-            mock_iter_modules.return_value = [(None, f"{mock_pkg_name}.invalid_module", False)]
+            mock_iter_modules.return_value = [(None, "invalid_module", False)]
 
             registry.discover_adapters(mock_pkg_name)
-            await asyncio.sleep(0)
 
             assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
             assert len(registry._adapter_classes) == 1  # Only MockAdapterOne should be registered
@@ -340,9 +342,10 @@ class TestDiscoverAdapters:
         )
         pkg_module = create_mock_module(mock_pkg_name)
 
-        with patch("importlib.import_module") as mock_import_module, patch("pkgutil.iter_modules") as mock_iter_modules:
+        with patch("aider_mcp_server.transport_adapter_registry.importlib.import_module") as mock_import_module, \
+             patch("aider_mcp_server.transport_adapter_registry.pkgutil.iter_modules") as mock_iter_modules:
             mock_import_module.side_effect = lambda name: pkg_module if name == mock_pkg_name else module_dups
-            mock_iter_modules.return_value = [(None, f"{mock_pkg_name}.module_dups", False)]
+            mock_iter_modules.return_value = [(None, "module_dups", False)]
 
             # Mock inspect.getmembers to control order of discovery for predictability
             original_getmembers = inspect.getmembers
@@ -352,9 +355,8 @@ class TestDiscoverAdapters:
                     return [("AdapterOriginal", MockAdapterOne), ("AdapterDuplicate", DuplicateAdapter)]
                 return original_getmembers(obj, pred)
 
-            with patch("inspect.getmembers", side_effect=ordered_getmembers):
+            with patch("aider_mcp_server.transport_adapter_registry.inspect.getmembers", side_effect=ordered_getmembers):
                 registry.discover_adapters(mock_pkg_name)
-                await asyncio.sleep(0)
 
             assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == DuplicateAdapter  # Overwritten
             logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
