@@ -6,10 +6,12 @@ and can also manage transport adapter registrations.
 """
 
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional, Any, Union
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.atoms.internal_types import InternalEvent
+# TODO: Remove EventMediator import and Union type hint after refactoring is complete
+from aider_mcp_server.event_mediator import EventMediator
 from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.interfaces.event_coordinator import IEventCoordinator
 from aider_mcp_server.interfaces.event_handler import IEventHandler
@@ -24,12 +26,42 @@ class EventCoordinator(IEventCoordinator):
     _transport_adapters: Dict[str, ITransportAdapter]  # transport_id -> adapter
     _lock: asyncio.Lock
 
-    def __init__(self, logger_factory: LoggerFactory, event_system: EventSystem):
+    # TODO: Remove EventMediator from Union and related logic after refactoring component initialization.
+    def __init__(self, logger_factory: LoggerFactory, event_system_or_mediator: Union[EventSystem, EventMediator]):
         self._logger = logger_factory(__name__)
-        self._event_system = event_system
         self._handlers = {}
         self._transport_adapters = {}
         self._lock = asyncio.Lock()
+
+        if isinstance(event_system_or_mediator, EventMediator):
+            self._logger.warning(
+                "EventCoordinator initialized with EventMediator. This is deprecated and will be removed. "
+                "Please update to pass EventSystem directly."
+            )
+            # Extract the EventSystem instance from the EventMediator
+            if hasattr(event_system_or_mediator, "_event_system") and isinstance(
+                getattr(event_system_or_mediator, "_event_system"), EventSystem
+            ):
+                self._event_system = getattr(event_system_or_mediator, "_event_system")
+            else:
+                # This case should ideally not happen if EventMediator is correctly structured
+                self._logger.error(
+                    "Failed to extract EventSystem from EventMediator. EventMediator instance lacks a valid '_event_system' attribute."
+                )
+                raise TypeError(
+                    "EventMediator instance passed to EventCoordinator does not have a valid '_event_system' attribute of type EventSystem."
+                )
+        elif isinstance(event_system_or_mediator, EventSystem):
+            self._event_system = event_system_or_mediator
+        else:
+            # This case handles unexpected types (should not happen with proper typing)
+            self._logger.error(  # type: ignore[unreachable]
+                f"EventCoordinator initialized with an invalid type for event_system_or_mediator: {type(event_system_or_mediator)}"
+            )
+            raise TypeError(
+                "EventCoordinator must be initialized with an EventSystem or EventMediator instance."
+            )
+
         self._logger.info("EventCoordinator initialized.")
 
     async def startup(self) -> None:
@@ -157,3 +189,117 @@ class EventCoordinator(IEventCoordinator):
                 f"Error broadcasting event '{event.event_type.value}' via EventSystem: {e}",
                 exc_info=True,
             )
+
+    # --- Backward Compatibility Shims (Temporary) ---
+    # TODO: Remove these methods after refactoring is complete and all callers are updated.
+
+    async def broadcast_event(
+        self,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        exclude_transport_id: Optional[str] = None,
+        test_mode: bool = False,
+    ) -> None:
+        """
+        [DEPRECATED] Broadcasts an event to all relevant transports via publish_event.
+        The `exclude_transport_id` parameter is not fully supported in the new model.
+        """
+        self._logger.warning(
+            "DEPRECATED: EventCoordinator.broadcast_event is deprecated and will be removed. "
+            "Use publish_event with an InternalEvent object instead."
+        )
+        if exclude_transport_id:
+            self._logger.warning(
+                f"broadcast_event called with exclude_transport_id='{exclude_transport_id}'. "
+                "This exclusion is not directly supported by the new publish_event mechanism "
+                "and may not behave as expected."
+            )
+        if test_mode:
+            self._logger.info(
+                f"broadcast_event called with test_mode=True for event_type='{event_type.value}'. "
+                "Passing test_mode in metadata."
+            )
+
+        metadata = {"deprecated_test_mode": test_mode}
+        internal_event = InternalEvent(event_type=event_type, data=data, metadata=metadata)
+        await self.publish_event(internal_event)
+
+    async def send_event_to_transport(
+        self,
+        transport_id: str,
+        event_type: EventTypes,
+        data: Dict[str, Any],
+        test_mode: bool = False,
+    ) -> None:
+        """
+        [DEPRECATED] Sends an event directly to a specific transport adapter.
+        """
+        self._logger.warning(
+            "DEPRECATED: EventCoordinator.send_event_to_transport is deprecated and will be removed. "
+            "Direct transport communication should be handled differently or via EventSystem capabilities."
+        )
+        if test_mode:
+            self._logger.warning(
+                f"send_event_to_transport called with test_mode=True for transport_id='{transport_id}', "
+                f"event_type='{event_type.value}'. The 'test_mode' parameter is not used by ITransportAdapter.send_event."
+            )
+
+        adapter = None
+        async with self._lock:  # Protects read access to self._transport_adapters
+            adapter = self._transport_adapters.get(transport_id)
+
+        if adapter:
+            try:
+                # Note: ITransportAdapter.send_event does not accept test_mode.
+                # If test_mode behavior is critical, adapter logic would need to change.
+                await adapter.send_event(event_type, data)
+                self._logger.debug(
+                    f"Sent event '{event_type.value}' to transport '{transport_id}'."
+                )
+            except Exception as e:
+                self._logger.error(
+                    f"Error sending event '{event_type.value}' to transport '{transport_id}': {e}",
+                    exc_info=True,
+                )
+        else:
+            self._logger.warning(
+                f"Transport adapter '{transport_id}' not found for send_event_to_transport."
+            )
+
+    async def subscribe_to_event_type(
+        self, transport_id: str, event_type: EventTypes
+    ) -> None:
+        """
+        [DEPRECATED] Stub for transport-specific event subscription.
+        TODO: Implement proper transport-level subscription management if needed, or remove.
+        """
+        self._logger.warning(
+            f"DEPRECATED: EventCoordinator.subscribe_to_event_type('{transport_id}', '{event_type.value}') "
+            "is a stub and currently non-functional. It will be properly implemented or removed."
+        )
+        # Placeholder: Actual implementation would involve tracking subscriptions per transport.
+
+    async def unsubscribe_from_event_type(
+        self, transport_id: str, event_type: EventTypes
+    ) -> None:
+        """
+        [DEPRECATED] Stub for transport-specific event unsubscription.
+        TODO: Implement proper transport-level unsubscription management if needed, or remove.
+        """
+        self._logger.warning(
+            f"DEPRECATED: EventCoordinator.unsubscribe_from_event_type('{transport_id}', '{event_type.value}') "
+            "is a stub and currently non-functional. It will be properly implemented or removed."
+        )
+        # Placeholder: Actual implementation would involve modifying transport subscriptions.
+
+    async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
+        """
+        [DEPRECATED] Stub for checking transport-specific event subscription.
+        TODO: Implement proper transport-level subscription checking if needed, or remove.
+        """
+        self._logger.warning(
+            f"DEPRECATED: EventCoordinator.is_subscribed('{transport_id}', '{event_type.value}') "
+            "is a stub and currently returns False. It will be properly implemented or removed."
+        )
+        # Placeholder: Actual implementation would check transport subscriptions.
+        return False

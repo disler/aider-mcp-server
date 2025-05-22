@@ -92,7 +92,7 @@ def mock_event_system():
 @pytest.fixture
 def event_coordinator(mock_logger_factory: MagicMock, mock_event_system: AsyncMock):
     """Fixture for an EventCoordinator instance."""
-    coordinator = EventCoordinator(logger_factory=mock_logger_factory, event_system=mock_event_system)
+    coordinator = EventCoordinator(mock_logger_factory, mock_event_system)
     return coordinator
 
 
