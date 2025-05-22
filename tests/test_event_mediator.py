@@ -182,79 +182,107 @@ async def test_emit_internal_event_handler_exception(event_mediator, mock_partic
 
 
 @pytest.mark.asyncio
-async def test_subscribe_to_event_type_externally(event_mediator, mock_event_system):
-    """Test subscribe_to_event_type_externally calls EventSystem."""
+async def test_subscribe_to_event_type_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test subscribe_to_event_type_externally logs warning."""
     transport_id = "transport1"
     event_type = EventTypes.STATUS
     await event_mediator.subscribe_to_event_type_externally(transport_id, event_type)
-    mock_event_system.subscribe_to_event_type.assert_awaited_once_with(transport_id, event_type)
+    # No call to mock_event_system for this specific method in the simple EventSystem facade
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport-specific subscriptions not supported by current EventSystem. "
+        f"Transport {transport_id} subscription to {event_type.value} ignored."
+    )
 
 
 @pytest.mark.asyncio
-async def test_unsubscribe_from_event_type_externally(event_mediator, mock_event_system):
-    """Test unsubscribe_from_event_type_externally calls EventSystem."""
+async def test_unsubscribe_from_event_type_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test unsubscribe_from_event_type_externally logs warning."""
     transport_id = "transport1"
     event_type = EventTypes.STATUS
     await event_mediator.unsubscribe_from_event_type_externally(transport_id, event_type)
-    mock_event_system.unsubscribe_from_event_type.assert_awaited_once_with(transport_id, event_type)
+    # No call to mock_event_system
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport-specific unsubscriptions not supported by current EventSystem. "
+        f"Transport {transport_id} unsubscription from {event_type.value} ignored."
+    )
 
 
 @pytest.mark.asyncio
-async def test_update_transport_capabilities_externally(event_mediator, mock_event_system):
-    """Test update_transport_capabilities_externally calls EventSystem."""
+async def test_update_transport_capabilities_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test update_transport_capabilities_externally logs warning."""
     transport_id = "transport1"
     capabilities = {EventTypes.STATUS, EventTypes.PROGRESS}
     await event_mediator.update_transport_capabilities_externally(transport_id, capabilities)
-    mock_event_system.update_transport_capabilities.assert_awaited_once_with(transport_id, capabilities)
+    # No call to mock_event_system
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport capability tracking not supported by current EventSystem. "
+        f"Transport {transport_id} capabilities update ignored."
+    )
 
 
 @pytest.mark.asyncio
-async def test_update_transport_subscriptions_externally(event_mediator, mock_event_system):
-    """Test update_transport_subscriptions_externally calls EventSystem."""
+async def test_update_transport_subscriptions_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test update_transport_subscriptions_externally logs warning."""
     transport_id = "transport1"
     subscriptions = {EventTypes.TOOL_RESULT}
     await event_mediator.update_transport_subscriptions_externally(transport_id, subscriptions)
-    mock_event_system.update_transport_subscriptions.assert_awaited_once_with(transport_id, subscriptions)
-
-
-@pytest.mark.asyncio
-async def test_broadcast_event_externally(event_mediator, mock_event_system):
-    """Test broadcast_event_externally calls EventSystem."""
-    event_type = EventTypes.HEARTBEAT
-    data = {"status": "alive"}
-    exclude_transport_id = "transport_excluded"
-    test_mode = True
-    await event_mediator.broadcast_event_externally(event_type, data, exclude_transport_id, test_mode)
-    mock_event_system.broadcast_event.assert_awaited_once_with(
-        event_type, data, exclude_transport_id, test_mode=test_mode
+    # No call to mock_event_system
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport subscription tracking not supported by current EventSystem. "
+        f"Transport {transport_id} subscriptions update ignored."
     )
 
 
 @pytest.mark.asyncio
-async def test_send_event_to_transport_externally(event_mediator, mock_event_system):
-    """Test send_event_to_transport_externally calls EventSystem."""
+async def test_broadcast_event_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test broadcast_event_externally calls EventSystem.broadcast and logs warnings for extra params."""
+    event_type = EventTypes.HEARTBEAT
+    data = {"status": "alive"}
+    exclude_transport_id = "transport_excluded"  # This will trigger a warning
+    test_mode = True  # This will trigger a warning
+
+    await event_mediator.broadcast_event_externally(event_type, data, exclude_transport_id, test_mode)
+
+    # Check that the simple EventSystem's broadcast is called with only event_type.value and data
+    mock_event_system.broadcast.assert_awaited_once_with(event_type.value, data)
+
+    # Check for warnings about unused parameters
+    logger_warning_mock = mock_logger_factory.return_value.warning
+    logger_warning_mock.assert_any_call(
+        f"Mediator: 'exclude_transport_id' parameter is not supported by the current EventSystem when broadcasting event {event_type.value}. It will be ignored."
+    )
+    logger_warning_mock.assert_any_call(
+        f"Mediator: 'test_mode' parameter is not supported by the current EventSystem when broadcasting event {event_type.value}. It will be ignored."
+    )
+    assert logger_warning_mock.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_send_event_to_transport_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test send_event_to_transport_externally logs warning."""
     transport_id = "transport_target"
     event_type = EventTypes.STATUS
     data = {"detail": "specific"}
-    test_mode = False
+    test_mode = False  # This parameter is not used by the simple EventSystem call
     await event_mediator.send_event_to_transport_externally(transport_id, event_type, data, test_mode)
-    mock_event_system.send_event_to_transport.assert_awaited_once_with(
-        transport_id, event_type, data, test_mode=test_mode
+    # No call to mock_event_system
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport-specific event sending not supported by current EventSystem. "
+        f"Event {event_type.value} to transport {transport_id} ignored."
     )
 
 
 @pytest.mark.asyncio
-async def test_is_subscribed_externally(event_mediator, mock_event_system):
-    """Test is_subscribed_externally calls EventSystem and returns its result."""
+async def test_is_subscribed_externally(event_mediator, mock_event_system, mock_logger_factory):
+    """Test is_subscribed_externally logs warning and returns False."""
     transport_id = "transport1"
     event_type = EventTypes.PROGRESS
-    mock_event_system.is_subscribed.return_value = True  # Mock the return value
 
     result = await event_mediator.is_subscribed_externally(transport_id, event_type)
 
-    mock_event_system.is_subscribed.assert_awaited_once_with(transport_id, event_type)
-    assert result is True
-
-    mock_event_system.is_subscribed.return_value = False
-    result = await event_mediator.is_subscribed_externally(transport_id, event_type)
-    assert result is False
+    # No call to mock_event_system.is_subscribed as it's not part of the simple EventSystem
+    assert result is False  # Should return False as per current implementation
+    mock_logger_factory.return_value.warning.assert_called_once_with(
+        f"Transport-specific subscription checking not supported by current EventSystem. "
+        f"Returning False for transport {transport_id} subscription to {event_type.value}."
+    )
