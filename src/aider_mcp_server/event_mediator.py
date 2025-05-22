@@ -1,13 +1,13 @@
 import asyncio
-import asyncio
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.event_participant import IEventParticipant
-# MODIFIED: Import the renamed EventSystem as TransportEventCoordinator
-from aider_mcp_server.transport_event_coordinator import EventSystem as TransportEventCoordinator
 from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
+
+# MODIFIED: Import EventSystem from event_system.py
+from aider_mcp_server.event_system import EventSystem
 
 
 class EventMediator:
@@ -18,12 +18,12 @@ class EventMediator:
 
     _logger: LoggerProtocol
     # MODIFIED: Update type hint
-    _event_system: TransportEventCoordinator
+    _event_system: EventSystem
     _internal_handlers: Dict[EventTypes, List[IEventParticipant]]
     _participants: Set[IEventParticipant]  # To keep track of registered participants
 
     # MODIFIED: Update constructor parameter type hint
-    def __init__(self, logger_factory: LoggerFactory, event_system: TransportEventCoordinator):
+    def __init__(self, logger_factory: LoggerFactory, event_system: EventSystem):
         self._logger = logger_factory(__name__)
         self._event_system = event_system
         self._internal_handlers = defaultdict(list)

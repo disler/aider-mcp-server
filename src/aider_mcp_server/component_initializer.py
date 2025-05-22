@@ -1,13 +1,9 @@
 import asyncio
 
-import asyncio
-
 from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_mediator import EventMediator
-# MODIFIED: Import the renamed EventSystem as TransportEventCoordinator
-from aider_mcp_server.transport_event_coordinator import EventSystem as TransportEventCoordinator
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
@@ -17,6 +13,9 @@ from aider_mcp_server.request_processor import RequestProcessor
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
+
+# MODIFIED: Import EventSystem from event_system.py
+from aider_mcp_server.event_system import EventSystem
 
 
 class Components:
@@ -117,18 +116,18 @@ class ComponentInitializer:
 
         # Initialize EventSystem
         try:
-            self.logger.verbose("Initializing EventSystem (TransportEventCoordinator)...")
-            # MODIFIED: Instantiate TransportEventCoordinator
-            event_system = TransportEventCoordinator(transport_registry)
-            self.logger.verbose("EventSystem (TransportEventCoordinator) initialized.")
+            self.logger.verbose("Initializing EventSystem...")
+            # MODIFIED: Instantiate EventSystem
+            event_system = EventSystem() # EventSystem from event_system.py takes no arguments
+            self.logger.verbose("EventSystem initialized.")
         except Exception as e:
-            self.logger.error(f"Failed to initialize EventSystem (TransportEventCoordinator): {e}", exc_info=True)
-            raise RuntimeError(f"Failed to initialize EventSystem (TransportEventCoordinator): {e}") from e
+            self.logger.error(f"Failed to initialize EventSystem: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize EventSystem: {e}") from e
 
         # Initialize EventMediator
         try:
             self.logger.verbose("Initializing EventMediator...")
-            # EventMediator now receives the TransportEventCoordinator instance
+            # EventMediator now receives the EventSystem instance
             event_mediator = EventMediator(self.logger_factory, event_system)
             self.logger.verbose("EventMediator initialized.")
         except Exception as e:

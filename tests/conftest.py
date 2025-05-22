@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import socket
@@ -5,7 +6,6 @@ import subprocess
 import sys
 import tempfile
 from typing import Generator
-import asyncio
 
 import pytest
 

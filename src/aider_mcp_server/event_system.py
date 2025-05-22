@@ -8,7 +8,7 @@ This implementation corresponds to Task 2 requirements.
 import asyncio
 import logging
 import typing
-from typing import Any, Dict, List, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List
 
 from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
 
@@ -91,9 +91,13 @@ class EventSystem:
             # Avoid adding the same callback multiple times for the same event type
             if callback not in self._subscribers[event_type]:
                 self._subscribers[event_type].append(callback)
-                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} subscribed to event type '{event_type}'")
+                logger.debug(
+                    f"Callback {getattr(callback, '__name__', str(callback))} subscribed to event type '{event_type}'"
+                )
             else:
-                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} already subscribed to event type '{event_type}'")
+                logger.debug(
+                    f"Callback {getattr(callback, '__name__', str(callback))} already subscribed to event type '{event_type}'"
+                )
 
     async def unsubscribe(self, event_type: str, callback: EventCallback) -> None:
         """
@@ -106,7 +110,9 @@ class EventSystem:
         async with self._lock:
             if event_type in self._subscribers and callback in self._subscribers[event_type]:
                 self._subscribers[event_type].remove(callback)
-                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} unsubscribed from event type '{event_type}'")
+                logger.debug(
+                    f"Callback {getattr(callback, '__name__', str(callback))} unsubscribed from event type '{event_type}'"
+                )
                 # If no more subscribers for this event type, remove the key
                 if not self._subscribers[event_type]:
                     del self._subscribers[event_type]
@@ -144,5 +150,5 @@ class EventSystem:
                 # Log error but continue with other callbacks
                 logger.error(
                     f"Error in event callback {getattr(callback, '__name__', str(callback))} for event type '{event_type}': {e}",
-                    exc_info=True  # Includes stack trace
+                    exc_info=True,  # Includes stack trace
                 )
