@@ -28,14 +28,23 @@ All detailed progress, implementation notes, test status, commit hashes, and iss
 ## Workflow Process
 
 1. **Identify next task** from `reference/tasks/tasks.json` dependency chain
-2. **Use aider for implementation** with comprehensive context
-3. **Implement with proper testing** using sequentialthinking for review
-4. **Run quality checks** after each task completion
-5. **Create task-specific commit** following established pattern
-6. **Update this document** with progress
+2. **Create dedicated aider branch**: `git checkout -b aider/task-X-name`
+3. **Use aider for implementation** with comprehensive context
+4. **Implement with proper testing** using sequentialthinking for review
+5. **Run quality checks** after each task completion
+6. **Create task-specific commit** following established pattern
+7. **Merge to feature branch**: Switch to `feature/refactor-sse-coordinator` and merge
+8. **Update PR** with milestone progress and quality verification
+9. **Keep aider branch** until project completion for reference
 
-## Git Commit Strategy
+## Git Commit Strategy & PR Workflow
 
+### Branch Strategy
+- **Feature branch**: `feature/refactor-sse-coordinator` (tracks overall progress)
+- **Work branches**: `aider/task-X-name` (for individual task implementation)
+- **PR tracking**: https://github.com/MementoRC/aider-mcp-server/pull/18
+
+### Commit Pattern
 Each task gets its own commit following this pattern:
 ```
 feat: implement Task X - [Task Title]
@@ -52,6 +61,14 @@ feat: implement Task X - [Task Title]
 🤖 Generated with [Claude Code](https://claude.ai/code)
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+### Milestone Workflow
+1. **Implement** task in `aider/task-X` branch
+2. **Verify** quality and tests pass
+3. **Merge** to `feature/refactor-sse-coordinator`
+4. **Update PR** with progress summary
+5. **Monitor CI** through PR interface
+6. **Keep aider branch** for reference until project completion
 
 ## Task Sequence (Dependency Order)
 
@@ -108,12 +125,14 @@ For each task:
 
 When context window requires restart:
 
-1. **Read this document** for current status
-2. **Check git log** for latest progress: `git log --oneline -5`
-3. **Run tests** to verify current state: `hatch -e dev run pytest --tb=no -q`
-4. **Check quality** status: `hatch -e dev run ruff check --select=F,E9`
-5. **Identify next task** from dependency chain above
-6. **Continue with aider-centric workflow**
+1. **Read this document** for current status and workflow
+2. **Check IMPLEMENTATION_TRACKING.md** for detailed progress
+3. **Review PR status**: https://github.com/MementoRC/aider-mcp-server/pull/18
+4. **Check git log** for latest progress: `git log --oneline -5`
+5. **Run tests** to verify current state: `hatch -e dev run pytest --tb=no -q`
+6. **Check quality** status: `hatch -e dev run ruff check --select=F,E9`
+7. **Identify next task** from dependency chain and IMPLEMENTATION_TRACKING.md
+8. **Continue with aider-centric workflow** following branch strategy above
 
 ## Important Notes
 
