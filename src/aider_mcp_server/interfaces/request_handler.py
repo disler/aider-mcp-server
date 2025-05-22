@@ -1,6 +1,7 @@
 """
 Defines the protocol for components that handle internal requests.
 """
+
 from typing import Protocol
 
 from typing_extensions import runtime_checkable

@@ -1,6 +1,7 @@
 import asyncio
 
 from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
+from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_mediator import EventMediator
 from aider_mcp_server.event_system import EventSystem
@@ -10,7 +11,6 @@ from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.request_processor import RequestProcessor
-from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager

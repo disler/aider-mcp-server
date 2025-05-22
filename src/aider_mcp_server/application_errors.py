@@ -5,7 +5,6 @@ Custom exception hierarchy for the application.
 from typing import Any, Dict, Optional
 
 
-
 class BaseApplicationError(Exception):
     """Base class for all application-specific exceptions."""
 
@@ -76,7 +75,7 @@ class MessageFormatError(TransportError):
 
 class AuthenticationError(SecurityError):
     """Raised when authentication fails."""
-    
+
     pass
 
 

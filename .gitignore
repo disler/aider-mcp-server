@@ -95,3 +95,8 @@ tasks/
 # Test files that shouldn't be checked in CI
 test_fix.py
 test_file.py
+
+# Session-specific files
+CLAUDE.md
+IMPLEMENTATION_TRACKING.md
+reference/

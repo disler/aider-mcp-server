@@ -1,14 +1,15 @@
-import pytest
-from typing import Dict, Any
+from typing import Any, Dict
 
-from aider_mcp_server.error_formatter import ErrorResponseFormatter
+import pytest
+
 from aider_mcp_server.application_errors import (
     BaseApplicationError,
-    TransportError,
-    SecurityError,
-    ValidationError,
     ProcessingError,
+    SecurityError,
+    TransportError,
+    ValidationError,
 )
+from aider_mcp_server.error_formatter import ErrorResponseFormatter
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ def error_formatter(logger_factory_mock):
 def test_formats_base_application_error(error_formatter):
     error = BaseApplicationError("test_code", "Test message", {"foo": "bar"})
     result = error_formatter.format_exception_to_response(error)
-    
+
     assert result == {
         "success": False,
         "error": {
@@ -59,9 +60,7 @@ def test_formats_standard_exceptions(error_formatter, error_class):
 
 
 def test_sanitizes_sensitive_error_details(error_formatter):
-    error = BaseApplicationError(
-        "test_code", "Test message", {"password": "secret", "foo": "bar"}
-    )
+    error = BaseApplicationError("test_code", "Test message", {"password": "secret", "foo": "bar"})
     result = error_formatter.format_exception_to_response(error)
 
     assert "password" not in result["error"]["details"]

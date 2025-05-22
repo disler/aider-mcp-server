@@ -2,7 +2,7 @@
 Tests for the updated ResponseFormatter class.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -77,11 +77,11 @@ def test_format_error_response_application_error(response_formatter, error_forma
 
     assert response == {
         "success": False,
-        "request_id": "req-1", 
+        "request_id": "req-1",
         "transport_id": "transport-1",
         "error": {
             "message": "Something went wrong",
-            "code": "APP_ERROR", 
+            "code": "APP_ERROR",
             "details": {"id": 123},
         },
     }
@@ -104,7 +104,7 @@ def test_format_exception_response(response_formatter, error_formatter):
     assert response == {
         "success": False,
         "request_id": "req-1",
-        "transport_id": "transport-1", 
+        "transport_id": "transport-1",
         "error": {
             "message": "An internal error occurred",
             "code": "internal_server_error",

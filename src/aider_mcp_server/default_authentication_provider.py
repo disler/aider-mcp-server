@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Set, Union
 
-from aider_mcp_server.authentication_errors import InvalidCredentialsError, TokenInvalidError
+from aider_mcp_server.authentication_errors import InvalidCredentialsError
 from aider_mcp_server.interfaces.authentication_provider import (
     AuthToken,
     IAuthenticationProvider,

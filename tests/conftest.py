@@ -4,8 +4,8 @@ import socket
 import subprocess
 import sys
 import tempfile
-from typing import Any, Callable, Generator
-from unittest.mock import AsyncMock
+from typing import Generator
+import asyncio
 
 import pytest
 
@@ -16,19 +16,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 def create_awaitable_mock(return_value=None, side_effect=None):
     """
     Create a mock that can be awaited in async code.
-    
+
     Args:
         return_value: The value to be returned when the mock is awaited.
         side_effect: An exception to be raised or a callable to be called when the mock is awaited.
-        
+
     Returns:
         An awaitable object that returns the specified value or raises/calls the side effect when awaited.
     """
+
     class AwaitableMock:
         def __init__(self, return_value=None, side_effect=None):
             self.return_value = return_value
             self.side_effect = side_effect
-            
+
         def __await__(self):
             if self.side_effect is not None:
                 if isinstance(self.side_effect, Exception):
@@ -41,7 +42,7 @@ def create_awaitable_mock(return_value=None, side_effect=None):
                 else:
                     return iter([self.side_effect])
             return iter([self.return_value])
-            
+
     return AwaitableMock(return_value, side_effect)
 
 

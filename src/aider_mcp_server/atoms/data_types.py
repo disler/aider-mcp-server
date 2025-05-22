@@ -31,7 +31,7 @@ class MCPErrorResponse(MCPResponse):
         details (Optional[Dict[str, Any]]): Additional error details for debugging.
     """
 
-    error_code: str 
+    error_code: str
     error: str
     details: Optional[Dict[str, Any]] = None
 
@@ -59,7 +59,7 @@ class MCPErrorResponse(MCPResponse):
         else:
             return cls(
                 error_code="internal_server_error",
-                error="An internal error occurred",
+                error=str(exc),
                 details={},
             )
 

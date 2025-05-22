@@ -2,7 +2,7 @@
 Module for formatting error responses in a standardized way.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from aider_mcp_server.application_errors import BaseApplicationError
 from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
@@ -11,9 +11,9 @@ from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
 class ErrorResponseFormatter:
     """
     Formats exceptions into standardized error responses.
-    
+
     Responsibilities:
-    - Convert exceptions to error responses 
+    - Convert exceptions to error responses
     - Sanitize sensitive error details
     - Format errors for specific transport types
     - Integrate with existing response formatter
@@ -54,7 +54,7 @@ class ErrorResponseFormatter:
         }
 
         error_response: OperationResult = {
-            "success": False, 
+            "success": False,
             "error": error_data,
         }
 
@@ -65,7 +65,7 @@ class ErrorResponseFormatter:
         Remove sensitive information from error details.
 
         Args:
-            details: Raw error details dictionary 
+            details: Raw error details dictionary
 
         Returns:
             Sanitized error details
@@ -86,7 +86,7 @@ class ErrorResponseFormatter:
             transport_type: The transport type (e.g. 'sse', 'stdio')
 
         Returns:
-            Transport-specific formatted error response  
+            Transport-specific formatted error response
         """
         formatter = self.get_transport_specific_formatter(transport_type)
         if formatter:
@@ -96,17 +96,19 @@ class ErrorResponseFormatter:
 
         return formatted_response
 
-    def get_transport_specific_formatter(self, transport_type: str) -> Optional[Dict[str, Any]]:
+    def get_transport_specific_formatter(
+        self, transport_type: str
+    ) -> Optional[Callable[[OperationResult], Dict[str, Any]]]:
         """
         Get the transport-specific error formatting function.
 
         Args:
-            transport_type: Type of transport (e.g., 'sse', 'stdio') 
+            transport_type: Type of transport (e.g., 'sse', 'stdio')
 
         Returns:
             Transport-specific error formatting function or None if not available
         """
-        transport_formatters: Dict[str, Dict[str, Any]] = {
+        transport_formatters: Dict[str, Callable[[OperationResult], Dict[str, Any]]] = {
             # Example: "sse": lambda resp: {"event": "error", "data": resp}
         }
         return transport_formatters.get(transport_type)

@@ -1,8 +1,8 @@
 """Tests for the dependency container."""
 
 from contextlib import asynccontextmanager
-from typing import Dict, List, Optional, Protocol, Set
-from unittest.mock import AsyncMock, MagicMock
+from typing import Dict, List, Protocol
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,8 +19,7 @@ from aider_mcp_server.interfaces.dependency_container import (
 class ILogger(Protocol):
     """Test logger interface."""
 
-    def log(self, message: str) -> None:
-        ...
+    def log(self, message: str) -> None: ...
 
 
 class Logger:
@@ -36,8 +35,7 @@ class Logger:
 class IDatabase(Protocol):
     """Test database interface."""
 
-    async def query(self, sql: str) -> List[Dict[str, str]]:
-        ...
+    async def query(self, sql: str) -> List[Dict[str, str]]: ...
 
 
 class Database:
@@ -59,8 +57,7 @@ class Database:
 class IUserRepository(Protocol):
     """Test user repository interface."""
 
-    async def get_user(self, user_id: str) -> Dict[str, str]:
-        ...
+    async def get_user(self, user_id: str) -> Dict[str, str]: ...
 
 
 class UserRepository:
@@ -79,8 +76,7 @@ class UserRepository:
 class IUserService(Protocol):
     """Test user service interface."""
 
-    async def get_user_details(self, user_id: str) -> Dict[str, str]:
-        ...
+    async def get_user_details(self, user_id: str) -> Dict[str, str]: ...
 
 
 class UserService:
@@ -309,7 +305,7 @@ async def test_error_circular_dependency():
         container._resolving_types.add(ILogger)  # Add a type to resolving_types
         with pytest.raises(CircularDependencyError) as excinfo:
             await container.resolve(ILogger)  # Try to resolve the same type again
-        
+
         assert "Circular dependency detected" in str(excinfo.value)
 
 
@@ -408,7 +404,7 @@ async def test_lifecycle_management_with_async_context_manager():
         assert not resolved.closed
 
     # Verify resource is closed after container is closed (only if we know container calls close)
-    if resource and hasattr(resource, 'closed'):
+    if resource and hasattr(resource, "closed"):
         assert not resource.closed  # DependencyContainer doesn't automatically close resources currently
 
 
@@ -421,6 +417,4 @@ async def test_container_with_logger(mock_logger_factory):
 
         # Verify logging was called
         mock_logger_factory.assert_called_once_with("aider_mcp_server.dependency_container")
-        mock_logger_factory.return_value.verbose.assert_called_with(
-            "Registered singleton for ILogger"
-        )
+        mock_logger_factory.return_value.verbose.assert_called_with("Registered singleton for ILogger")

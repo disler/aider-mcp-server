@@ -1,6 +1,7 @@
 """
 Defines the protocol for components that handle internal events.
 """
+
 from typing import Optional, Protocol
 
 from typing_extensions import runtime_checkable

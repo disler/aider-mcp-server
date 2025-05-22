@@ -1,6 +1,7 @@
 """
 Defines the protocol for the ApplicationCoordinator.
 """
+
 from typing import Any, Dict, Optional, Protocol, Type
 
 from typing_extensions import runtime_checkable
@@ -28,9 +29,7 @@ class IApplicationCoordinator(Protocol):
         """Shuts down the coordinator and releases resources."""
         ...
 
-    async def register_transport(
-        self, transport_id: str, transport_class: Type[ITransportAdapter]
-    ) -> None:
+    async def register_transport(self, transport_id: str, transport_class: Type[ITransportAdapter]) -> None:
         """
         Registers a transport adapter class with the coordinator.
 

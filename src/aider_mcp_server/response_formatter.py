@@ -97,22 +97,20 @@ class ResponseFormatter:
 
         return error_response
 
-    def format_exception_response(
-        self, request_id: str, transport_id: str, exc: Exception
-    ) -> OperationResult:
+    def format_exception_response(self, request_id: str, transport_id: str, exc: Exception) -> OperationResult:
         """
         Format an error response from an exception.
 
         Args:
             request_id: Unique identifier for the request
-            transport_id: Identifier for the transport that made the request 
+            transport_id: Identifier for the transport that made the request
             exc: The exception to format into a response
 
         Returns:
             Formatted operation result with error information
         """
         self._logger.exception(f"Formatting exception response for request {request_id}")
-        
+
         error_response = self._error_formatter.format_exception_to_response(exc)
         error_response["request_id"] = request_id
         error_response["transport_id"] = transport_id

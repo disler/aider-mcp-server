@@ -69,7 +69,7 @@ user_service = await container.resolve(IUserService)
 async with await container.create_scope() as scoped_container:
     # Resolve scoped services
     repository = await scoped_container.resolve(IUserRepository)
-    
+
     # Each scope gets its own instance of scoped services
     # Singleton services are shared across all scopes
 ```
@@ -112,7 +112,7 @@ class Logger:
 class Database:
     def __init__(self, logger: ILogger):
         self.logger = logger
-        
+
     async def query(self, sql: str) -> list:
         self.logger.log(f"Executing query: {sql}")
         return [{"result": "ok"}]
@@ -121,7 +121,7 @@ class UserRepository:
     def __init__(self, database: IDatabase, logger: ILogger):
         self.database = database
         self.logger = logger
-        
+
     async def get_user(self, user_id: str) -> dict:
         self.logger.log(f"Getting user {user_id}")
         return (await self.database.query(f"SELECT * FROM users WHERE id = '{user_id}'"))[0]
@@ -133,12 +133,12 @@ async def main():
         await container.register_singleton(ILogger, implementation_type=Logger)
         await container.register_singleton(IDatabase, implementation_type=Database)
         await container.register_scoped(UserRepository, implementation_type=UserRepository)
-        
+
         # Create a scope (e.g., for a request)
         async with await container.create_scope() as request_scope:
             # Resolve the repository (with all dependencies automatically injected)
             repo = await request_scope.resolve(UserRepository)
-            
+
             # Use the repository
             user = await repo.get_user("user123")
             print(user)

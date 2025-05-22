@@ -2,6 +2,7 @@
 Defines internal data types used within the Aider MCP Server,
 distinct from the MCP protocol types used for external communication.
 """
+
 import time
 from typing import Any, Dict, Optional, Tuple
 

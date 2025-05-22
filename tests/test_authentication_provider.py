@@ -2,13 +2,12 @@
 Tests for authentication provider interface and implementations.
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
+
 from aider_mcp_server.authentication_errors import (
-    AuthenticationError,
     InvalidCredentialsError,
 )
 from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider

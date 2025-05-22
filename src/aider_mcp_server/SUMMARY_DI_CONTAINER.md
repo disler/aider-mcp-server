@@ -33,7 +33,7 @@ To fully integrate the dependency injection container into the codebase:
 
 1. **Update Server Startup**: Refactor `multi_transport_server.py` to initialize the container
 
-2. **Refactor Components**: Update core components to use constructor injection 
+2. **Refactor Components**: Update core components to use constructor injection
 
 3. **Replace Singletons**: Gradually replace direct singleton usage with container-managed instances
 
