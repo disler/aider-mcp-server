@@ -114,7 +114,7 @@ class TransportAdapterRegistry:
                 self._discover_adapters_from_module(package)
             return
 
-        for importer, modname, ispkg in pkgutil.iter_modules(package.__path__, prefix):
+        for _importer, modname, _ispkg in pkgutil.iter_modules(package.__path__, prefix):
             try:
                 module = importlib.import_module(modname)
                 self._discover_adapters_from_module(module)
@@ -125,7 +125,7 @@ class TransportAdapterRegistry:
 
     def _discover_adapters_from_module(self, module: Any) -> None:
         """Helper to discover adapters from a single module."""
-        for name, cls in inspect.getmembers(module, inspect.isclass):
+        for _name, cls in inspect.getmembers(module, inspect.isclass):
             if issubclass(cls, AbstractTransportAdapter) and cls is not AbstractTransportAdapter:
                 transport_type_name = getattr(cls, "TRANSPORT_TYPE_NAME", None)
                 if isinstance(transport_type_name, str) and transport_type_name:

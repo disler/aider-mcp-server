@@ -1,9 +1,10 @@
-import asyncio
-
 from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_mediator import EventMediator
+
+# MODIFIED: Import EventSystem from event_system.py
+from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
@@ -13,9 +14,6 @@ from aider_mcp_server.request_processor import RequestProcessor
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
-
-# MODIFIED: Import EventSystem from event_system.py
-from aider_mcp_server.event_system import EventSystem
 
 
 class Components:
@@ -99,26 +97,19 @@ class ComponentInitializer:
         # Initialize TransportAdapterRegistry
         self.logger.verbose("Initializing TransportAdapterRegistry...")
         try:
-            transport_registry = await asyncio.wait_for(
-                TransportAdapterRegistry.get_instance(),
-                timeout=10.0,
-            )
-            self.logger.verbose("TransportAdapterRegistry.get_instance() successful.")
-        except asyncio.TimeoutError as e:
-            self.logger.error("Timeout while initializing TransportAdapterRegistry.")
-            raise RuntimeError("Timeout while initializing TransportAdapterRegistry") from e
+            # Instantiate TransportAdapterRegistry directly. Its __init__ is synchronous.
+            # The logger_factory is already available as self.logger_factory.
+            transport_registry = TransportAdapterRegistry(logger_factory=self.logger_factory)
+            self.logger.verbose("TransportAdapterRegistry initialized.")
         except Exception as e:
             self.logger.error(f"Failed to initialize TransportAdapterRegistry: {e}", exc_info=True)
             raise RuntimeError(f"Failed to initialize TransportAdapterRegistry: {e}") from e
-
-        # TransportAdapterRegistry.get_instance() is guaranteed to return a valid instance or raise an exception
-        self.logger.verbose("TransportAdapterRegistry initialized.")
 
         # Initialize EventSystem
         try:
             self.logger.verbose("Initializing EventSystem...")
             # MODIFIED: Instantiate EventSystem
-            event_system = EventSystem() # EventSystem from event_system.py takes no arguments
+            event_system = EventSystem()  # EventSystem from event_system.py takes no arguments
             self.logger.verbose("EventSystem initialized.")
         except Exception as e:
             self.logger.error(f"Failed to initialize EventSystem: {e}", exc_info=True)
@@ -167,7 +158,7 @@ class ComponentInitializer:
             session_manager=session_manager,
             handler_registry=handler_registry,
             response_formatter=response_formatter,
-            error_formatter=error_formatter,
+            # error_formatter is passed to ResponseFormatter, not stored in Components directly
             event_coordinator=event_coordinator,
             request_processor=request_processor,
             security_service=security_service,

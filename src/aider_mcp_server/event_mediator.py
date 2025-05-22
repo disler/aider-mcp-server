@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Optional, Set
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.event_participant import IEventParticipant
-from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
 
 # MODIFIED: Import EventSystem from event_system.py
 from aider_mcp_server.event_system import EventSystem
+from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
 
 
 class EventMediator:
@@ -123,60 +123,24 @@ class EventMediator:
 
     # --- Methods to facade EventSystem for external communication ---
 
-    async def subscribe_to_event_type_externally(self, transport_id: str, event_type: EventTypes) -> None:
-        self._logger.verbose(
-            f"Mediator: Subscribing transport {transport_id} to event type {event_type.value} via EventSystem"
-        )
-        await self._event_system.subscribe_to_event_type(transport_id, event_type)
-
-    async def unsubscribe_from_event_type_externally(self, transport_id: str, event_type: EventTypes) -> None:
-        self._logger.verbose(
-            f"Mediator: Unsubscribing transport {transport_id} from event type {event_type.value} via EventSystem"
-        )
-        await self._event_system.unsubscribe_from_event_type(transport_id, event_type)
-
-    async def update_transport_capabilities_externally(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
-        self._logger.verbose(
-            f"Mediator: Updating capabilities for transport {transport_id} via EventSystem: {[c.value for c in capabilities]}"
-        )
-        await self._event_system.update_transport_capabilities(transport_id, capabilities)
-
-    async def update_transport_subscriptions_externally(
-        self, transport_id: str, subscriptions: Set[EventTypes]
-    ) -> None:
-        self._logger.verbose(
-            f"Mediator: Updating subscriptions for transport {transport_id} via EventSystem: {[s.value for s in subscriptions]}"
-        )
-        await self._event_system.update_transport_subscriptions(transport_id, subscriptions)
-
     async def broadcast_event_externally(
         self,
         event_type: EventTypes,
         data: Dict[str, Any],
-        exclude_transport_id: Optional[str] = None,
-        test_mode: bool = False,
+        exclude_transport_id: Optional[str] = None, # Not supported by simple EventSystem
+        test_mode: bool = False, # Not supported by simple EventSystem
     ) -> None:
-        self._logger.verbose(
-            f"Mediator: Broadcasting event {event_type.value} externally via EventSystem. Data: {data}, Exclude: {exclude_transport_id}, TestMode: {test_mode}"
-        )
-        await self._event_system.broadcast_event(event_type, data, exclude_transport_id, test_mode=test_mode)
+        if exclude_transport_id is not None:
+            self._logger.warning(
+                f"Mediator: 'exclude_transport_id' parameter is not supported by the current EventSystem when broadcasting event {event_type.value}. It will be ignored."
+            )
+        if test_mode:
+            self._logger.warning(
+                f"Mediator: 'test_mode' parameter is not supported by the current EventSystem when broadcasting event {event_type.value}. It will be ignored."
+            )
 
-    async def send_event_to_transport_externally(
-        self,
-        transport_id: str,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        test_mode: bool = False,
-    ) -> None:
         self._logger.verbose(
-            f"Mediator: Sending event {event_type.value} to transport {transport_id} externally via EventSystem. Data: {data}, TestMode: {test_mode}"
+            f"Mediator: Broadcasting event {event_type.value} externally via EventSystem. Data: {data}"
         )
-        await self._event_system.send_event_to_transport(transport_id, event_type, data, test_mode=test_mode)
-
-    async def is_subscribed_externally(self, transport_id: str, event_type: EventTypes) -> bool:
-        self._logger.verbose(
-            f"Mediator: Checking if transport {transport_id} is subscribed to {event_type.value} via EventSystem"
-        )
-        is_sub = await self._event_system.is_subscribed(transport_id, event_type)
-        self._logger.verbose(f"Mediator: Transport {transport_id} subscribed to {event_type.value}: {is_sub}")
-        return is_sub
+        # Use the simple EventSystem's broadcast method
+        await self._event_system.broadcast(event_type.value, data)
