@@ -88,7 +88,7 @@ async def main() -> None:
     # For this example, assume built-in adapters are sufficient and initialize directly
     # await transport_registry.initialize() # If explicit init is needed and not covered by get_instance
 
-    event_system = EventSystem(transport_registry)
+    event_system = EventSystem()
     event_mediator = EventMediator(example_logger_factory, event_system)
 
     # 2. Initialize EventCoordinator (now uses EventMediator)
