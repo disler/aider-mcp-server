@@ -1,0 +1,35 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    properties:
+      geminiApiKey:
+        type: string
+        description: Gemini API Key for Aider service (optional)
+      openaiApiKey:
+        type: string
+        description: OpenAI API Key for Aider service (optional)
+      anthropicApiKey:
+        type: string
+        description: Anthropic API Key for Aider service (optional)
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    config => {
+      return {
+        command: 'aider-mcp-server',
+        args: [],
+        env: {
+          GEMINI_API_KEY: config.geminiApiKey || '',
+          OPENAI_API_KEY: config.openaiApiKey || '',
+          ANTHROPIC_API_KEY: config.anthropicApiKey || ''
+        }
+      };
+    }
+  exampleConfig:
+    geminiApiKey: dummy_gemini_key
+    openaiApiKey: dummy_openai_key
+    anthropicApiKey: dummy_anthropic_key
