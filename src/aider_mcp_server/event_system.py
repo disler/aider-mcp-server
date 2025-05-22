@@ -1,19 +1,15 @@
 """
-Event System for the Aider MCP Server.
+Simple Event System for the Aider MCP Server.
 
-This module handles event broadcasting and routing to appropriate transports.
-Extracted from ApplicationCoordinator to improve modularity and maintainability.
+This module provides a basic callback-based event subscription and broadcasting mechanism.
+This implementation corresponds to Task 2 requirements.
 """
 
 import asyncio
 import logging
 import typing
-import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Callable, Awaitable
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
 
 # Initialize the logger factory
@@ -26,36 +22,37 @@ try:
 except ImportError:
 
     def fallback_get_logger(name: str, *args: typing.Any, **kwargs: typing.Any) -> LoggerProtocol:
-        logger = logging.getLogger(name)
-        if not logger.hasHandlers():
+        logger_instance = logging.getLogger(name)
+        if not logger_instance.hasHandlers():
             handler = logging.StreamHandler()
             formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
-            logger.addHandler(handler)
-            if logger.level == logging.NOTSET:
-                logger.setLevel(logging.INFO)
+            logger_instance.addHandler(handler)
+            if logger_instance.level == logging.NOTSET:
+                logger_instance.setLevel(logging.INFO)
 
         class CustomLogger(LoggerProtocol):
             def debug(self, message: str, **kwargs: typing.Any) -> None:
-                logger.debug(message, **kwargs)
+                logger_instance.debug(message, **kwargs)
 
             def info(self, message: str, **kwargs: typing.Any) -> None:
-                logger.info(message, **kwargs)
+                logger_instance.info(message, **kwargs)
 
             def warning(self, message: str, **kwargs: typing.Any) -> None:
-                logger.warning(message, **kwargs)
+                logger_instance.warning(message, **kwargs)
 
             def error(self, message: str, **kwargs: typing.Any) -> None:
-                logger.error(message, **kwargs)
+                logger_instance.error(message, **kwargs)
 
             def critical(self, message: str, **kwargs: typing.Any) -> None:
-                logger.critical(message, **kwargs)
+                logger_instance.critical(message, **kwargs)
 
             def exception(self, message: str, **kwargs: typing.Any) -> None:
-                logger.exception(message, **kwargs)
+                logger_instance.exception(message, **kwargs)
 
             def verbose(self, message: str, **kwargs: typing.Any) -> None:
-                logger.debug(message, **kwargs)
+                # Map verbose to debug for standard logger
+                logger_instance.debug(message, **kwargs)
 
         return CustomLogger()
 
@@ -63,534 +60,89 @@ except ImportError:
 
 logger = get_logger_func(__name__)
 
+EventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
+
 
 class EventSystem:
     """
-    Manages event broadcasting and routing to appropriate transports.
-
-    This class is responsible for:
-    1. Broadcasting events to subscribed transports
-    2. Filtering events based on transport capabilities
-    3. Sending directed events to specific transports
+    Manages event subscriptions and broadcasting using a simple callback mechanism.
     """
 
-    def __init__(self, transport_registry: TransportAdapterRegistry) -> None:
+    def __init__(self) -> None:
         """
         Initialize the EventSystem.
+        """
+        self._subscribers: Dict[str, List[EventCallback]] = {}
+        self._lock = asyncio.Lock()
+        logger.info("Simple EventSystem initialized")
+
+    async def subscribe(self, event_type: str, callback: EventCallback) -> None:
+        """
+        Subscribe a callback to a specific event type.
 
         Args:
-            transport_registry: The TransportAdapterRegistry instance to use for transport management
+            event_type: The type of event to subscribe to (e.g., "user_created").
+            callback: The asynchronous callback function to execute when the event occurs.
         """
-        self._transport_registry = transport_registry
-        try:
-            # Try to get the current event loop
-            self._loop = asyncio.get_event_loop()
-        except RuntimeError:
-            # If there's no current event loop, create a new one
-            # This handles the case in tests where no event loop is set
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-        self._is_shutting_down = False
+        async with self._lock:
+            if event_type not in self._subscribers:
+                self._subscribers[event_type] = []
 
-        logger.info("EventSystem initialized")
+            # Avoid adding the same callback multiple times for the same event type
+            if callback not in self._subscribers[event_type]:
+                self._subscribers[event_type].append(callback)
+                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} subscribed to event type '{event_type}'")
+            else:
+                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} already subscribed to event type '{event_type}'")
 
-    def start_shutdown(self) -> None:
-        """Signal that the system is shutting down, preventing further event distribution."""
-        self._is_shutting_down = True
-        logger.info("EventSystem marked as shutting down")
-
-    def is_shutting_down(self) -> bool:
-        """Check if the system is in the process of shutting down."""
-        return self._is_shutting_down
-
-    async def broadcast_event(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        exclude_transport_id: Optional[str] = None,
-        test_mode: bool = False,  # Added for testing
-    ) -> None:
+    async def unsubscribe(self, event_type: str, callback: EventCallback) -> None:
         """
-        Broadcasts an event to all subscribed transports, optionally excluding one.
+        Unsubscribe a callback from a specific event type.
 
         Args:
-            event_type: The type of event to broadcast
-            data: The event data payload
-            exclude_transport_id: Optional transport ID to exclude from the broadcast
-            test_mode: When True, uses test mode for sending events (direct awaits)
+            event_type: The type of event to unsubscribe from.
+            callback: The callback function to remove.
         """
-        if self._is_shutting_down:
+        async with self._lock:
+            if event_type in self._subscribers and callback in self._subscribers[event_type]:
+                self._subscribers[event_type].remove(callback)
+                logger.debug(f"Callback {getattr(callback, '__name__', str(callback))} unsubscribed from event type '{event_type}'")
+                # If no more subscribers for this event type, remove the key
+                if not self._subscribers[event_type]:
+                    del self._subscribers[event_type]
+                    logger.debug(f"Event type '{event_type}' removed as it has no more subscribers.")
+            else:
+                logger.debug(
+                    f"Callback {getattr(callback, '__name__', str(callback))} not found for event type '{event_type}', or event type not registered."
+                )
+
+    async def broadcast(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """
+        Broadcast an event to all subscribed callbacks for that event type.
+
+        Args:
+            event_type: The type of event being broadcast.
+            event_data: The data associated with the event.
+        """
+        callbacks_to_invoke: List[EventCallback] = []
+        async with self._lock:
+            if event_type in self._subscribers:
+                # Create a copy to iterate over, allowing callbacks to unsubscribe during iteration
+                # without affecting the current broadcast.
+                callbacks_to_invoke = self._subscribers[event_type][:]
+
+        if not callbacks_to_invoke:
+            logger.debug(f"No subscribers for event type '{event_type}'. Event data: {event_data}")
             return
 
-        logger.debug(f"Broadcasting event {event_type.value} (excluding {exclude_transport_id}): {data}")
+        logger.debug(f"Broadcasting event '{event_type}' to {len(callbacks_to_invoke)} subscribers. Data: {event_data}")
 
-        # Extract potential request details (parameters) if available in data for filtering
-        request_params = data.get("details", {}).get("parameters")
-        await self._send_event_to_transports(
-            event_type,
-            data,
-            exclude_transport_id=exclude_transport_id,
-            request_details=request_params,  # Pass params if available
-            test_mode=test_mode,  # Pass test_mode parameter
-        )
-
-    async def send_event_to_transport(
-        self,
-        transport_id: str,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        test_mode: bool = False,  # Added for testing
-    ) -> None:
-        """
-        Sends a single event directly to a specific transport, if it exists.
-        Does not check subscriptions. Primarily used for direct responses like errors.
-
-        Args:
-            transport_id: The ID of the transport to send the event to
-            event_type: The type of event to send
-            data: The event data payload
-        """
-        if self._is_shutting_down:
-            return
-
-        transport = self._transport_registry.get_cached_adapter("sse", transport_id)
-        if transport:
-            logger.debug(
-                f"Sending direct event {event_type.value} to transport {transport_id} (Request: {data.get('request_id', 'N/A')})"
-            )
+        for callback in callbacks_to_invoke:
             try:
-                # Direct await in test mode or if loop is closed
-                if test_mode or self._loop.is_closed():
-                    await transport.send_event(event_type, data)
-                else:
-                    # Run send_event, but don't block if it takes time
-                    self._loop.create_task(
-                        transport.send_event(event_type, data),
-                        name=f"direct-send-{event_type.value}-{transport_id}-{data.get('request_id', uuid.uuid4())}",
-                    )
+                await callback(event_data)
             except Exception as e:
-                # This catch block might not be effective if send_event is async and raises later
+                # Log error but continue with other callbacks
                 logger.error(
-                    f"Error creating task to send direct event {event_type.value} to transport {transport_id}: {e}",
-                    exc_info=True,
+                    f"Error in event callback {getattr(callback, '__name__', str(callback))} for event type '{event_type}': {e}",
+                    exc_info=True  # Includes stack trace
                 )
-        else:
-            logger.warning(
-                f"Attempted to send direct event {event_type.value} to non-existent transport {transport_id}"
-            )
-
-    async def _should_send_to_transport(
-        self,
-        transport_id: str,
-        transport: ITransportAdapter,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: Optional[str],
-        subscriptions: Dict[str, Set[EventTypes]],
-        request_details: Optional[Dict[str, Any]],
-    ) -> bool:
-        """
-        Determine if an event should be sent to a specific transport based on
-        subscription status, origin rules, and transport-specific filtering.
-
-        Args:
-            transport_id: The ID of the transport
-            transport: The transport adapter instance
-            event_type: The type of event
-            data: The event data payload
-            originating_transport_id: Optional ID of the transport that originated the request
-            subscriptions: Dictionary mapping transport IDs to subscribed event types
-            request_details: Optional original request parameters for context
-
-        Returns:
-            True if the event should be sent to the transport, False otherwise
-        """
-        # Check subscription
-        is_subscribed = event_type in subscriptions.get(transport_id, set())
-        if not is_subscribed:
-            return False
-
-        # Special handling for STATUS events
-        if event_type == EventTypes.STATUS and originating_transport_id is not None:
-            if transport_id != originating_transport_id:
-                return False
-
-        # Check transport-specific filtering
-        try:
-            # Pass original request parameters if available
-            if not transport.should_receive_event(event_type, data, request_details):
-                logger.debug(
-                    f"Transport {transport_id} filtered out event {event_type.value} for request {data.get('request_id', 'N/A')}"
-                )
-                return False
-        except Exception as e:
-            logger.error(
-                f"Error calling should_receive_event for transport {transport_id}: {e}",
-                exc_info=True,
-            )
-            return False
-
-        return True
-
-    def _create_send_event_task(
-        self,
-        transport: ITransportAdapter,
-        transport_id: str,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-    ) -> asyncio.Task[Any]:
-        """
-        Create a task to send an event to a transport.
-
-        Args:
-            transport: The transport adapter instance
-            transport_id: The ID of the transport
-            event_type: The type of event
-            data: The event data payload
-
-        Returns:
-            An asyncio task that will send the event
-        """
-        request_id = data.get("request_id", uuid.uuid4())
-        logger.debug(f"Queueing event {event_type.value} for transport {transport_id} (Request: {request_id})")
-        return self._loop.create_task(
-            transport.send_event(event_type, data),
-            name=f"send-{event_type.value}-{transport_id}-{request_id}",
-        )
-
-    async def _log_originating_transport_status(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: str,
-        sent_to: Set[str],
-        transports_to_notify: List[Tuple[str, ITransportAdapter]],
-        subscriptions: Dict[str, Set[EventTypes]],
-    ) -> None:
-        """
-        Log warnings if the originating transport didn't receive an event it might have expected.
-
-        Args:
-            event_type: The type of event
-            data: The event data payload
-            originating_transport_id: The ID of the transport that originated the request
-            sent_to: Set of transport IDs that received the event
-            transports_to_notify: List of (transport_id, transport) tuples
-            subscriptions: Dictionary mapping transport IDs to subscribed event types
-        """
-        request_id = data.get("request_id", "N/A")
-        origin_subscribed = event_type in subscriptions.get(originating_transport_id, set())
-        origin_exists = any(t_id == originating_transport_id for t_id, _ in transports_to_notify)
-
-        if origin_exists and not origin_subscribed:
-            logger.warning(
-                f"Event {event_type.value} for request {request_id} was not sent to originating transport {originating_transport_id} because it was not subscribed."
-            )
-        elif not origin_exists:
-            logger.warning(
-                f"Event {event_type.value} for request {request_id} could not be sent to originating transport {originating_transport_id} because it was not found (likely unregistered)."
-            )
-
-    async def _handle_task_results(
-        self,
-        tasks: List[asyncio.Task[Any]],
-        results: List[Any],
-    ) -> None:
-        """
-        Process the results of event sending tasks and log any errors.
-
-        Args:
-            tasks: List of asyncio tasks
-            results: List of task results
-        """
-        for i, result in enumerate(results):
-            if not isinstance(result, Exception):
-                continue
-
-            task_name = tasks[i].get_name()
-            log_transport_id = "unknown"
-            try:
-                parts = task_name.split("-")
-                if len(parts) >= 4 and parts[0] == "send":
-                    log_transport_id = parts[2]
-            except Exception:
-                logger.warning(f"Failed to parse transport ID from task name {task_name}")
-
-            # Avoid logging CancelledError stack traces unless debugging needed
-            log_exc_info = result if not isinstance(result, asyncio.CancelledError) else None
-            logger.error(
-                f"Error sending event via task {task_name} (Transport: {log_transport_id}): {result}",
-                exc_info=log_exc_info,
-            )
-
-    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
-        """
-        Subscribe a transport to a specific event type.
-
-        Args:
-            transport_id: The ID of the transport
-            event_type: The event type to subscribe to
-        """
-        # Implementation would typically update an in-memory registry of subscriptions
-        # For now, log the request but don't implement subscription tracking
-        logger.debug(f"Transport {transport_id} subscribing to event type {event_type.value}")
-        # Dummy implementation - subscription handling would be added here
-
-    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
-        """
-        Unsubscribe a transport from a specific event type.
-
-        Args:
-            transport_id: The ID of the transport
-            event_type: The event type to unsubscribe from
-        """
-        # Implementation would typically update an in-memory registry of subscriptions
-        # For now, log the request but don't implement subscription tracking
-        logger.debug(f"Transport {transport_id} unsubscribing from event type {event_type.value}")
-        # Dummy implementation - unsubscription handling would be added here
-
-    async def update_transport_capabilities(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
-        """
-        Update the capabilities of a transport.
-
-        Args:
-            transport_id: The ID of the transport
-            capabilities: The capabilities of the transport
-        """
-        # Implementation would typically update an in-memory registry of capabilities
-        # For now, log the request but don't implement capability tracking
-        logger.debug(f"Updating capabilities for transport {transport_id}: {[c.value for c in capabilities]}")
-        # Dummy implementation - capability handling would be added here
-
-    async def update_transport_subscriptions(self, transport_id: str, subscriptions: Set[EventTypes]) -> None:
-        """
-        Update the subscriptions of a transport.
-
-        Args:
-            transport_id: The ID of the transport
-            subscriptions: The event types the transport is subscribed to
-        """
-        # Implementation would typically update an in-memory registry of subscriptions
-        # For now, log the request but don't implement subscription tracking
-        logger.debug(f"Updating subscriptions for transport {transport_id}: {[s.value for s in subscriptions]}")
-        # Dummy implementation - subscription handling would be added here
-
-    async def is_subscribed(self, transport_id: str, event_type: EventTypes) -> bool:
-        """
-        Check if a transport is subscribed to a specific event type.
-
-        Args:
-            transport_id: The ID of the transport
-            event_type: The event type to check
-
-        Returns:
-            True if the transport is subscribed to the event type, False otherwise
-        """
-        # Implementation would typically check an in-memory registry of subscriptions
-        # For now, assume all transports are subscribed to all events
-        logger.debug(f"Checking if transport {transport_id} is subscribed to event type {event_type.value}")
-        return True  # Dummy implementation - always return True for now
-
-    async def _get_transports_map(self) -> Dict[str, ITransportAdapter]:
-        """
-        Helper to get all cached adapters to use as transports.
-
-        Returns:
-            Dictionary mapping transport IDs to transport adapter instances
-        """
-        transports = {}
-        all_adapter_types = self._transport_registry.list_adapter_types()
-        for adapter_type in all_adapter_types:
-            # Get cached adapters or create them
-            adapter_class = self._transport_registry.get_adapter_class(adapter_type)
-            if adapter_class:
-                # Dummy ID for example
-                adapter_id = f"{adapter_type}_dummy_id"
-                cached_adapter = self._transport_registry.get_cached_adapter(adapter_type, adapter_id)
-                if cached_adapter:
-                    transports[adapter_id] = cached_adapter
-        return transports
-
-    async def _process_eligible_transports(
-        self,
-        transports: Dict[str, ITransportAdapter],
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: Optional[str],
-        exclude_transport_id: Optional[str],
-        subscriptions: Dict[str, Set[EventTypes]],
-        request_details: Optional[Dict[str, Any]],
-    ) -> Tuple[List[asyncio.Task[Any]], Set[str]]:
-        """
-        Process each transport and determine if it should receive the event.
-
-        Args:
-            transports: Dictionary of transport ID to transport adapter
-            event_type: The type of event
-            data: The event data payload
-            originating_transport_id: Optional ID of the transport that originated the request
-            exclude_transport_id: Optional ID of the transport to exclude
-            subscriptions: Dictionary mapping transport IDs to subscribed event types
-            request_details: Optional original request parameters for context
-
-        Returns:
-            Tuple of (tasks, sent_to) where tasks is list of asyncio Tasks and sent_to is a set of transport IDs
-        """
-        tasks = []
-        sent_to = set()
-
-        for transport_id, transport in transports.items():
-            if transport_id == exclude_transport_id:
-                continue
-
-            # Check if we should send to this transport
-            should_send = await self._should_send_to_transport(
-                transport_id,
-                transport,
-                event_type,
-                data,
-                originating_transport_id,
-                subscriptions,
-                request_details,
-            )
-
-            if should_send:
-                tasks.append(self._create_send_event_task(transport, transport_id, event_type, data))
-                sent_to.add(transport_id)
-
-        return tasks, sent_to
-
-    async def _log_event_status(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: Optional[str],
-        sent_to: Set[str],
-        transports: Dict[str, ITransportAdapter],
-        subscriptions: Dict[str, Set[EventTypes]],
-        exclude_transport_id: Optional[str],
-    ) -> None:
-        """
-        Log information about event delivery status.
-
-        Args:
-            event_type: The type of event
-            data: The event data payload
-            originating_transport_id: Optional ID of the transport that originated the request
-            sent_to: Set of transport IDs that received the event
-            transports: Dictionary of transport ID to transport adapter
-            subscriptions: Dictionary mapping transport IDs to subscribed event types
-            exclude_transport_id: Optional ID of the transport to exclude
-        """
-        # Check if the originating transport should have received it but didn't
-        if (
-            originating_transport_id
-            and originating_transport_id not in sent_to
-            and originating_transport_id != exclude_transport_id
-        ):
-            await self._log_originating_transport_status(
-                event_type,
-                data,
-                originating_transport_id,
-                sent_to,
-                list(transports.items()),
-                subscriptions,
-            )
-
-        # Log if no transports received the event
-        if not sent_to:
-            # Avoid logging warning if it was a STATUS event only meant for origin and origin wasn't subscribed/found
-            is_status_for_origin_only = event_type == EventTypes.STATUS and originating_transport_id is not None
-            if not is_status_for_origin_only:
-                logger.debug(
-                    f"No transports subscribed or eligible to receive event {event_type.value} (Request: {data.get('request_id', 'N/A')})"
-                )
-
-    async def _send_event_to_transports(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        originating_transport_id: Optional[str] = None,
-        exclude_transport_id: Optional[str] = None,
-        request_details: Optional[Dict[str, Any]] = None,  # Original request params for filtering
-        test_mode: bool = False,  # Added for testing - directly awaits send_event calls
-    ) -> None:
-        """
-        Internal helper to send an event to relevant transports based on subscriptions.
-        Includes logic to check transport's should_receive_event method if available.
-
-        Args:
-            event_type: The type of event
-            data: The event data payload
-            originating_transport_id: Optional ID of the transport that originated the request
-            exclude_transport_id: Optional ID of the transport to exclude
-            request_details: Optional original request parameters for context
-            test_mode: When True, directly awaits calls instead of creating tasks.
-                      This is added to make testing easier, as it avoids issues with
-                      task scheduling and event loop management in test contexts.
-        """
-        if self._is_shutting_down:
-            return
-
-        # Get all transport adapters
-        transports = await self._get_transports_map()
-
-        # Dummy subscriptions - in a real implementation, this would be tracked
-        subscriptions: Dict[str, Set[EventTypes]] = {}
-
-        if test_mode:
-            # In test mode, directly get transports and call send_event
-            for transport_id, transport in transports.items():
-                if transport_id == exclude_transport_id:
-                    continue
-
-                # Check if we should send to this transport
-                should_send = await self._should_send_to_transport(
-                    transport_id,
-                    transport,
-                    event_type,
-                    data,
-                    originating_transport_id,
-                    subscriptions,
-                    request_details,
-                )
-
-                if should_send:
-                    logger.debug(f"Test mode: Directly sending event {event_type.value} to transport {transport_id}")
-                    try:
-                        await transport.send_event(event_type, data)
-                    except Exception as e:
-                        logger.error(
-                            f"Error sending event to transport {transport_id}: {e}",
-                            exc_info=True,
-                        )
-            # No need to continue further in test mode
-            return
-
-        # Regular mode (non-test): use tasks for better performance
-        # Process transports and determine which ones should receive the event
-        tasks, sent_to = await self._process_eligible_transports(
-            transports,
-            event_type,
-            data,
-            originating_transport_id,
-            exclude_transport_id,
-            subscriptions,
-            request_details,
-        )
-
-        # Log information about event delivery status
-        await self._log_event_status(
-            event_type,
-            data,
-            originating_transport_id,
-            sent_to,
-            transports,
-            subscriptions,
-            exclude_transport_id,
-        )
-
-        # Wait for all send tasks to complete
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            await self._handle_task_results(tasks, results)
