@@ -139,6 +139,12 @@ async def _setup_sse_adapter(
     coordinator = await ApplicationCoordinator.getInstance(get_logger)
     logger.debug("Coordinator instance obtained")
 
+    # Initialize the coordinator's internal state
+    # This is crucial as it sets up locks and other necessary components.
+    # Registering in discovery allows other services (like a CLI client) to find this server.
+    await coordinator._initialize_coordinator(host=host, port=port, register_in_discovery=True)
+    logger.debug("Coordinator internal state initialized")
+
     sse_adapter = SSETransportAdapter(
         coordinator=coordinator,
         host=host,

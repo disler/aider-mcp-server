@@ -237,6 +237,7 @@ async def test_run_sse_server_initialization_and_shutdown():
     mock_adapter.initialize = AsyncMock()
     mock_adapter.start_listening = AsyncMock()
     mock_adapter.shutdown = AsyncMock()
+    mock_adapter._server_task = None  # Ensure _wait_for_shutdown doesn't try to gather an AsyncMock
 
     # Set up for signal handling
     shutdown_event = asyncio.Event()

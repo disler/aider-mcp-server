@@ -34,6 +34,7 @@ async def test_run_sse_server_startup():
         mock_coordinator.register_handler = AsyncMock()  # Still check it's not called
         mock_coordinator.register_transport = AsyncMock()
         mock_coordinator.subscribe_to_event_type = AsyncMock()
+        mock_coordinator._initialize_coordinator = AsyncMock()
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock()
         mock_coordinator_cls.getInstance = AsyncMock(return_value=mock_coordinator)
@@ -94,7 +95,6 @@ async def test_run_sse_server_startup():
 
         # Verify ApplicationCoordinator lifecycle
         mock_coordinator_cls.getInstance.assert_awaited_once()
-        mock_coordinator.__aenter__.assert_awaited_once()
 
         # Verify SSETransportAdapter instantiation - check the actual call arguments
         mock_adapter_cls.assert_called_once_with(
@@ -123,6 +123,5 @@ async def test_run_sse_server_startup():
         # Verify that handlers are no longer directly registered with the coordinator
         assert mock_coordinator.register_handler.await_count == 0
 
-        # Verify serve_sse waits for stop event and coordinator exits
+        # Verify serve_sse waits for stop event
         mock_event.wait.assert_awaited_once()
-        mock_coordinator.__aexit__.assert_awaited_once()

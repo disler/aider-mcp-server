@@ -99,6 +99,7 @@ async def test_sse_server_passes_config_to_adapter():
     # Mock the ApplicationCoordinator
     with patch("aider_mcp_server.sse_server.ApplicationCoordinator") as mock_coordinator_class:
         mock_coordinator = MagicMock()  # Don't use AsyncMock here
+        mock_coordinator._initialize_coordinator = AsyncMock()
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock(return_value=None)
         mock_coordinator_class.getInstance = AsyncMock(return_value=mock_coordinator)

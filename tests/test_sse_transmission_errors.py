@@ -235,6 +235,7 @@ async def test_run_sse_server_network_bind_error():
     """Test handling network bind errors when starting the SSE server."""
     # Mock the ApplicationCoordinator.getInstance method
     mock_coordinator = AsyncMock()
+    mock_coordinator._initialize_coordinator = AsyncMock()
 
     # Mock SSETransportAdapter to simulate a network bind error
     mock_adapter = AsyncMock()
