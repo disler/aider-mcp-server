@@ -20,6 +20,7 @@ get_logger_func: LoggerFactory
 try:
     # Attempt to import the custom logger from the project structure
     from aider_mcp_server.atoms.logging import get_logger as custom_get_logger
+
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:
     # Fallback to standard logging if custom logger is not found
@@ -36,15 +37,29 @@ except ImportError:
 
         # Wrapper class to satisfy LoggerProtocol
         class CustomLogger(LoggerProtocol):
-            def debug(self, message: str, **kwargs: typing.Any) -> None: logger_instance.debug(message, **kwargs) # type: ignore
-            def info(self, message: str, **kwargs: typing.Any) -> None: logger_instance.info(message, **kwargs) # type: ignore
-            def warning(self, message: str, **kwargs: typing.Any) -> None: logger_instance.warning(message, **kwargs) # type: ignore
-            def error(self, message: str, **kwargs: typing.Any) -> None: logger_instance.error(message, **kwargs) # type: ignore
-            def critical(self, message: str, **kwargs: typing.Any) -> None: logger_instance.critical(message, **kwargs) # type: ignore
-            def exception(self, message: str, **kwargs: typing.Any) -> None: logger_instance.exception(message, **kwargs) # type: ignore
-            def verbose(self, message: str, **kwargs: typing.Any) -> None: logger_instance.debug(message, **kwargs) # type: ignore
+            def debug(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.debug(message, **kwargs)  # type: ignore
+
+            def info(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.info(message, **kwargs)  # type: ignore
+
+            def warning(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.warning(message, **kwargs)  # type: ignore
+
+            def error(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.error(message, **kwargs)  # type: ignore
+
+            def critical(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.critical(message, **kwargs)  # type: ignore
+
+            def exception(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.exception(message, **kwargs)  # type: ignore
+
+            def verbose(self, message: str, **kwargs: typing.Any) -> None:
+                logger_instance.debug(message, **kwargs)  # type: ignore
 
         return CustomLogger()
+
     get_logger_func = fallback_get_logger
 
 
@@ -90,12 +105,12 @@ class TransportAdapterRegistry:
             return
 
         prefix = package.__name__ + "."
-        
+
         # Ensure package.__path__ is available and iterable
-        if not hasattr(package, '__path__'):
+        if not hasattr(package, "__path__"):
             self.logger.warning(f"Package {package_name} has no __path__ attribute. Cannot discover modules.")
             # Attempt to load from the package module itself if it's a single file acting as a namespace
-            if hasattr(package, '__file__'):
+            if hasattr(package, "__file__"):
                 self._discover_adapters_from_module(package)
             return
 
@@ -105,7 +120,7 @@ class TransportAdapterRegistry:
                 self._discover_adapters_from_module(module)
             except Exception as e:
                 self.logger.error(f"Error discovering adapters in module {modname}: {e}", exc_info=True)
-        
+
         self.logger.info(f"Adapter discovery complete. Found {len(self._adapter_classes)} adapter classes.")
 
     def _discover_adapters_from_module(self, module: Any) -> None:
@@ -129,7 +144,7 @@ class TransportAdapterRegistry:
                         # A better pattern might be to make discover_adapters async if it uses async helpers.
                         # For now, sticking to the user's asyncio.run() pattern.
                         asyncio.ensure_future(self._register_adapter_class(transport_type_name, cls))
-                    except RuntimeError: # No running event loop
+                    except RuntimeError:  # No running event loop
                         asyncio.run(self._register_adapter_class(transport_type_name, cls))
                 else:
                     self.logger.warning(
@@ -137,7 +152,9 @@ class TransportAdapterRegistry:
                         f"does not define a valid TRANSPORT_TYPE_NAME string attribute. Skipping."
                     )
 
-    async def _register_adapter_class(self, transport_type_name: str, adapter_class: Type[AbstractTransportAdapter]) -> None:
+    async def _register_adapter_class(
+        self, transport_type_name: str, adapter_class: Type[AbstractTransportAdapter]
+    ) -> None:
         """Registers an adapter class. Made async to use self._lock."""
         async with self._lock:
             if transport_type_name in self._adapter_classes:
@@ -148,7 +165,6 @@ class TransportAdapterRegistry:
                 )
             self._adapter_classes[transport_type_name] = adapter_class
         self.logger.info(f"Discovered transport adapter: {adapter_class.__name__} for type '{transport_type_name}'")
-
 
     async def initialize_adapter(
         self,
@@ -169,7 +185,7 @@ class TransportAdapterRegistry:
         """
         self.logger.info(f"Initializing transport adapter of type: {transport_type}")
         adapter_class: Optional[Type[AbstractTransportAdapter]] = None
-        async with self._lock: # Protect access to _adapter_classes
+        async with self._lock:  # Protect access to _adapter_classes
             adapter_class = self._adapter_classes.get(transport_type)
 
         if not adapter_class:
@@ -180,22 +196,19 @@ class TransportAdapterRegistry:
             # Pass coordinator and unpack config. Adapters should accept 'coordinator'.
             # Specific config keys are handled by individual adapter constructors.
             adapter_instance = adapter_class(coordinator=coordinator, **(config or {}))
-            
+
             # Call the adapter's own initialize method
             await adapter_instance.initialize()
 
-            async with self._lock: # Protect access to _adapters
+            async with self._lock:  # Protect access to _adapters
                 self._adapters[adapter_instance.get_transport_id()] = adapter_instance
-            
+
             self.logger.info(
-                f"Successfully initialized adapter {adapter_instance.get_transport_id()} "
-                f"of type {transport_type}"
+                f"Successfully initialized adapter {adapter_instance.get_transport_id()} of type {transport_type}"
             )
             return adapter_instance
         except Exception as e:
-            self.logger.error(
-                f"Failed to initialize adapter of type {transport_type}: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to initialize adapter of type {transport_type}: {e}", exc_info=True)
             return None
 
     def get_adapter(self, transport_id: str) -> Optional[ITransportAdapter]:
@@ -223,22 +236,20 @@ class TransportAdapterRegistry:
         Shuts down all initialized transport adapters and clears the registry.
         """
         self.logger.info("Shutting down all transport adapters...")
-        
+
         adapters_to_shutdown: List[ITransportAdapter]
         async with self._lock:
             adapters_to_shutdown = list(self._adapters.values())
-            self._adapters.clear() # Clear early
+            self._adapters.clear()  # Clear early
 
         for adapter in adapters_to_shutdown:
             try:
                 self.logger.info(f"Shutting down adapter {adapter.get_transport_id()}")
                 await adapter.shutdown()
             except Exception as e:
-                self.logger.error(
-                    f"Error shutting down adapter {adapter.get_transport_id()}: {e}", exc_info=True
-                )
-        
+                self.logger.error(f"Error shutting down adapter {adapter.get_transport_id()}: {e}", exc_info=True)
+
         async with self._lock:
             self._adapter_classes.clear()
-            
+
         self.logger.info("All transport adapters shut down and registry cleared.")

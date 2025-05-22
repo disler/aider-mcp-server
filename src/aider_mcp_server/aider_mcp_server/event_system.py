@@ -2,9 +2,10 @@
 A simple event system for managing event subscriptions and broadcasting
 based on callbacks. This aligns with Task 2 specification.
 """
+
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List
 
 # Define EventCallback type as per Task 2, ensuring it's Awaitable
 EventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
@@ -59,9 +60,13 @@ class EventSystem:
                 self._subscribers[event_type] = []
             if callback not in self._subscribers[event_type]:
                 self._subscribers[event_type].append(callback)
-                logger.debug(f"Callback '{getattr(callback, '__name__', repr(callback))}' subscribed to event type '{event_type}'.")
+                logger.debug(
+                    f"Callback '{getattr(callback, '__name__', repr(callback))}' subscribed to event type '{event_type}'."
+                )
             else:
-                logger.debug(f"Callback '{getattr(callback, '__name__', repr(callback))}' already subscribed to event type '{event_type}'.")
+                logger.debug(
+                    f"Callback '{getattr(callback, '__name__', repr(callback))}' already subscribed to event type '{event_type}'."
+                )
 
     async def unsubscribe(self, event_type: str, callback: EventCallback) -> None:
         """
@@ -77,7 +82,9 @@ class EventSystem:
         async with self._lock:
             if event_type in self._subscribers and callback in self._subscribers[event_type]:
                 self._subscribers[event_type].remove(callback)
-                logger.debug(f"Callback '{getattr(callback, '__name__', repr(callback))}' unsubscribed from event type '{event_type}'.")
+                logger.debug(
+                    f"Callback '{getattr(callback, '__name__', repr(callback))}' unsubscribed from event type '{event_type}'."
+                )
                 # If no subscribers are left for an event type, remove the event type key
                 if not self._subscribers[event_type]:
                     del self._subscribers[event_type]
@@ -109,13 +116,12 @@ class EventSystem:
             logger.debug(f"No subscribers for event type '{event_type}'. Event data: {event_data}")
             return
 
-        logger.debug(f"Broadcasting event type '{event_type}' to {len(callbacks_to_execute)} subscriber(s). Data: {event_data}")
+        logger.debug(
+            f"Broadcasting event type '{event_type}' to {len(callbacks_to_execute)} subscriber(s). Data: {event_data}"
+        )
 
         # Prepare tasks for all callbacks to run them concurrently
-        tasks = [
-            self._execute_callback(callback, event_data, event_type)
-            for callback in callbacks_to_execute
-        ]
+        tasks = [self._execute_callback(callback, event_data, event_type) for callback in callbacks_to_execute]
 
         # asyncio.gather will run all tasks. Errors within _execute_callback are logged there.
         # We don't need return_exceptions=True if _execute_callback handles its own exceptions
@@ -128,12 +134,12 @@ class EventSystem:
         This ensures that one faulty callback does not affect others.
         """
         try:
-            callback_name = getattr(callback, '__name__', repr(callback))
+            callback_name = getattr(callback, "__name__", repr(callback))
             logger.debug(f"Executing callback '{callback_name}' for event type '{event_type}'.")
             await callback(event_data)
         except Exception as e:
             # Log the error but do not re-raise, allowing other callbacks to proceed.
             logger.error(
                 f"Error in event callback '{getattr(callback, '__name__', repr(callback))}' for event type '{event_type}': {e}",
-                exc_info=True  # Include stack trace in the log
+                exc_info=True,  # Include stack trace in the log
             )

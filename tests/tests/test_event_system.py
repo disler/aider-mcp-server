@@ -1,7 +1,8 @@
 import asyncio
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from typing import Dict, Any
 
 from aider_mcp_server.event_system import EventSystem
 
@@ -17,18 +18,20 @@ def event_system():
     # The EventSystem initializes its logger upon __init__.
     with patch(MOCK_LOGGER_PATH, new_callable=MagicMock) as mock_logger:
         system = EventSystem()
-        system.logger = mock_logger # Attach mock_logger for easy access in tests if needed
+        system.logger = mock_logger  # Attach mock_logger for easy access in tests if needed
         yield system
 
 
 @pytest.fixture
 def mock_callback_factory():
     """Factory to create AsyncMock callbacks."""
+
     def _create_mock_callback(name: str = "mock_callback") -> AsyncMock:
         # AsyncMock is awaitable and can be used as an EventCallback
         callback = AsyncMock()
         callback.__name__ = name  # For better logging/debugging by EventSystem
         return callback
+
     return _create_mock_callback
 
 
@@ -122,7 +125,7 @@ async def test_unsubscribe_non_existent_callback(event_system: EventSystem, mock
 
     await event_system.unsubscribe(event_type, cb_non_existent)
 
-    assert len(event_system._subscribers[event_type]) == initial_subs_count # No change
+    assert len(event_system._subscribers[event_type]) == initial_subs_count  # No change
     event_system.logger.debug.assert_any_call(
         f"Callback cb_ghost not found for event type '{event_type}', or event type not registered."
     )
@@ -225,7 +228,7 @@ async def test_broadcast_callback_exception_does_not_affect_others(event_system:
     cb_fails.side_effect = test_exception
 
     await event_system.subscribe(event_type, cb_succeeds1)
-    await event_system.subscribe(event_type, cb_fails) # Order might matter for some test setups
+    await event_system.subscribe(event_type, cb_fails)  # Order might matter for some test setups
     await event_system.subscribe(event_type, cb_succeeds2)
 
     await event_system.broadcast(event_type, event_data)
@@ -235,8 +238,7 @@ async def test_broadcast_callback_exception_does_not_affect_others(event_system:
     cb_succeeds2.assert_awaited_once_with(event_data)
 
     event_system.logger.error.assert_called_once_with(
-        f"Error in event callback {cb_fails.__name__} for event type '{event_type}': {test_exception}",
-        exc_info=True
+        f"Error in event callback {cb_fails.__name__} for event type '{event_type}': {test_exception}", exc_info=True
     )
 
 
@@ -260,7 +262,7 @@ async def test_concurrent_broadcasts(event_system: EventSystem, mock_callback_fa
     await asyncio.gather(
         event_system.broadcast(event_A, data_A),
         event_system.broadcast(event_B, data_B),
-        event_system.broadcast(event_A, data_A) # Broadcast event_A again
+        event_system.broadcast(event_A, data_A),  # Broadcast event_A again
     )
 
     assert cb_eventA_1.await_count == 2
@@ -283,27 +285,27 @@ async def test_subscribe_during_broadcast(event_system: EventSystem, mock_callba
         # cb1 is called, and during its execution, cb2 is subscribed.
         # cb2 should not be called in *this* broadcast.
         await event_system.subscribe(event_type, cb2)
-        cb1_done_event.set() # Signal cb1 has run and cb2 is subscribed
+        cb1_done_event.set()  # Signal cb1 has run and cb2 is subscribed
 
     # Use a real async def for cb1 to control its behavior
     cb1_mock_wrapper = mock_callback_factory("cb1_wrapper")
     cb1_mock_wrapper.side_effect = cb1
 
     await event_system.subscribe(event_type, cb1_mock_wrapper)
-    
+
     # Initial broadcast
     await event_system.broadcast(event_type, event_data)
 
     cb1_mock_wrapper.assert_awaited_once_with(event_data)
-    cb2.assert_not_awaited() # cb2 should not have been called in the first broadcast
+    cb2.assert_not_awaited()  # cb2 should not have been called in the first broadcast
 
     # Wait for cb1 to complete its logic (including subscribing cb2)
     await cb1_done_event.wait()
 
     # Second broadcast, cb2 should now be called
     await event_system.broadcast(event_type, event_data)
-    cb2.assert_awaited_once_with(event_data) # Called in the second broadcast
-    assert cb1_mock_wrapper.await_count == 2 # cb1 called again
+    cb2.assert_awaited_once_with(event_data)  # Called in the second broadcast
+    assert cb1_mock_wrapper.await_count == 2  # cb1 called again
 
 
 @pytest.mark.asyncio
@@ -337,9 +339,9 @@ async def test_unsubscribe_during_broadcast(event_system: EventSystem, mock_call
     # depending on its position relative to cb1_mock_wrapper in the internal list
     # and the exact timing of the unsubscribe. The key is its behavior in *future* broadcasts.
     # For this test, we'll check its call count after all broadcasts.
-    cb3_remains.assert_awaited_once_with(event_data) # cb3 should always be called
+    cb3_remains.assert_awaited_once_with(event_data)  # cb3 should always be called
 
-    await cb1_done_event.wait() # Ensure cb1's unsubscribe action has completed
+    await cb1_done_event.wait()  # Ensure cb1's unsubscribe action has completed
 
     # Store call counts before second broadcast
     cb1_call_count_before_2nd = cb1_mock_wrapper.await_count
@@ -355,7 +357,9 @@ async def test_unsubscribe_during_broadcast(event_system: EventSystem, mock_call
 
     # cb2_unsubscribed should NOT be called again, so its call count remains the same
     assert cb2_unsubscribed.await_count == cb2_call_count_before_2nd
-    event_system.logger.debug.assert_any_call(f"Callback {cb2_unsubscribed.__name__} unsubscribed from event type '{event_type}'")
+    event_system.logger.debug.assert_any_call(
+        f"Callback {cb2_unsubscribed.__name__} unsubscribed from event type '{event_type}'"
+    )
 
 
 @pytest.mark.asyncio
@@ -369,7 +373,7 @@ async def test_unsubscribe_self_during_broadcast(event_system: EventSystem, mock
     cb_self_unsub_ref = [None]
 
     async def self_unsubscribing_cb(data: Dict[str, Any]):
-        nonlocal cb_self_unsub_ref # To access the list
+        nonlocal cb_self_unsub_ref  # To access the list
         if cb_self_unsub_ref[0]:
             await event_system.unsubscribe(event_type, cb_self_unsub_ref[0])
 
@@ -379,7 +383,6 @@ async def test_unsubscribe_self_during_broadcast(event_system: EventSystem, mock
     actual_cb_mock.__name__ = "cb_self_unsub"
     cb_self_unsub_ref[0] = actual_cb_mock
 
-
     await event_system.subscribe(event_type, actual_cb_mock)
 
     # First broadcast: cb_self_unsub should be called and unsubscribe itself
@@ -388,6 +391,8 @@ async def test_unsubscribe_self_during_broadcast(event_system: EventSystem, mock
 
     # Second broadcast: cb_self_unsub should NOT be called
     await event_system.broadcast(event_type, event_data)
-    actual_cb_mock.assert_awaited_once_with(event_data) # Still only once from the first call
-    event_system.logger.debug.assert_any_call(f"Callback {actual_cb_mock.__name__} unsubscribed from event type '{event_type}'")
+    actual_cb_mock.assert_awaited_once_with(event_data)  # Still only once from the first call
+    event_system.logger.debug.assert_any_call(
+        f"Callback {actual_cb_mock.__name__} unsubscribed from event type '{event_type}'"
+    )
     event_system.logger.debug.assert_any_call(f"Event type '{event_type}' removed as it has no more subscribers.")

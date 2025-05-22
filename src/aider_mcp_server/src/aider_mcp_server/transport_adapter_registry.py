@@ -5,7 +5,6 @@ This module provides a registry for discovering, instantiating, and managing
 transport adapters that conform to the ITransportAdapter interface.
 """
 
-import asyncio
 import importlib
 import inspect
 import pkgutil
@@ -44,11 +43,9 @@ class TransportAdapterRegistry:
             return
 
         if not hasattr(package, "__path__"):
-            self.logger.warning(
-                f"Package {package_name} has no __path__ attribute. Cannot discover modules within it."
-            )
+            self.logger.warning(f"Package {package_name} has no __path__ attribute. Cannot discover modules within it.")
             return
-            
+
         discovered_count = 0
         for _, name, is_pkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
             if not is_pkg:
@@ -70,7 +67,7 @@ class TransportAdapterRegistry:
                                     f"Existing: {self._adapter_classes[adapter_key].__name__}, New: {obj_class.__name__}. Skipping new."
                                 )
                                 continue
-                            
+
                             self._adapter_classes[adapter_key] = obj_class
                             self.logger.info(f"Discovered transport adapter: '{adapter_key}' ({obj_class.__name__})")
                             discovered_count += 1
@@ -94,7 +91,7 @@ class TransportAdapterRegistry:
             RuntimeError: If adapter initialization fails.
         """
         self.logger.info(f"Request to initialize adapter: '{adapter_name}'")
-        adapter_instance = None # Define here for potential use in finally/except
+        adapter_instance = None  # Define here for potential use in finally/except
 
         if adapter_name not in self._adapter_classes:
             self.logger.error(f"Unknown adapter type: '{adapter_name}'")
@@ -112,7 +109,7 @@ class TransportAdapterRegistry:
         try:
             adapter_instance = adapter_class(**kwargs)
             await adapter_instance.initialize()
-            
+
             self._active_adapters[adapter_name] = adapter_instance
             self.logger.info(
                 f"Adapter '{adapter_name}' (ID: {adapter_instance.get_transport_id()}) initialized and activated successfully."
@@ -122,10 +119,12 @@ class TransportAdapterRegistry:
             self.logger.error(f"Failed to initialize adapter '{adapter_name}': {e}", exc_info=True)
             # Ensure it's not left in active_adapters if initialization failed partway
             # and adapter_instance was successfully created before the error.
-            if adapter_instance is not None and \
-               adapter_name in self._active_adapters and \
-               self._active_adapters.get(adapter_name) is adapter_instance:
-                 del self._active_adapters[adapter_name]
+            if (
+                adapter_instance is not None
+                and adapter_name in self._active_adapters
+                and self._active_adapters.get(adapter_name) is adapter_instance
+            ):
+                del self._active_adapters[adapter_name]
             raise RuntimeError(f"Failed to initialize adapter {adapter_name}") from e
 
     def get_adapter(self, adapter_name: str) -> ITransportAdapter:
@@ -181,7 +180,7 @@ class TransportAdapterRegistry:
         """
         self.logger.info(f"Request to shut down adapter: '{adapter_name}'")
         adapter = self._active_adapters.pop(adapter_name, None)
-        
+
         if adapter:
             transport_id = "unknown"
             try:
@@ -204,18 +203,20 @@ class TransportAdapterRegistry:
     async def shutdown_all(self) -> None:
         """Shutdown all active transport adapters."""
         self.logger.info("Shutting down all active transport adapters...")
-        
+
         adapter_names = list(self._active_adapters.keys())
-        
+
         for adapter_name in adapter_names:
-            adapter = self._active_adapters.pop(adapter_name, None) 
+            adapter = self._active_adapters.pop(adapter_name, None)
             if adapter:
                 transport_id = "unknown"
                 try:
                     transport_id = adapter.get_transport_id()
                 except Exception:
-                    self.logger.warning(f"Could not retrieve transport_id for adapter '{adapter_name}' during shutdown_all.")
-                
+                    self.logger.warning(
+                        f"Could not retrieve transport_id for adapter '{adapter_name}' during shutdown_all."
+                    )
+
                 self.logger.info(f"Shutting down adapter '{adapter_name}' (ID: {transport_id})...")
                 try:
                     await adapter.shutdown()
@@ -225,6 +226,6 @@ class TransportAdapterRegistry:
                         f"Error during shutdown of adapter '{adapter_name}' (ID: {transport_id}): {e}",
                         exc_info=True,
                     )
-        
+
         self._active_adapters.clear()
         self.logger.info("All active transport adapters have been processed for shutdown.")
