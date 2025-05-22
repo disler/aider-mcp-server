@@ -123,6 +123,78 @@ class EventMediator:
 
     # --- Methods to facade EventSystem for external communication ---
 
+    async def subscribe_to_event_type_externally(self, transport_id: str, event_type: EventTypes) -> None:
+        """Subscribe a transport to an event type."""
+        self._logger.verbose(
+            f"Mediator: Subscribing transport {transport_id} to event type {event_type.value} externally"
+        )
+        # Note: The simple EventSystem doesn't have transport-specific subscriptions
+        # This would need to be implemented with a more advanced event system
+        self._logger.warning(
+            f"Transport-specific subscriptions not supported by current EventSystem. "
+            f"Transport {transport_id} subscription to {event_type.value} ignored."
+        )
+
+    async def unsubscribe_from_event_type_externally(self, transport_id: str, event_type: EventTypes) -> None:
+        """Unsubscribe a transport from an event type."""
+        self._logger.verbose(
+            f"Mediator: Unsubscribing transport {transport_id} from event type {event_type.value} externally"
+        )
+        # Note: The simple EventSystem doesn't have transport-specific unsubscriptions
+        self._logger.warning(
+            f"Transport-specific unsubscriptions not supported by current EventSystem. "
+            f"Transport {transport_id} unsubscription from {event_type.value} ignored."
+        )
+
+    async def update_transport_capabilities_externally(self, transport_id: str, capabilities: Set[EventTypes]) -> None:
+        """Update transport capabilities."""
+        self._logger.verbose(
+            f"Mediator: Updating capabilities for transport {transport_id}: {[c.value for c in capabilities]}"
+        )
+        # Note: The simple EventSystem doesn't track transport capabilities
+        self._logger.warning(
+            f"Transport capability tracking not supported by current EventSystem. "
+            f"Transport {transport_id} capabilities update ignored."
+        )
+
+    async def update_transport_subscriptions_externally(
+        self, transport_id: str, subscriptions: Set[EventTypes]
+    ) -> None:
+        """Update transport subscriptions."""
+        self._logger.verbose(
+            f"Mediator: Updating subscriptions for transport {transport_id}: {[s.value for s in subscriptions]}"
+        )
+        # Note: The simple EventSystem doesn't track transport-specific subscriptions
+        self._logger.warning(
+            f"Transport subscription tracking not supported by current EventSystem. "
+            f"Transport {transport_id} subscriptions update ignored."
+        )
+
+    async def send_event_to_transport_externally(
+        self, transport_id: str, event_type: EventTypes, data: Dict[str, Any], test_mode: bool = False
+    ) -> None:
+        """Send an event to a specific transport."""
+        self._logger.verbose(
+            f"Mediator: Sending event {event_type.value} to transport {transport_id} externally. Data: {data}"
+        )
+        # Note: The simple EventSystem doesn't support transport-specific event sending
+        self._logger.warning(
+            f"Transport-specific event sending not supported by current EventSystem. "
+            f"Event {event_type.value} to transport {transport_id} ignored."
+        )
+
+    async def is_subscribed_externally(self, transport_id: str, event_type: EventTypes) -> bool:
+        """Check if a transport is subscribed to an event type."""
+        self._logger.verbose(
+            f"Mediator: Checking if transport {transport_id} is subscribed to event type {event_type.value}"
+        )
+        # Note: The simple EventSystem doesn't track transport-specific subscriptions
+        self._logger.warning(
+            f"Transport-specific subscription checking not supported by current EventSystem. "
+            f"Returning False for transport {transport_id} subscription to {event_type.value}."
+        )
+        return False
+
     async def broadcast_event_externally(
         self,
         event_type: EventTypes,

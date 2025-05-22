@@ -84,7 +84,7 @@ async def main() -> None:
 
     # 1. Initialize core systems
     # TransportRegistry might require async initialization if it discovers plugins
-    transport_registry = await TransportAdapterRegistry.get_instance()
+    await TransportAdapterRegistry.get_instance()
     # For this example, assume built-in adapters are sufficient and initialize directly
     # await transport_registry.initialize() # If explicit init is needed and not covered by get_instance
 

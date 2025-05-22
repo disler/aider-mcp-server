@@ -6,6 +6,7 @@ It is not meant to be used directly, but serves as a guide for the actual refact
 """
 
 import asyncio
+from typing import Any, Dict
 
 from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
 from aider_mcp_server.dependency_container import DependencyContainer
@@ -40,7 +41,9 @@ async def initialize_container(logger_factory: LoggerFactory) -> DependencyConta
     await container.__aenter__()  # Enter the async context
 
     # Register the logger factory itself
-    await container.register_singleton(LoggerFactory, instance=logger_factory)
+    # Note: LoggerFactory is a type alias, not a class, so we can't register it directly
+    # Instead, we'll register it as a factory function
+    # await container.register_singleton(LoggerFactory, instance=logger_factory)
 
     # Register core services
     await container.register_singleton(SessionManager, implementation_type=SessionManager)
@@ -48,8 +51,15 @@ async def initialize_container(logger_factory: LoggerFactory) -> DependencyConta
     await container.register_singleton(ResponseFormatter, implementation_type=ResponseFormatter)
 
     # Register authentication and security
-    await container.register_singleton(IAuthenticationProvider, implementation_type=DefaultAuthenticationProvider)
-    await container.register_singleton(ISecurityService, implementation_type=SecurityService)
+    # Note: Abstract classes need concrete implementations
+    await container.register_singleton(
+        IAuthenticationProvider,  # type: ignore[type-abstract]
+        implementation_type=DefaultAuthenticationProvider,
+    )
+    await container.register_singleton(
+        ISecurityService,  # type: ignore[type-abstract]
+        implementation_type=SecurityService,
+    )
 
     # Register transport registry
     async def create_transport_registry() -> TransportAdapterRegistry:
@@ -68,7 +78,7 @@ async def initialize_container(logger_factory: LoggerFactory) -> DependencyConta
     return container
 
 
-async def refactored_server_startup():
+async def refactored_server_startup() -> None:
     """
     Example of refactored server startup code using the dependency container.
 
@@ -78,7 +88,7 @@ async def refactored_server_startup():
     # Create logger factory
     def logger_factory(name: str) -> "LoggerProtocol":
         # Actual implementation goes here
-        pass
+        raise NotImplementedError("Logger factory implementation needed")
 
     # Initialize container with all services
     container = await initialize_container(logger_factory)
@@ -93,7 +103,7 @@ async def refactored_server_startup():
         # ...
 
         # For handling requests, create a new scope
-        async def handle_request(request_data: dict):
+        async def handle_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
             async with await container.create_scope() as request_scope:
                 # Resolve request-specific services
                 request_processor = await request_scope.resolve(RequestProcessor)
@@ -105,6 +115,7 @@ async def refactored_server_startup():
                     request_data["operation_name"],
                     request_data,
                 )
+                return {"status": "processed"}
 
         # Wait for server to complete
         # ...
@@ -161,8 +172,14 @@ class RefactoredApplicationCoordinator:
         Returns:
             A new RefactoredApplicationCoordinator instance.
         """
+
         # Resolve dependencies from container
-        logger_factory = await container.resolve(LoggerFactory)
+        # Note: LoggerFactory is a type alias, not a class
+        # logger_factory = await container.resolve(LoggerFactory)
+        def mock_logger_factory(name: str) -> Any:
+            return NotImplemented
+
+        logger_factory: LoggerFactory = mock_logger_factory
         event_coordinator = await container.resolve(EventCoordinator)
         request_processor = await container.resolve(RequestProcessor)
         transport_registry = await container.resolve(TransportAdapterRegistry)

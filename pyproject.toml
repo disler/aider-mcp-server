@@ -112,8 +112,8 @@ ignore = ["E501"]  # Ignore line length
 # Allow S108 (/tmp usage) in test files
 # Define file-specific rule ignores
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
-"test_*.py" = ["S101", "S108"]
+"tests/*" = ["S101", "S105", "S106", "S608"]
+"test_*.py" = ["S101", "S105", "S106", "S108", "S608"]
 "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]
 "src/aider_mcp_server/atoms/tools/aider_ai_code.py" = ["C901"]
 "src/aider_mcp_server/atoms/tools/changes_summarizer.py" = ["C901"]

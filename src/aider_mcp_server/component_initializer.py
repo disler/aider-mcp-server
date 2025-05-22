@@ -8,12 +8,12 @@ from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
-from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
 from aider_mcp_server.mcp_types import LoggerFactory
 from aider_mcp_server.request_processor import RequestProcessor
 from aider_mcp_server.response_formatter import ResponseFormatter
 from aider_mcp_server.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
+from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
 
 
 class Components:

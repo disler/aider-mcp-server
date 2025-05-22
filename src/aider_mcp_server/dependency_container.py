@@ -97,7 +97,7 @@ class DependencyContainer(IDependencyContainer):
         await self._exit_stack.__aenter__()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the async context manager, cleaning up resources."""
         self._is_closed = True
 
@@ -212,7 +212,7 @@ class DependencyContainer(IDependencyContainer):
             if registration.scope == Scope.SCOPED:
                 self._scoped_instances[service_type] = instance
 
-            return instance
+            return cast(T, instance)
         finally:
             # Remove from resolving types
             self._resolving_types.remove(service_type)

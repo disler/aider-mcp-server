@@ -7,7 +7,7 @@ for dependency registration, resolution, and lifecycle management.
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Awaitable, Callable, Optional, Type, TypeVar, Union
+from typing import Any, Awaitable, Callable, Optional, Type, TypeVar, Union
 
 T = TypeVar("T")
 TFactory = Callable[..., Union[T, Awaitable[T]]]
@@ -31,7 +31,7 @@ class IDependencyContainer(ABC):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit async context."""
         pass
 
