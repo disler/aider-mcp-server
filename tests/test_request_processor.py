@@ -376,7 +376,7 @@ class TestRequestProcessorConcurrency:
         assert len(request_processor._active_requests) == 0  # All should be cleaned up
 
     @pytest.mark.asyncio
-    async def test_concurrent_process_and_cancel(self, request_processor: RequestProcessor):
+    async def test_concurrent_process_and_cancel(self, request_processor: RequestProcessor):  # noqa: C901
         """
         Tests concurrent request processing, some of which are cancelled,
         using events for deterministic control.

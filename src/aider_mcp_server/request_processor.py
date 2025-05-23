@@ -22,10 +22,19 @@ class RequestProcessor:
     4. Handles response formatting
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the RequestProcessor.
+        Supports old constructor signature for backward compatibility.
         """
+        if args or kwargs:
+            # Get logger first for the warning
+            logger = get_logger(__name__)
+            logger.warning(
+                "DEPRECATED: RequestProcessor old constructor called with extra arguments. "
+                "These are ignored. Update to use RequestProcessor() with no arguments."
+            )
+
         self._handlers: Dict[str, RequestHandler] = {}
         self._active_requests: Dict[str, asyncio.Task[Dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
@@ -55,20 +64,27 @@ class RequestProcessor:
         else:
             self._logger.warning(f"Attempted to unregister non-existent handler for type: {request_type}")
 
-    async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_request(
+        self, request_or_id: Any, transport_id: Any = None, operation_name: Any = None, request_data: Any = None
+    ) -> Any:
         """
         Process an incoming request and return a response.
 
-        Validates the request, routes it to the appropriate handler,
-        manages its lifecycle, and formats the response.
-
-        Args:
-            request: The request dictionary. Expected to have a 'type' key.
-                     May have an 'id' key for request tracking.
-
-        Returns:
-            A dictionary representing the response.
+        Supports both new interface (single dict arg) and old interface (4 args) for compatibility.
         """
+        # Detect old vs new interface
+        if transport_id is not None or operation_name is not None or request_data is not None:
+            # Old interface called - log deprecation and handle as stub
+            self._logger.warning(
+                "DEPRECATED: RequestProcessor.process_request with old signature called. "
+                f"request_id={request_or_id}, transport_id={transport_id}, operation_name={operation_name}. "
+                "This method no longer processes requests. Update to use new interface."
+            )
+            # Old interface doesn't return anything, it sends events via EventCoordinator
+            return None
+
+        # New interface - request_or_id is actually the request dict
+        request = request_or_id
         self._logger.debug(f"Received request: {request}")
 
         if "type" not in request:
@@ -136,7 +152,7 @@ class RequestProcessor:
             response = await handler(request)
 
             if not isinstance(response, dict):
-                self._logger.error(
+                self._logger.error(  # type: ignore[unreachable]
                     f"Handler for request_id {request_id} (type: {request['type']}) "
                     f"returned invalid response type: {type(response)}. Expected dict."
                 )
@@ -191,3 +207,14 @@ class RequestProcessor:
             else:
                 self._logger.warning(f"Attempted to cancel non-existent or already completed request_id: {request_id}")
                 return False
+
+    # --- Backward Compatibility Shims (Temporary) ---
+    # TODO: Remove these methods after other components are updated to use new interface
+
+    async def fail_request(self, *args: Any, **kwargs: Any) -> None:
+        """
+        [DEPRECATED] Stub for old fail_request method.
+        """
+        self._logger.warning(
+            "DEPRECATED: RequestProcessor.fail_request called. This method is no longer used. Update calling code."
+        )
