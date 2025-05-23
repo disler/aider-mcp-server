@@ -3,11 +3,13 @@ from typing import Any, Dict, Optional, Type, Union
 from atoms.event_types import EventTypes
 
 from aider_mcp_server.component_initializer import ComponentInitializer, Components
+from aider_mcp_server.handler_registry import RequestHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 # TransportAdapterRegistry is now accessed via components
 from aider_mcp_server.mcp_types import LoggerFactory
-from aider_mcp_server.security import Permissions
+
+# from aider_mcp_server.security import Permissions # Permissions removed as it's no longer used by register_handler
 from aider_mcp_server.singleton_manager import SingletonManager
 
 # Other components (EventCoordinator, HandlerRegistry, RequestProcessor, ResponseFormatter, SessionManager)
@@ -113,19 +115,23 @@ class ApplicationCoordinator:
         # To implement fully, this would likely interact with self._transport_registry
         pass
 
-    async def register_handler(
-        self,
-        operation_name: str,
-        handler: Type[Any],  # Note: HandlerRegistry expects HandlerFunc, not Type[Any]
-        required_permission: Optional[Permissions] = None,
-    ) -> None:
+    def register_handler(self, operation_name: str, handler: RequestHandler) -> None:
+        """
+        Registers a handler function for a specific operation name.
+        The handler type should be RequestHandler (Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]).
+        """
         self.logger.verbose(f"Registering handler for operation: {operation_name}")
-        await self._handler_registry.register_handler(operation_name, handler, required_permission)
+        # HandlerRegistry.register_handler is synchronous and does not take permissions.
+        self._handler_registry.register_handler(operation_name, handler)
         self.logger.verbose(f"Handler for operation {operation_name} registered.")
 
-    async def unregister_handler(self, operation_name: str) -> None:
+    def unregister_handler(self, operation_name: str) -> None:
+        """
+        Unregisters a handler for a specific operation name.
+        """
         self.logger.verbose(f"Unregistering handler for operation: {operation_name}")
-        await self._handler_registry.unregister_handler(operation_name)
+        # HandlerRegistry.unregister_handler is synchronous.
+        self._handler_registry.unregister_handler(operation_name)
         self.logger.verbose(f"Handler for operation {operation_name} unregistered.")
 
     async def start_request(

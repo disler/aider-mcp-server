@@ -1,8 +1,7 @@
 import asyncio
 import json
 import uuid
-from typing import Callable  # Added for LoggerFactory type hint
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 from unittest import mock
 
 import httpx  # For making async HTTP requests
@@ -18,73 +17,162 @@ from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 
+# Helper function to parse a line and append event
+def _parse_line_to_event(line_bytes: bytes, events: List[Dict[str, Any]]) -> bool:
+    """
+    Parses a byte line into a JSON event and appends it to the events list.
+    Returns True if a non-empty line was processed (event added or error recorded), False otherwise.
+    """
+    line = line_bytes.decode("utf-8").strip()
+    if line:
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            events.append({"error": "JSONDecodeError", "raw_data": line})
+        return True  # Indicates a non-empty line was processed
+    return False  # Indicates an empty line was processed
+
+
+# Helper function to try processing one event from the buffer
+def _try_process_one_event_from_buffer(buffer: bytes, events: List[Dict[str, Any]]) -> tuple[bytes, bool]:
+    """
+    Tries to extract and process one event from the buffer.
+    Returns the remaining buffer and a boolean indicating if a meaningful event was processed.
+    "Meaningful event processed" means a non-empty line was extracted and parsed (or failed parsing).
+    """
+    if b"\n" in buffer:
+        line_bytes, new_buffer = buffer.split(b"\n", 1)
+        processed_meaningful_line = _parse_line_to_event(line_bytes, events)
+        return new_buffer, processed_meaningful_line
+    return buffer, False
+
+
+async def _fetch_chunk_with_timeout(
+    response_content_iterator: AsyncGenerator[bytes, None],
+    timeout_per_message: float,
+) -> tuple[Optional[bytes], bool]:
+    """
+    Fetches a chunk from the stream with a timeout.
+
+    Args:
+        response_content_iterator: The async generator yielding byte chunks.
+        timeout_per_message: Timeout in seconds for fetching one chunk.
+
+    Returns:
+        A tuple (chunk, stream_ended):
+        - (bytes, False) if a chunk was successfully read.
+        - (None, True) if the stream ended (StopAsyncIteration).
+        - (None, False) if a timeout occurred.
+    """
+    try:
+        chunk = await asyncio.wait_for(anext(response_content_iterator), timeout=timeout_per_message)
+        return chunk, False
+    except StopAsyncIteration:
+        return None, True  # Stream ended
+    except asyncio.TimeoutError:
+        return None, False  # Timed out for this chunk
+
+
+def _process_buffered_events(initial_buffer: bytes, events: List[Dict[str, Any]]) -> tuple[bytes, bool]:
+    """
+    Processes events from the buffer. Consumes lines from the buffer,
+    appends events to the `events` list, and stops if a meaningful event is processed.
+
+    Args:
+        initial_buffer: The byte buffer to process.
+        events: List to append new events to.
+
+    Returns:
+        A tuple (remaining_buffer, meaningful_event_found_boolean).
+        `meaningful_event_found_boolean` is True if at least one non-empty line
+        was processed (either successfully parsed or resulted in a JSON error).
+    """
+    buffer = initial_buffer
+    meaningful_event_found = False
+    while True:  # Loop to consume multiple lines if they are empty
+        if b"\n" not in buffer:  # No complete line in buffer
+            break
+
+        # Try to process one line
+        line_bytes, new_buffer = buffer.split(b"\n", 1)
+        processed_this_line_meaningfully = _parse_line_to_event(line_bytes, events)
+
+        buffer = new_buffer  # Always consume the line
+
+        if processed_this_line_meaningfully:
+            meaningful_event_found = True
+            break  # Found a meaningful event, stop processing buffer for this round
+
+    return buffer, meaningful_event_found
+
+
+async def _read_and_process_messages_loop(
+    response_content_iterator: AsyncGenerator[bytes, None],
+    expected_messages: int,
+    timeout_per_message: float,
+    events: List[Dict[str, Any]],
+) -> None:
+    """
+    The main loop for reading and processing messages from the stream.
+
+    Iterates up to `expected_messages`, attempting to fetch and parse
+    each message. Handles stream data, timeouts, and stream termination.
+    Modifies the `events` list in-place.
+
+    Args:
+        response_content_iterator: Async generator for stream data.
+        expected_messages: The number of messages to attempt to read.
+        timeout_per_message: Timeout for reading each message.
+        events: List to append successfully parsed events or error data.
+    """
+    buffer = b""
+    for _ in range(expected_messages):
+        # Attempt to process a message from the current buffer content
+        buffer, message_processed = _process_buffered_events(buffer, events)
+
+        if message_processed:
+            continue  # A message was processed from buffer, move to next expected message
+
+        # If buffer didn't yield a message, fetch more data
+        chunk, stream_ended = await _fetch_chunk_with_timeout(response_content_iterator, timeout_per_message)
+
+        if stream_ended:  # Stream ended cleanly
+            return  # Stop trying to read more messages
+        if chunk is None:  # Timeout occurred waiting for this message's data
+            return  # Stop trying to read more messages
+
+        if chunk:
+            buffer += chunk
+        # If chunk is empty (b''), buffer remains unchanged.
+        # The next call to _process_buffered_events will handle it.
+
+        # Attempt to process a message from the newly augmented buffer
+        buffer, message_processed_after_read = _process_buffered_events(buffer, events)
+
+        if not message_processed_after_read:
+            # If, after fetching data and attempting to parse, no meaningful message
+            # was completed for this iteration, stop further processing.
+            return
+
+
 # Helper to read NDJSON stream
 async def read_ndjson_stream_from_response(
     response_content_iterator: AsyncGenerator[bytes, None],
     expected_messages: int,
     timeout_per_message: float = 2.0,  # Default timeout for receiving each message
 ) -> list[dict]:
-    events = []
-    buffer = b""
+    """
+    Reads and parses an NDJSON stream from an async byte iterator.
+    Attempts to read a specified number of messages, with a timeout for each.
+    """
+    events: List[Dict[str, Any]] = []
 
-    for _ in range(expected_messages):
-        message_found_this_iteration = False
-        # Try to find a complete message in the current buffer first
-        while b"\n" in buffer and not message_found_this_iteration:
-            line_bytes, buffer = buffer.split(b"\n", 1)
-            line = line_bytes.decode("utf-8").strip()
-            if line:
-                try:
-                    events.append(json.loads(line))
-                    message_found_this_iteration = True
-                except json.JSONDecodeError:
-                    events.append({"error": "JSONDecodeError", "raw_data": line})
-                    message_found_this_iteration = True  # Count error as a "message"
-            # If line is empty, loop again to find next \n in buffer or fetch more data
-
-        if message_found_this_iteration:
-            continue  # Proceed to next expected message
-
-        # If no complete message in buffer, or we need more messages, fetch more data
-        try:
-            chunk = await asyncio.wait_for(anext(response_content_iterator), timeout=timeout_per_message)
-            if chunk:  # Append non-empty chunk
-                buffer += chunk
-            else:  # Empty chunk, try to read again in next iteration or timeout
-                pass
-
-            # After getting new chunk, try to process it for the current message
-            while b"\n" in buffer:  # Process all complete messages in new chunk + buffer
-                line_bytes, buffer = buffer.split(b"\n", 1)
-                line = line_bytes.decode("utf-8").strip()
-                if line:
-                    try:
-                        events.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        events.append({"error": "JSONDecodeError", "raw_data": line})
-                    message_found_this_iteration = True
-                    break  # Found one message, break from inner while to outer for
-
-            if not message_found_this_iteration and b"\n" not in buffer:
-                # If after a read and processing, no message was found,
-                # and buffer doesn't contain a newline, it implies a partial message
-                # or stream ended. The next outer loop iteration will try to read more or timeout.
-                # If it was the last expected message, this partial data is ignored.
-                pass
-
-        except StopAsyncIteration:
-            # Stream ended before all expected messages were received
-            return events
-        except asyncio.TimeoutError:
-            # Timed out waiting for data for the current message
-            return events
-
-        if not message_found_this_iteration:
-            # If after fetching data and attempting to parse, no new message was completed,
-            # and we are still expecting more messages, this indicates a problem (e.g. partial message followed by timeout)
-            # or the server is not sending data as expected.
-            # For this function, we return what we have. The test can then assert the count.
-            return events
+    await _read_and_process_messages_loop(
+        response_content_iterator,
+        expected_messages,
+        timeout_per_message,
+        events,
+    )
 
     return events
 
