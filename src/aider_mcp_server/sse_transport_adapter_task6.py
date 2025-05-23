@@ -78,17 +78,19 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
     async def shutdown(self) -> None:
         """Clean up resources and shut down the adapter."""
         async with self._client_lock:
-            for _client_id, response in list(self._clients.items()): # Iterate over a copy
+            for _client_id, response in list(self._clients.items()):  # Iterate over a copy
                 try:
                     # Task 6 Spec: specific shutdown message format
                     await response.write(b"event: close\ndata: Server shutting down\n\n")
                 except Exception:
                     # Ignore errors during shutdown message sending
-                    logger.warning("Failed to send shutdown message to a client during overall shutdown.", exc_info=True)
+                    logger.warning(
+                        "Failed to send shutdown message to a client during overall shutdown.", exc_info=True
+                    )
                     pass
             self._clients.clear()
 
-        if self._runner: # If we started the app runner
+        if self._runner:  # If we started the app runner
             await self._runner.cleanup()
             self._runner = None
             self._site = None
@@ -108,7 +110,7 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
         This implements the ITransportAdapter.send_event method.
         """
         event_to_send = {"type": event_type.value}
-        event_to_send.update(data) # Merge data into the event payload
+        event_to_send.update(data)  # Merge data into the event payload
 
         async with self._client_lock:
             # Broadcast to all clients
@@ -148,9 +150,7 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
             self._clients[client_id] = response
 
         # Send initial connection established event (custom type for this adapter)
-        await self._send_sse_event(
-            response, {"type": "connection_established", "client_id": client_id}
-        )
+        await self._send_sse_event(response, {"type": "connection_established", "client_id": client_id})
 
         try:
             # Keep connection alive until client disconnects
@@ -171,9 +171,7 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
                     del self._clients[client_id]
         return response
 
-    async def _send_sse_event(
-        self, response: web.StreamResponse, event: Dict[str, Any]
-    ) -> None:
+    async def _send_sse_event(self, response: web.StreamResponse, event: Dict[str, Any]) -> None:
         """Send an SSE event to a client."""
         # Task 6 Spec: JSON data format for SSE
         event_data_json = json.dumps(event)
@@ -188,13 +186,9 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
         """Handle incoming message requests (not typical for SSE)."""
         # SSE is primarily server-to-client.
         # This method is part of ITransportAdapter, so it needs to be implemented.
-        raise NotImplementedError(
-            "SSETransportAdapter does not support incoming messages via handle_message_request."
-        )
+        raise NotImplementedError("SSETransportAdapter does not support incoming messages via handle_message_request.")
 
-    def validate_request_security(
-        self, request_details: Dict[str, Any]
-    ) -> SecurityContext:
+    def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext:
         """Validate the security of an incoming request."""
         # For SSE, the initial HTTP connection might be authenticated.
         # The event stream itself usually doesn't carry per-message auth.
