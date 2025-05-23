@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -39,7 +39,7 @@ async def _handle_sse_request(request: Request) -> Response:
 
     try:
         # Delegate the request handling to the adapter
-        return await _adapter.handle_sse_request(request)
+        return cast(Response, await _adapter.handle_sse_request(request))
     except HTTPException as http_exc:
         # Re-raise FastAPI/Starlette HTTP exceptions directly
         logger.warning(f"HTTPException during SSE request: {http_exc.status_code} - {http_exc.detail}")
@@ -89,7 +89,7 @@ async def _handle_message_request(request: Request) -> Response:
 
     try:
         # Delegate the request handling to the adapter
-        return await adapter.handle_message_request(request)
+        return cast(Response, await adapter.handle_message_request(request))
     except HTTPException as http_exc:
         # Re-raise FastAPI/Starlette HTTP exceptions directly
         logger.warning(f"HTTPException during message request: {http_exc.status_code} - {http_exc.detail}")
