@@ -1,229 +1,149 @@
-from typing import Any, Dict, Optional, Type, Union
+import asyncio
+from typing import Any, Dict, Optional, Type
 
-from atoms.event_types import EventTypes
-
-from aider_mcp_server.component_initializer import ComponentInitializer, Components
-from aider_mcp_server.handler_registry import RequestHandler
+from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.event_coordinator import EventCoordinator
+from aider_mcp_server.event_system import EventSystem
+from aider_mcp_server.handler_registry import HandlerRegistry, RequestHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-
-# TransportAdapterRegistry is now accessed via components
-from aider_mcp_server.mcp_types import LoggerFactory
-
-# from aider_mcp_server.security import Permissions # Permissions removed as it's no longer used by register_handler
-from aider_mcp_server.singleton_manager import SingletonManager
-
-# Other components (EventCoordinator, HandlerRegistry, RequestProcessor, ResponseFormatter, SessionManager)
-# are now accessed via the 'components' object passed during initialization.
+from aider_mcp_server.request_processor import RequestProcessor
+from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
 
 
 class ApplicationCoordinator:
     """
-    Acts as a central facade for the MCP server, coordinating various components.
-    It handles incoming requests, manages transport adapters, and orchestrates
-    event broadcasting and handling.
-
-    This class is a singleton, accessible via `ApplicationCoordinator.getInstance()`.
+    Manages transports, handlers, and request processing.
+    Serves as the central singleton for the application.
+    Coordinates event distribution.
+    Handles initialization and shutdown.
     """
 
-    # Singleton instance is managed by SingletonManager
+    _instance: Optional["ApplicationCoordinator"] = None
+    _initialized: bool = False
 
-    def __init__(self, logger_factory: LoggerFactory, components: Components):
+    def __new__(cls) -> "ApplicationCoordinator":
+        if cls._instance is None:
+            cls._instance = super(ApplicationCoordinator, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
         """
-        Initializes the ApplicationCoordinator with pre-initialized components.
-        This constructor is typically called by the SingletonManager during instance creation.
-
-        Args:
-            logger_factory: Factory function to create loggers.
-            components: A Components object containing all initialized core services.
+        Initialize the ApplicationCoordinator.
+        This constructor is called only once due to the singleton pattern.
+        It sets up all core components.
         """
-        self.logger = logger_factory("ApplicationCoordinator")
-        self.logger.verbose("ApplicationCoordinator initializing with pre-initialized components...")
+        # Only initialize once
+        if ApplicationCoordinator._initialized:
+            return
 
-        # Store references to the initialized components
-        self._transport_registry = components.transport_registry
-        self._session_manager = components.session_manager
-        self._handler_registry = components.handler_registry
-        self._response_formatter = components.response_formatter
-        self._event_coordinator = components.event_coordinator
-        self._request_processor = components.request_processor
+        self._logger = get_logger(__name__) # Added as per project logging convention
 
-        self.logger.info("ApplicationCoordinator instance configured with components.")
+        self._event_system = EventSystem()
+        # As per Task 4 spec, EventCoordinator takes logger_factory and EventSystem
+        self._event_coordinator = EventCoordinator(get_logger, self._event_system)
+        self._request_processor = RequestProcessor()
+        # As per Task 9 spec, TransportAdapterRegistry is initialized without arguments.
+        # This assumes TransportAdapterRegistry's __init__ matches Task 3 spec: TransportAdapterRegistry()
+        self._transport_registry = TransportAdapterRegistry()
+        self._handler_registry = HandlerRegistry()
+        self._initialization_lock = asyncio.Lock()
 
-    @classmethod
-    async def getInstance(cls, logger_factory: LoggerFactory) -> "ApplicationCoordinator":
-        """
-        Provides access to the singleton instance of ApplicationCoordinator.
-        If the instance doesn't exist, it's created and initialized asynchronously.
+        ApplicationCoordinator._initialized = True
+        self._logger.info("ApplicationCoordinator components instantiated.")
 
-        Args:
-            logger_factory: Factory function to create loggers.
+    async def initialize(self) -> None:
+        """Initialize the application coordinator and all components."""
+        async with self._initialization_lock:
+            self._logger.info("Initializing ApplicationCoordinator components...")
+            # Discover available transport adapters
+            # Task 3 spec for discover_adapters defaults package_name to 'transports'.
+            # The provided TransportAdapterRegistry.discover_adapters requires package_name.
+            await self._transport_registry.discover_adapters(package_name="transports")
+            self._logger.info("Transport adapters discovery initiated.")
 
-        Returns:
-            The singleton instance of ApplicationCoordinator.
+            # Set up request processor with handler registry
+            supported_types = self._handler_registry.get_supported_request_types()
+            self._logger.info(f"Found {len(supported_types)} supported request types from HandlerRegistry.")
+            for request_type in supported_types:
+                handler = self._handler_registry.get_handler(request_type)
+                if handler:
+                    self._request_processor.register_handler(request_type, handler)
+                    self._logger.debug(f"Registered handler for '{request_type}' with RequestProcessor.")
+            self._logger.info("ApplicationCoordinator initialization complete.")
 
-        Raises:
-            RuntimeError: If initialization of the ApplicationCoordinator or its components fails.
-        """
-        return await SingletonManager.get_instance(
-            cls,
-            async_init_func=cls._create_and_initialize,
-            logger_factory=logger_factory,  # Pass logger_factory to _create_and_initialize
-        )
+    async def register_transport(
+        self, transport_name: str, **kwargs: Any
+    ) -> Optional[ITransportAdapter]: # Return type changed to Optional[ITransportAdapter]
+        """Register and initialize a transport adapter."""
+        self._logger.info(f"Registering transport: {transport_name} with config: {kwargs}")
+        # Task 9 spec calls initialize_adapter(transport_name, **kwargs)
+        # Task 3 spec for TAR.initialize_adapter is (adapter_name, **kwargs)
+        # Provided TAR.initialize_adapter is (transport_type, coordinator, config)
+        # Adhering to Task 9 spec for the call:
+        transport = await self._transport_registry.initialize_adapter(transport_name, **kwargs) # type: ignore
 
-    @classmethod
-    async def _create_and_initialize(cls, logger_factory: LoggerFactory) -> "ApplicationCoordinator":
-        """
-        Internal factory method called by SingletonManager to create and initialize
-        the ApplicationCoordinator instance along with all its dependent components.
-
-        Args:
-            logger_factory: Factory function to create loggers.
-
-        Returns:
-            A new, fully initialized ApplicationCoordinator instance.
-
-        Raises:
-            RuntimeError: If component initialization fails.
-        """
-        # Use a specific logger for this critical initialization phase
-        init_logger = logger_factory("ApplicationCoordinator.Initializer")
-        init_logger.verbose("Starting ApplicationCoordinator and component initialization...")
-
-        try:
-            initializer = ComponentInitializer(logger_factory)
-            components = await initializer.initialize_components()
-            instance = cls(logger_factory, components)  # Pass components to __init__
-            init_logger.info("ApplicationCoordinator instance created and initialized successfully.")
-            return instance
-        except Exception as e:
-            init_logger.error(f"Fatal error during ApplicationCoordinator initialization: {e}", exc_info=True)
-            # Re-raise to ensure SingletonManager and the caller are aware of the failure.
-            raise RuntimeError(f"Failed to initialize ApplicationCoordinator: {e}") from e
-
-    async def register_transport(self, transport_id: str, transport: Type[ITransportAdapter]) -> None:
-        self.logger.verbose(f"Registering transport: {transport_id}")
-        # This is a placeholder since TransportAdapterRegistry doesn't have register_transport method
-        # Instead, it uses register_adapter_class, but that expects different parameters
-        # For now, just log that this method was called
-        # To implement fully, this would likely interact with self._transport_registry
-        pass
-
-    async def unregister_transport(self, transport_id: str) -> None:
-        self.logger.verbose(f"Unregistering transport: {transport_id}")
-        # This is a placeholder since TransportAdapterRegistry doesn't have unregister_transport method
-        # For now, just log that this method was called
-        # To implement fully, this would likely interact with self._transport_registry
-        pass
-
-    def register_handler(self, operation_name: str, handler: RequestHandler) -> None:
-        """
-        Registers a handler function for a specific operation name.
-        The handler type should be RequestHandler (Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]).
-        """
-        self.logger.verbose(f"Registering handler for operation: {operation_name}")
-        # HandlerRegistry.register_handler is synchronous and does not take permissions.
-        self._handler_registry.register_handler(operation_name, handler)
-        self.logger.verbose(f"Handler for operation {operation_name} registered.")
-
-    def unregister_handler(self, operation_name: str) -> None:
-        """
-        Unregisters a handler for a specific operation name.
-        """
-        self.logger.verbose(f"Unregistering handler for operation: {operation_name}")
-        # HandlerRegistry.unregister_handler is synchronous.
-        self._handler_registry.unregister_handler(operation_name)
-        self.logger.verbose(f"Handler for operation {operation_name} unregistered.")
-
-    async def start_request(
-        self,
-        request_id: str,
-        transport_id: str,
-        operation_name: str,
-        request_data: Dict[str, Any],
-    ) -> None:
-        self.logger.verbose(
-            f"Starting request {request_id} for operation {operation_name} from transport {transport_id}. Data: {request_data}"
-        )
-        if self._request_processor:
-            await self._request_processor.process_request(request_id, transport_id, operation_name, request_data)
-            self.logger.verbose(f"Request {request_id} processing initiated.")
+        if transport:
+            # EventCoordinator in chat has register_transport_adapter
+            # Task 4 spec for EventCoordinator has register_transport
+            # Assuming register_transport_adapter is the correct method on the provided EventCoordinator
+            await self._event_coordinator.register_transport_adapter(transport) # type: ignore
+            self._logger.info(f"Transport '{transport_name}' registered and initialized successfully.")
+            return transport
         else:
-            self.logger.error(f"RequestProcessor not available to start request {request_id}")
+            self._logger.error(f"Failed to initialize transport '{transport_name}'.")
+            return None
 
-    async def fail_request(
-        self,
-        request_id: str,
-        operation_name: str,
-        error: str,
-        error_details: Union[str, Dict[str, Any]],
-        originating_transport_id: Optional[str] = None,
-        request_details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        self.logger.verbose(
-            f"Failing request {request_id} for operation {operation_name}. Error: {error}, Details: {error_details}"
-        )
-        if self._request_processor:
-            await self._request_processor.fail_request(
-                request_id,
-                operation_name,
-                error,
-                error_details,
-                originating_transport_id,
-                request_details,
-            )
-            self.logger.verbose(f"Request {request_id} failure processing initiated.")
-        else:
-            self.logger.error(f"RequestProcessor not available to fail request {request_id}")
+
+    def register_handler(self, request_type: str, handler: RequestHandler) -> None:
+        """Register a request handler."""
+        self._logger.debug(f"Registering handler for request type: {request_type}")
+        self._handler_registry.register_handler(request_type, handler)
+        self._request_processor.register_handler(request_type, handler)
+        self._logger.info(f"Handler for request type '{request_type}' registered.")
+
+    def register_handler_class(self, handler_class: Type[Any]) -> None:
+        """Register all handler methods from a class."""
+        self._logger.info(f"Registering handler class: {handler_class.__name__}")
+        self._handler_registry.register_handler_class(handler_class)
+        # Re-register all handlers with RequestProcessor after class registration
+        supported_types = self._handler_registry.get_supported_request_types()
+        self._logger.debug(f"Updating RequestProcessor with handlers from {handler_class.__name__}.")
+        for request_type in supported_types:
+            handler = self._handler_registry.get_handler(request_type)
+            if handler:
+                # This might re-register, which is fine for RequestProcessor/HandlerRegistry
+                self._request_processor.register_handler(request_type, handler)
+        self._logger.info(f"Handlers from class '{handler_class.__name__}' registered.")
+
+    async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Process an incoming request."""
+        self._logger.debug(f"Processing request: {request.get('type', 'Unknown type')}")
+        return await self._request_processor.process_request(request)
 
     async def broadcast_event(
-        self,
-        event_type: EventTypes,
-        data: Dict[str, Any],
-        exclude_transport_id: Optional[str] = None,
+        self, event_type: str, event_data: Dict[str, Any], client_id: Optional[str] = None
     ) -> None:
-        if self._event_coordinator:
-            await self._event_coordinator.broadcast_event(event_type, data, exclude_transport_id)
+        """Broadcast an event to all registered transports."""
+        self._logger.debug(
+            f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{event_data}'"
+        )
+        # Task 9 spec implies EventCoordinator has:
+        # broadcast_event(event_type: str, event_data: Dict[str, Any], client_id: Optional[str])
+        # Task 4 spec for EventCoordinator is compatible if priority defaults.
+        # Provided EventCoordinator has a deprecated broadcast_event with different signature.
+        # Sticking to Task 9 spec for the call:
+        await self._event_coordinator.broadcast_event(event_type, event_data, client_id=client_id) # type: ignore
 
-    async def send_event_to_transport(self, transport_id: str, event_type: EventTypes, data: Dict[str, Any]) -> None:
-        if self._event_coordinator:
-            await self._event_coordinator.send_event_to_transport(transport_id, event_type, data)
+    async def shutdown(self) -> None:
+        """Shut down the application coordinator and all components."""
+        async with self._initialization_lock:
+            self._logger.info("Shutting down ApplicationCoordinator...")
+            if hasattr(self._transport_registry, "shutdown_all"):
+                await self._transport_registry.shutdown_all()
+            else:
+                self._logger.warning("TransportAdapterRegistry does not have shutdown_all method.")
 
-    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
-        if self._event_coordinator:
-            await self._event_coordinator.subscribe_to_event_type(transport_id, event_type)
-
-    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
-        if self._event_coordinator:
-            await self._event_coordinator.unsubscribe_from_event_type(transport_id, event_type)
-
-    async def get_transport(self, transport_id: str) -> Optional[Type[ITransportAdapter]]:
-        if self._transport_registry:
-            # Transport registry may not have get_transport implemented yet
-            # Return None for now
-            return None
-        return None
-
-    async def transport_exists(self, transport_id: str) -> bool:
-        if self._transport_registry:
-            # Transport registry may not have transport_exists implemented yet
-            # Return False for now
-            return False
-        return False
-
-    async def update_request(
-        self,
-        request_id: str,
-        status: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        if self._event_coordinator:
-            # Event coordinator may not have update_request implemented yet
-            # Use broadcast_event as a workaround
-            data = {
-                "request_id": request_id,
-                "status": status,
-                "message": message or "",
-                "details": details or {},
-            }
-            await self._event_coordinator.broadcast_event(EventTypes.STATUS, data)
+            # Reset initialization flag to allow reinitialization if needed (e.g. in tests)
+            ApplicationCoordinator._initialized = False
+            # ApplicationCoordinator._instance = None # To allow full re-creation in tests
+            self._logger.info("ApplicationCoordinator shutdown complete.")
