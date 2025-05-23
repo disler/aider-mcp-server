@@ -21,7 +21,7 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
 | 8 | Implement HandlerRegistry | Completed ✅ | handler_registry.py | test_handler_registry.py (11 tests) | b46f4b5 | Complete registry for request handler management with class discovery |
 | 9 | Implement ApplicationCoordinator | Completed ✅ | application_coordinator.py | test_application_coordinator.py (11 tests) | c58e7f0 | Central singleton managing transports, handlers, and request processing |
 | 10 | Implement Initialization Sequence | Completed ✅ | initialization_sequence.py | test_initialization_sequence.py (14 tests) | TBD | Comprehensive application lifecycle management with error handling and transport configuration |
-| 11 | Implement Error Handling System | Not Started | | | | |
+| 11 | Implement Error Handling System | Completed ✅ | error_handling.py | test_error_handling.py (13 tests) | e2470c2 | Custom exception hierarchy with ErrorHandler utility class |
 | 12 | Implement Logging System | Not Started | | | | |
 | 13 | Implement Configuration System | Not Started | | | | |
 | 14 | Implement Transport Discovery Mechanism | Not Started | | | | |
@@ -535,4 +535,42 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
   - **Concurrency** - multiple initialization attempts and thread safety
   - **Configuration edge cases** - missing names, invalid configs
 - **Dependencies**: ✅ Task 9 (ApplicationCoordinator)
-- **Commit**: TBD
+- **Commit**: 89329e2
+
+### Task 11: Implement Error Handling System
+- **Status**: Completed ✅
+- **Description**: Create a comprehensive error handling system with custom exception hierarchy and utility methods.
+- **Implementation Details**:
+  - [x] Custom exception hierarchy for structured error handling
+  - [x] Base AiderMCPError class with contextual information support
+  - [x] Domain-specific exceptions: TransportError, HandlerError, EventError, InitializationError, ConfigurationError
+  - [x] ErrorHandler utility class with static methods for error management
+  - [x] Error formatting: `format_exception()` returns standardized error dictionaries
+  - [x] Logging integration: `log_exception()` with contextual information and proper logger usage
+  - [x] Global exception handling: `install_global_exception_handler()` for asyncio unhandled exceptions
+  - [x] Integration with existing project logging system (atoms.logging) rather than creating duplicate
+  - [x] Comprehensive test coverage with proper logger mocking
+- **Files Created**:
+  - `src/aider_mcp_server/error_handling.py` - Complete error handling system
+  - `tests/test_error_handling.py` - Comprehensive test suite (13 test cases)
+- **Quality Status**:
+  - ✅ **13/13 tests passing** (100% success rate)
+  - ✅ **493 total tests passing** with continued pristine quality baseline
+  - ✅ Zero F,E9 violations (fixed 3 import/f-string issues during implementation)
+  - ✅ Proper logger mocking with class-level setup/teardown
+  - ✅ **Integration with existing logging** - uses atoms.logging rather than creating separate system
+- **Key Features Implemented**:
+  - **Exception Hierarchy**: AiderMCPError base class with domain-specific subclasses
+  - **Error Formatting**: Standardized error dictionaries with type, message, and traceback
+  - **Contextual Logging**: ErrorHandler integrates with project logging system
+  - **Global Handler**: Asyncio global exception handler for unhandled coroutine exceptions
+  - **Utility Methods**: Static methods for error handling, formatting, and logging
+  - **Test Coverage**: Comprehensive testing with proper mock isolation
+- **Test Coverage**:
+  - **Exception hierarchy** - custom exceptions and inheritance
+  - **Error formatting** - standard and edge cases (unicode, no message, None message)
+  - **Logging integration** - default logger, custom logger, with/without context
+  - **Global exception handling** - asyncio event loop integration
+  - **Utility methods** - handle_exception wrapper functionality
+- **Dependencies**: No direct task dependencies (foundational error handling)
+- **Commit**: e2470c2
