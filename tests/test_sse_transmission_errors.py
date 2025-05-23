@@ -246,11 +246,9 @@ async def test_run_sse_server_network_bind_error():
     # Path ApplicationCoordinator.getInstance and SSETransportAdapter constructor
     async def mock_get_instance_func(logger_factory):
         return mock_coordinator
-    
+
     with (
-        patch(
-            "aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", side_effect=mock_get_instance_func
-        ),
+        patch("aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", side_effect=mock_get_instance_func),
         patch("aider_mcp_server.sse_server.SSETransportAdapter", return_value=mock_adapter),
         patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
         patch("aider_mcp_server.sse_server.get_logger") as mock_get_logger,
