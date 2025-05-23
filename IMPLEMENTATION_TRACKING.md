@@ -471,7 +471,7 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
   - [x] Provides async initialization and shutdown lifecycle management
   - [x] Transport registration and management: `register_transport(transport_name, **kwargs)`
   - [x] Handler registration: `register_handler(request_type, handler)` and `register_handler_class(handler_class)`
-  - [x] Request processing delegation: `process_request(request)` 
+  - [x] Request processing delegation: `process_request(request)`
   - [x] Event broadcasting: `broadcast_event(event_type, event_data, client_id)`
   - [x] Proper logging integration with project patterns
   - [x] Thread-safe operations with asyncio.Lock for initialization/shutdown
