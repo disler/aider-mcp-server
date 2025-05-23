@@ -20,7 +20,7 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
 | 7.5 | Review MCP Protocol Compliance | Not Started | | | | **NEW: Protocol 2025-03-26 compliance** |
 | 8 | Implement HandlerRegistry | Completed ✅ | handler_registry.py | test_handler_registry.py (11 tests) | b46f4b5 | Complete registry for request handler management with class discovery |
 | 9 | Implement ApplicationCoordinator | Completed ✅ | application_coordinator.py | test_application_coordinator.py (11 tests) | c58e7f0 | Central singleton managing transports, handlers, and request processing |
-| 10 | Implement Initialization Sequence | Not Started | | | | |
+| 10 | Implement Initialization Sequence | Completed ✅ | initialization_sequence.py | test_initialization_sequence.py (14 tests) | TBD | Comprehensive application lifecycle management with error handling and transport configuration |
 | 11 | Implement Error Handling System | Not Started | | | | |
 | 12 | Implement Logging System | Not Started | | | | |
 | 13 | Implement Configuration System | Not Started | | | | |
@@ -493,3 +493,46 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
   - **Event Broadcasting**: Coordinates events through EventCoordinator
 - **Dependencies**: ✅ Tasks 1,2,3,4,5,8 (Interfaces, EventSystem, TransportRegistry, EventCoordinator, RequestProcessor, HandlerRegistry)
 - **Commit**: c58e7f0
+
+### Task 10: Implement Initialization Sequence
+- **Status**: Completed ✅
+- **Description**: Create a proper initialization sequence to avoid circular dependencies and manage application lifecycle.
+- **Implementation Details**:
+  - [x] Complete InitializationSequence class managing application lifecycle coordination
+  - [x] Wraps ApplicationCoordinator with comprehensive error handling and timeouts
+  - [x] Transport configuration management with per-transport error handling
+  - [x] Async initialization and shutdown with proper resource cleanup
+  - [x] Timeout support (default 30.0 seconds) with asyncio.wait_for integration
+  - [x] Thread-safe operations using asyncio.Lock for initialization/shutdown
+  - [x] Comprehensive error handling with cleanup on failure attempts
+  - [x] Detailed logging integration with project patterns using atoms.logging
+  - [x] Transport configuration validation (missing 'name' field handling)
+  - [x] Proper exception chaining and error reporting
+- **Files Created**:
+  - `src/aider_mcp_server/initialization_sequence.py` - Complete InitializationSequence implementation
+  - `tests/test_initialization_sequence.py` - Comprehensive test suite (14 test cases)
+- **Quality Status**:
+  - ✅ **14/14 tests passing** (100% success rate)
+  - ✅ **480 total tests passing** with pristine quality baseline maintained
+  - ✅ Zero F,E9 violations
+  - ✅ Comprehensive async mocking with proper coroutine handling
+  - ✅ **Complete error path coverage** including timeout, cleanup failures, transport errors
+- **Key Features Implemented**:
+  - **Lifecycle Management**: Async initialize/shutdown with proper state tracking
+  - **Transport Configuration**: Dynamic transport registration with config validation
+  - **Error Handling**: Comprehensive error handling with cleanup on failure
+  - **Timeout Support**: Configurable timeouts with asyncio.wait_for integration
+  - **Thread Safety**: asyncio.Lock for concurrent initialization/shutdown protection
+  - **Logging Integration**: Detailed logging at all stages with exc_info for errors
+  - **Configuration Validation**: Proper handling of missing/invalid transport configs
+  - **Cleanup on Failure**: Automatic cleanup attempts when initialization fails
+- **Test Coverage**:
+  - **Constructor and basic functionality** - singleton coordination and setup
+  - **Successful initialization** - with/without transport configurations
+  - **Error scenarios** - coordinator failures, transport failures, timeout handling
+  - **Cleanup handling** - failure cleanup scenarios and edge cases
+  - **Shutdown functionality** - normal shutdown, already shutdown, shutdown failures
+  - **Concurrency** - multiple initialization attempts and thread safety
+  - **Configuration edge cases** - missing names, invalid configs
+- **Dependencies**: ✅ Task 9 (ApplicationCoordinator)
+- **Commit**: TBD
