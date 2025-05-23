@@ -57,60 +57,44 @@ class InitializationSequence:
                         current_config = config.copy()
                         transport_name = current_config.pop("name", None)
                         if not transport_name:
-                            self._logger.error(
-                                "Transport configuration missing 'name' field. Skipping."
-                            )
+                            self._logger.error("Transport configuration missing 'name' field. Skipping.")
                             continue
 
-                        self._logger.debug(
-                            f"Registering transport '{transport_name}' with config: {current_config}"
-                        )
+                        self._logger.debug(f"Registering transport '{transport_name}' with config: {current_config}")
                         try:
                             # Pass the remaining config items as kwargs
-                            await self._coordinator.register_transport(
-                                transport_name, **current_config
-                            )
-                            self._logger.info(
-                                f"Transport '{transport_name}' registered successfully."
-                            )
+                            await self._coordinator.register_transport(transport_name, **current_config)
+                            self._logger.info(f"Transport '{transport_name}' registered successfully.")
                         except Exception as e:
                             self._logger.error(
                                 f"Failed to initialize transport '{transport_name}': {e}",
                                 exc_info=True,
                             )
                             # As per spec, raise RuntimeError for transport init failure
-                            raise RuntimeError(
-                                f"Transport initialization failed for '{transport_name}'"
-                            ) from e
+                            raise RuntimeError(f"Transport initialization failed for '{transport_name}'") from e
                 else:
                     self._logger.info("No transport configurations provided.")
 
                 self._initialized = True
-                self._logger.info(
-                    "InitializationSequence initialization completed successfully."
-                )
+                self._logger.info("InitializationSequence initialization completed successfully.")
 
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as e:
                 self._logger.error(
                     f"InitializationSequence initialization timed out after {timeout} seconds.",
                     exc_info=True,
                 )
                 # Attempt cleanup if initialization times out
                 await self._attempt_cleanup_on_failure()
-                raise RuntimeError("InitializationSequence sequence timed out")
+                raise RuntimeError("InitializationSequence sequence timed out") from e
             except Exception as e:
-                self._logger.error(
-                    f"InitializationSequence initialization failed: {e}", exc_info=True
-                )
+                self._logger.error(f"InitializationSequence initialization failed: {e}", exc_info=True)
                 # Attempt cleanup if initialization fails
                 await self._attempt_cleanup_on_failure()
                 raise RuntimeError("InitializationSequence sequence failed") from e
 
     async def _attempt_cleanup_on_failure(self) -> None:
         """Helper method to attempt shutdown if initialization fails."""
-        self._logger.info(
-            "Attempting cleanup after failed initialization..."
-        )
+        self._logger.info("Attempting cleanup after failed initialization...")
         try:
             # Ensure coordinator shutdown is called even if it wasn't fully initialized
             # The coordinator's shutdown should be idempotent or handle partial states.
@@ -125,29 +109,22 @@ class InitializationSequence:
             # Mark as uninitialized regardless of cleanup success
             self._initialized = False
 
-
     async def shutdown(self) -> None:
         """
         Shut down the application and release resources.
         """
         async with self._initialization_lock:
             if not self._initialized:
-                self._logger.info(
-                    "InitializationSequence not initialized or already shut down."
-                )
+                self._logger.info("InitializationSequence not initialized or already shut down.")
                 return
 
             self._logger.info("Starting InitializationSequence shutdown...")
             try:
                 await self._coordinator.shutdown()
                 self._initialized = False
-                self._logger.info(
-                    "InitializationSequence shutdown completed successfully."
-                )
+                self._logger.info("InitializationSequence shutdown completed successfully.")
             except Exception as e:
-                self._logger.error(
-                    f"InitializationSequence shutdown failed: {e}", exc_info=True
-                )
+                self._logger.error(f"InitializationSequence shutdown failed: {e}", exc_info=True)
                 # Mark as uninitialized even if shutdown fails to allow re-initialization attempt
                 self._initialized = False
                 raise RuntimeError("InitializationSequence shutdown sequence failed") from e
