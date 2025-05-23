@@ -19,7 +19,7 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
 | 7.4 | Enhance TransportAdapterRegistry | Not Started | | | | **NEW: Support new transport types** |
 | 7.5 | Review MCP Protocol Compliance | Not Started | | | | **NEW: Protocol 2025-03-26 compliance** |
 | 8 | Implement HandlerRegistry | Completed ✅ | handler_registry.py | test_handler_registry.py (11 tests) | b46f4b5 | Complete registry for request handler management with class discovery |
-| 9 | Implement ApplicationCoordinator | Not Started | | | | |
+| 9 | Implement ApplicationCoordinator | Completed ✅ | application_coordinator.py | test_application_coordinator.py (11 tests) | c58e7f0 | Central singleton managing transports, handlers, and request processing |
 | 10 | Implement Initialization Sequence | Not Started | | | | |
 | 11 | Implement Error Handling System | Not Started | | | | |
 | 12 | Implement Logging System | Not Started | | | | |
@@ -460,3 +460,36 @@ This document tracks the implementation progress of tasks from `../with-sse-mcp/
   - **Handler Overwrite Protection**: Logs warnings when handlers are replaced
 - **Dependencies**: ✅ Tasks 1,5 (Interfaces, RequestProcessor)
 - **Commit**: b46f4b5
+
+### Task 9: Implement ApplicationCoordinator
+- **Status**: Completed ✅
+- **Description**: Create the central ApplicationCoordinator that manages transports, handlers, and request processing.
+- **Implementation Details**:
+  - [x] Complete singleton ApplicationCoordinator class managing all application components
+  - [x] Implements proper singleton pattern with `_instance` and `_initialized` class variables
+  - [x] Manages core components: EventSystem, EventCoordinator, RequestProcessor, TransportAdapterRegistry, HandlerRegistry
+  - [x] Provides async initialization and shutdown lifecycle management
+  - [x] Transport registration and management: `register_transport(transport_name, **kwargs)`
+  - [x] Handler registration: `register_handler(request_type, handler)` and `register_handler_class(handler_class)`
+  - [x] Request processing delegation: `process_request(request)` 
+  - [x] Event broadcasting: `broadcast_event(event_type, event_data, client_id)`
+  - [x] Proper logging integration with project patterns
+  - [x] Thread-safe operations with asyncio.Lock for initialization/shutdown
+- **Files Created**:
+  - `src/aider_mcp_server/application_coordinator.py` - Complete ApplicationCoordinator implementation
+  - `tests/test_application_coordinator.py` - Comprehensive test suite (11 test cases)
+- **Quality Status**:
+  - ✅ **11/11 tests passing** (100% success rate)
+  - ✅ Zero F,E9 violations
+  - ✅ Proper singleton pattern implementation
+  - ✅ **Self-consistent design** aligned with existing component interfaces
+- **Key Features Implemented**:
+  - **Singleton Management**: Proper singleton pattern with initialization guards
+  - **Component Integration**: Coordinates EventSystem, EventCoordinator, RequestProcessor, TransportAdapterRegistry, HandlerRegistry
+  - **Lifecycle Management**: Async initialize/shutdown with proper resource cleanup
+  - **Transport Management**: Register/initialize transports and connect to EventCoordinator
+  - **Handler Management**: Support both individual handlers and handler class registration
+  - **Request Delegation**: Routes requests through RequestProcessor
+  - **Event Broadcasting**: Coordinates events through EventCoordinator
+- **Dependencies**: ✅ Tasks 1,2,3,4,5,8 (Interfaces, EventSystem, TransportRegistry, EventCoordinator, RequestProcessor, HandlerRegistry)
+- **Commit**: c58e7f0

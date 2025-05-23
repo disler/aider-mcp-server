@@ -36,7 +36,7 @@ class ApplicationCoordinator:
         if ApplicationCoordinator._initialized:
             return
 
-        self._logger = get_logger(__name__) # Added as per project logging convention
+        self._logger = get_logger(__name__)  # Added as per project logging convention
 
         self._event_system = EventSystem()
         # As per Task 4 spec, EventCoordinator takes logger_factory and EventSystem
@@ -58,7 +58,7 @@ class ApplicationCoordinator:
             # Discover available transport adapters
             # Task 3 spec for discover_adapters defaults package_name to 'transports'.
             # The provided TransportAdapterRegistry.discover_adapters requires package_name.
-            await self._transport_registry.discover_adapters(package_name="transports")
+            self._transport_registry.discover_adapters(package_name="transports")
             self._logger.info("Transport adapters discovery initiated.")
 
             # Set up request processor with handler registry
@@ -73,26 +73,25 @@ class ApplicationCoordinator:
 
     async def register_transport(
         self, transport_name: str, **kwargs: Any
-    ) -> Optional[ITransportAdapter]: # Return type changed to Optional[ITransportAdapter]
+    ) -> Optional[ITransportAdapter]:  # Return type changed to Optional[ITransportAdapter]
         """Register and initialize a transport adapter."""
         self._logger.info(f"Registering transport: {transport_name} with config: {kwargs}")
         # Task 9 spec calls initialize_adapter(transport_name, **kwargs)
         # Task 3 spec for TAR.initialize_adapter is (adapter_name, **kwargs)
         # Provided TAR.initialize_adapter is (transport_type, coordinator, config)
         # Adhering to Task 9 spec for the call:
-        transport = await self._transport_registry.initialize_adapter(transport_name, **kwargs) # type: ignore
+        transport = await self._transport_registry.initialize_adapter(transport_name, self, {})  # type: ignore[arg-type]
 
         if transport:
             # EventCoordinator in chat has register_transport_adapter
             # Task 4 spec for EventCoordinator has register_transport
             # Assuming register_transport_adapter is the correct method on the provided EventCoordinator
-            await self._event_coordinator.register_transport_adapter(transport) # type: ignore
+            await self._event_coordinator.register_transport_adapter(transport)
             self._logger.info(f"Transport '{transport_name}' registered and initialized successfully.")
             return transport
         else:
             self._logger.error(f"Failed to initialize transport '{transport_name}'.")
             return None
-
 
     def register_handler(self, request_type: str, handler: RequestHandler) -> None:
         """Register a request handler."""
@@ -115,7 +114,7 @@ class ApplicationCoordinator:
                 self._request_processor.register_handler(request_type, handler)
         self._logger.info(f"Handlers from class '{handler_class.__name__}' registered.")
 
-    async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_request(self, request: Dict[str, Any]) -> Any:
         """Process an incoming request."""
         self._logger.debug(f"Processing request: {request.get('type', 'Unknown type')}")
         return await self._request_processor.process_request(request)
@@ -124,15 +123,13 @@ class ApplicationCoordinator:
         self, event_type: str, event_data: Dict[str, Any], client_id: Optional[str] = None
     ) -> None:
         """Broadcast an event to all registered transports."""
-        self._logger.debug(
-            f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{event_data}'"
-        )
+        self._logger.debug(f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{event_data}'")
         # Task 9 spec implies EventCoordinator has:
         # broadcast_event(event_type: str, event_data: Dict[str, Any], client_id: Optional[str])
         # Task 4 spec for EventCoordinator is compatible if priority defaults.
         # Provided EventCoordinator has a deprecated broadcast_event with different signature.
         # Sticking to Task 9 spec for the call:
-        await self._event_coordinator.broadcast_event(event_type, event_data, client_id=client_id) # type: ignore
+        await self._event_coordinator.broadcast_event(event_type, event_data, client_id=client_id)  # type: ignore
 
     async def shutdown(self) -> None:
         """Shut down the application coordinator and all components."""
