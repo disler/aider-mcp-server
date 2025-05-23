@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any, Dict, Optional, Set
 
 from aiohttp import web
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.security import SecurityContext
+
+logger = logging.getLogger(__name__)
 
 
 class SSETransportAdapter:  # Implements ITransportAdapter protocol
@@ -75,12 +78,13 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
     async def shutdown(self) -> None:
         """Clean up resources and shut down the adapter."""
         async with self._client_lock:
-            for client_id, response in list(self._clients.items()): # Iterate over a copy
+            for _client_id, response in list(self._clients.items()): # Iterate over a copy
                 try:
                     # Task 6 Spec: specific shutdown message format
                     await response.write(b"event: close\ndata: Server shutting down\n\n")
                 except Exception:
                     # Ignore errors during shutdown message sending
+                    logger.warning("Failed to send shutdown message to a client during overall shutdown.", exc_info=True)
                     pass
             self._clients.clear()
 
@@ -115,6 +119,7 @@ class SSETransportAdapter:  # Implements ITransportAdapter protocol
                 except Exception:
                     # Errors (like ConnectionResetError) will be handled by _handle_sse_connection's finally block
                     # which removes the client.
+                    logger.warning("Failed to send SSE event to a client.", exc_info=True)
                     pass
 
     def should_receive_event(

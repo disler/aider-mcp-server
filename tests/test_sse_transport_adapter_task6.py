@@ -10,6 +10,28 @@ from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.security import SecurityContext
 from aider_mcp_server.sse_transport_adapter_task6 import SSETransportAdapter
 
+
+# Helper function to process a complete SSE event's data
+def _process_complete_sse_event(event_field_value: str | None, data_lines: list[str]) -> dict | None:
+    """Processes accumulated data and event type for a single SSE event."""
+    if event_field_value == "close" and data_lines:
+        return {"type": "close_event", "data": "\n".join(data_lines)}
+
+    if data_lines:
+        full_data = "\n".join(data_lines)
+        try:
+            parsed_json: dict = json.loads(full_data)
+            # If 'event:' field was present and JSON doesn't have 'type', add it.
+            # However, this adapter always includes 'type' in JSON.
+            if event_field_value and isinstance(parsed_json, dict) and 'type' not in parsed_json:
+                # This path is unlikely to be hit with the current adapter
+                parsed_json['type_from_event_field'] = event_field_value
+            return parsed_json
+        except json.JSONDecodeError:
+            return {"error": "JSONDecodeError", "raw_data": full_data}
+    return None
+
+
 # Helper function to read SSE events
 async def read_sse_event_from_stream(stream_reader) -> dict | None:
     """
@@ -31,27 +53,13 @@ async def read_sse_event_from_stream(stream_reader) -> dict | None:
         line = line_bytes.decode('utf-8').strip()
         
         if not line:  # Empty line signifies end of an event
-            if event_field_value == "close" and data_lines:
-                return {"type": "close_event", "data": "\n".join(data_lines)}
+            processed_event = _process_complete_sse_event(event_field_value, data_lines)
+            if processed_event:
+                return processed_event
             
-            if data_lines:
-                full_data = "\n".join(data_lines)
-                try:
-                    parsed_json = json.loads(full_data)
-                    # If 'event:' field was present and JSON doesn't have 'type', add it.
-                    # However, this adapter always includes 'type' in JSON.
-                    if event_field_value and isinstance(parsed_json, dict) and 'type' not in parsed_json:
-                        # This path is unlikely to be hit with the current adapter
-                        parsed_json['type_from_event_field'] = event_field_value
-                    return parsed_json
-                except json.JSONDecodeError:
-                    return {"error": "JSONDecodeError", "raw_data": full_data}
-            
-            # Reset for next event, in case of keep-alive pings (just newlines)
+            # Reset for next event, in case of keep-alive pings (just newlines) or empty processed event
             event_field_value = None
             data_lines = []
-            # If it was just an empty line (e.g. comment processed and ignored), continue reading
-            # This handles SSE comments (lines starting with ':') followed by an empty line.
             continue
 
         if line.startswith("event:"):
@@ -130,7 +138,7 @@ class TestSSETransportAdapter(AioHTTPTestCase):
             event_payload = {"message": "hello world"}
             await self.adapter.send_event(EventTypes.STATUS, event_payload)
 
-            for i, resp in enumerate(clients):
+            for _i, resp in enumerate(clients):
                 event = await read_sse_event_from_stream(resp.content)
                 self.assertIsNotNone(event)
                 self.assertEqual(event.get("type"), EventTypes.STATUS.value)
