@@ -47,16 +47,14 @@ async def read_ndjson_stream_from_response(
 
         # If no complete message in buffer, or we need more messages, fetch more data
         try:
-            chunk = await asyncio.wait_for(
-                anext(response_content_iterator), timeout=timeout_per_message
-            )
+            chunk = await asyncio.wait_for(anext(response_content_iterator), timeout=timeout_per_message)
             if chunk:  # Append non-empty chunk
                 buffer += chunk
-            else: # Empty chunk, try to read again in next iteration or timeout
+            else:  # Empty chunk, try to read again in next iteration or timeout
                 pass
 
             # After getting new chunk, try to process it for the current message
-            while b"\n" in buffer: # Process all complete messages in new chunk + buffer
+            while b"\n" in buffer:  # Process all complete messages in new chunk + buffer
                 line_bytes, buffer = buffer.split(b"\n", 1)
                 line = line_bytes.decode("utf-8").strip()
                 if line:
@@ -65,15 +63,14 @@ async def read_ndjson_stream_from_response(
                     except json.JSONDecodeError:
                         events.append({"error": "JSONDecodeError", "raw_data": line})
                     message_found_this_iteration = True
-                    break # Found one message, break from inner while to outer for
-            
-            if not message_found_this_iteration and not (b"\n" in buffer):
+                    break  # Found one message, break from inner while to outer for
+
+            if not message_found_this_iteration and b"\n" not in buffer:
                 # If after a read and processing, no message was found,
                 # and buffer doesn't contain a newline, it implies a partial message
                 # or stream ended. The next outer loop iteration will try to read more or timeout.
                 # If it was the last expected message, this partial data is ignored.
                 pass
-
 
         except StopAsyncIteration:
             # Stream ended before all expected messages were received
@@ -81,14 +78,13 @@ async def read_ndjson_stream_from_response(
         except asyncio.TimeoutError:
             # Timed out waiting for data for the current message
             return events
-        
+
         if not message_found_this_iteration:
             # If after fetching data and attempting to parse, no new message was completed,
             # and we are still expecting more messages, this indicates a problem (e.g. partial message followed by timeout)
             # or the server is not sending data as expected.
             # For this function, we return what we have. The test can then assert the count.
             return events
-
 
     return events
 
@@ -371,7 +367,7 @@ class TestHttpStreamableTransportAdapter:
         # Allow clients to connect and receive initial message.
         # This sleep is less critical now as read_ndjson_stream_from_response handles waiting.
         # However, send_event is called after this, so clients must be connected.
-        await asyncio.sleep(0.2) 
+        await asyncio.sleep(0.2)
 
         # Check if initial messages were received (optional, as event_collector_task now handles counts)
         # For robustness, we can let the tasks run and then check final counts.
@@ -384,7 +380,9 @@ class TestHttpStreamableTransportAdapter:
         await asyncio.wait_for(asyncio.gather(*client_tasks), timeout=5.0)
 
         for i, cid in enumerate(client_ids):
-            assert len(client_event_lists[i]) == 2, f"Client {cid} did not receive all events. Got: {client_event_lists[i]}"
+            assert len(client_event_lists[i]) == 2, (
+                f"Client {cid} did not receive all events. Got: {client_event_lists[i]}"
+            )
             # Initial event
             assert client_event_lists[i][0]["event"] == EventTypes.STATUS.value
             assert client_event_lists[i][0]["data"]["client_id"] == cid
@@ -443,7 +441,7 @@ class TestHttpStreamableTransportAdapter:
             pytest.skip(
                 f"Heartbeat event not received within timeout. Expected 2 events, got {len(events)}. This can be timing-sensitive."
             )
-        
+
         # If we received 2 events:
         heartbeat_event = next((e for e in events if e["event"] == EventTypes.HEARTBEAT.value), None)
         assert heartbeat_event is not None, f"Heartbeat event not found in received events: {events}"
@@ -570,7 +568,7 @@ class TestHttpStreamableTransportAdapter:
             assert response1.status_code == 200
             initial_events1 = await read_ndjson_stream_from_response(response1.aiter_bytes(), expected_messages=1)
             assert len(initial_events1) == 1
-        await asyncio.sleep(0.1) # Allow server to process disconnect
+        await asyncio.sleep(0.1)  # Allow server to process disconnect
         assert client_id not in adapter._active_connections
 
         # Reconnection
