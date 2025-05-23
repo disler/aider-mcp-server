@@ -73,7 +73,7 @@ def mock_logger_factory():
     mock_log.debug = MagicMock()
     mock_log.warning = MagicMock()
     mock_log.error = MagicMock()
-    mock_log.exception = MagicMock() # For exc_info=True in error logging
+    mock_log.exception = MagicMock()  # For exc_info=True in error logging
     factory.return_value = mock_log
     return factory
 
@@ -107,7 +107,9 @@ def create_internal_event(
 # --- Test Classes ---
 @pytest.mark.asyncio
 class TestEventCoordinatorLifecycle:
-    async def test_initialization(self, event_coordinator: EventCoordinator, mock_logger_factory: MagicMock, mock_event_system: AsyncMock):
+    async def test_initialization(
+        self, event_coordinator: EventCoordinator, mock_logger_factory: MagicMock, mock_event_system: AsyncMock
+    ):
         logger = mock_logger_factory.return_value
         mock_logger_factory.assert_called_once_with("aider_mcp_server.event_coordinator")
         logger.info.assert_called_once_with("EventCoordinator initialized.")
@@ -119,7 +121,7 @@ class TestEventCoordinatorLifecycle:
     async def test_startup(self, event_coordinator: EventCoordinator):
         logger = event_coordinator._logger
         await event_coordinator.startup()
-        logger.info.assert_any_call("EventCoordinator starting up...") # Use any_call if other logs exist
+        logger.info.assert_any_call("EventCoordinator starting up...")  # Use any_call if other logs exist
         logger.info.assert_any_call("EventCoordinator started.")
 
     async def test_shutdown(self, event_coordinator: EventCoordinator):
@@ -157,10 +159,10 @@ class TestEventCoordinatorSubscription:
         handler = MockEventHandler()
         event_type = EventTypes.PROGRESS
         await event_coordinator.subscribe(event_type, handler)
-        await event_coordinator.subscribe(event_type, handler) # Subscribe again
+        await event_coordinator.subscribe(event_type, handler)  # Subscribe again
 
         assert len(event_coordinator._handlers[event_type]) == 1
-        event_coordinator._logger.debug.assert_any_call( # Second call
+        event_coordinator._logger.debug.assert_any_call(  # Second call
             f"Handler '{type(handler).__name__}' already subscribed to event type '{event_type.value}'"
         )
 
@@ -172,11 +174,11 @@ class TestEventCoordinatorSubscription:
 
         await event_coordinator.unsubscribe(event_type, handler)
 
-        assert event_type not in event_coordinator._handlers # Assuming it's the only handler
+        assert event_type not in event_coordinator._handlers  # Assuming it's the only handler
         logger.debug.assert_any_call(
             f"Handler '{type(handler).__name__}' unsubscribed from event type '{event_type.value}'"
         )
-        logger.debug.assert_any_call( # Check for removal of event type key
+        logger.debug.assert_any_call(  # Check for removal of event type key
             f"Event type '{event_type.value}' removed as it has no more internal handlers."
         )
 
@@ -206,12 +208,12 @@ class TestEventCoordinatorSubscription:
         logger.debug.assert_called_with(
             f"Handler '{type(non_existent_handler).__name__}' not found for event type '{event_type.value}', or event type not registered for internal handling."
         )
-        assert handler in event_coordinator._handlers[event_type] # Original handler still there
+        assert handler in event_coordinator._handlers[event_type]  # Original handler still there
 
     async def test_unsubscribe_handler_from_non_existent_event_type(self, event_coordinator: EventCoordinator):
         logger = event_coordinator._logger
         handler = MockEventHandler()
-        event_type = EventTypes.HEARTBEAT # Assume not subscribed to
+        event_type = EventTypes.HEARTBEAT  # Assume not subscribed to
 
         await event_coordinator.unsubscribe(event_type, handler)
         logger.debug.assert_called_with(
@@ -221,7 +223,9 @@ class TestEventCoordinatorSubscription:
 
 @pytest.mark.asyncio
 class TestEventCoordinatorPublishing:
-    async def test_publish_event_to_single_handler(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
+    async def test_publish_event_to_single_handler(
+        self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock
+    ):
         handler = MockEventHandler()
         event_type = EventTypes.STATUS
         event_data = {"key": "value"}
@@ -234,7 +238,9 @@ class TestEventCoordinatorPublishing:
         assert event in handler.handled_events_log
         mock_event_system.broadcast.assert_awaited_once_with(event_type.value, event_data)
 
-    async def test_publish_event_to_multiple_handlers(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
+    async def test_publish_event_to_multiple_handlers(
+        self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock
+    ):
         handler1 = MockEventHandler("Handler1")
         handler2 = MockEventHandler("Handler2")
         event_type = EventTypes.PROGRESS
@@ -248,7 +254,9 @@ class TestEventCoordinatorPublishing:
         handler2.handle_event_mock.assert_awaited_once_with(event)
         mock_event_system.broadcast.assert_awaited_once_with(event_type.value, event.data)
 
-    async def test_publish_event_no_internal_handlers(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
+    async def test_publish_event_no_internal_handlers(
+        self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock
+    ):
         logger = event_coordinator._logger
         event_type = EventTypes.TOOL_RESULT
         event = create_internal_event(event_type)
@@ -272,7 +280,9 @@ class TestEventCoordinatorPublishing:
         assert handler.handled_events_log[0].metadata == metadata
         mock_event_system.broadcast.assert_awaited_once_with(event_type.value, event_data)
 
-    async def test_publish_event_handler_exception(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
+    async def test_publish_event_handler_exception(
+        self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock
+    ):
         logger = event_coordinator._logger
         failing_handler = MockEventHandler("FailingHandler")
         failing_handler.handle_event_mock.side_effect = RuntimeError("Handler failed")
@@ -286,14 +296,16 @@ class TestEventCoordinatorPublishing:
         await event_coordinator.publish_event(event)
 
         failing_handler.handle_event_mock.assert_awaited_once_with(event)
-        successful_handler.handle_event_mock.assert_awaited_once_with(event) # Still called
+        successful_handler.handle_event_mock.assert_awaited_once_with(event)  # Still called
         logger.error.assert_called_once_with(
             f"Error in internal handler '{type(failing_handler).__name__}' for event '{event_type.value}': Handler failed",
-            exc_info=True
+            exc_info=True,
         )
-        mock_event_system.broadcast.assert_awaited_once_with(event_type.value, event.data) # Broadcast still happens
+        mock_event_system.broadcast.assert_awaited_once_with(event_type.value, event.data)  # Broadcast still happens
 
-    async def test_publish_event_event_system_broadcast_exception(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
+    async def test_publish_event_event_system_broadcast_exception(
+        self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock
+    ):
         logger = event_coordinator._logger
         event_type = EventTypes.HEARTBEAT
         event = create_internal_event(event_type)
@@ -302,8 +314,7 @@ class TestEventCoordinatorPublishing:
         await event_coordinator.publish_event(event)
 
         logger.error.assert_called_once_with(
-            f"Error broadcasting event '{event_type.value}' via EventSystem: Broadcast failed",
-            exc_info=True
+            f"Error broadcasting event '{event_type.value}' via EventSystem: Broadcast failed", exc_info=True
         )
 
 
@@ -323,15 +334,13 @@ class TestEventCoordinatorTransportManagement:
     async def test_register_same_transport_adapter_id_overwrites(self, event_coordinator: EventCoordinator):
         logger = event_coordinator._logger
         adapter1 = MockTransportAdapter(transport_id="adapter_y")
-        adapter2 = MockTransportAdapter(transport_id="adapter_y") # Same ID
+        adapter2 = MockTransportAdapter(transport_id="adapter_y")  # Same ID
 
         await event_coordinator.register_transport_adapter(adapter1)
         await event_coordinator.register_transport_adapter(adapter2)
 
-        assert event_coordinator._transport_adapters["adapter_y"] is adapter2 # Overwritten
-        logger.warning.assert_called_with(
-            "Transport adapter adapter_y already registered. Overwriting."
-        )
+        assert event_coordinator._transport_adapters["adapter_y"] is adapter2  # Overwritten
+        logger.warning.assert_called_with("Transport adapter adapter_y already registered. Overwriting.")
 
     async def test_unregister_transport_adapter(self, event_coordinator: EventCoordinator):
         logger = event_coordinator._logger
@@ -363,16 +372,15 @@ class TestEventCoordinatorConcurrency:
 
         assert len(event_coordinator._handlers[event_type]) == num_handlers
 
-        unsubscribe_tasks = [event_coordinator.unsubscribe(event_type, h) for h in handlers[:num_handlers//2]]
+        unsubscribe_tasks = [event_coordinator.unsubscribe(event_type, h) for h in handlers[: num_handlers // 2]]
         await asyncio.gather(*unsubscribe_tasks)
 
         assert len(event_coordinator._handlers[event_type]) == num_handlers - (num_handlers // 2)
 
         # Unsubscribe the rest
-        unsubscribe_rest_tasks = [event_coordinator.unsubscribe(event_type, h) for h in handlers[num_handlers//2:]]
+        unsubscribe_rest_tasks = [event_coordinator.unsubscribe(event_type, h) for h in handlers[num_handlers // 2 :]]
         await asyncio.gather(*unsubscribe_rest_tasks)
         assert event_type not in event_coordinator._handlers
-
 
     async def test_concurrent_publish_event(self, event_coordinator: EventCoordinator, mock_event_system: AsyncMock):
         handler = MockEventHandler()
@@ -393,7 +401,6 @@ class TestEventCoordinatorConcurrency:
         expected_event_data = sorted([e.data["count"] for e in events])
         assert logged_event_data == expected_event_data
 
-
     async def test_concurrent_register_unregister_adapter(self, event_coordinator: EventCoordinator):
         num_adapters = 5
         adapter_ids = [f"concurrent_adapter_{i}" for i in range(num_adapters)]
@@ -404,12 +411,16 @@ class TestEventCoordinatorConcurrency:
 
         assert len(event_coordinator._transport_adapters) == num_adapters
 
-        unregister_tasks = [event_coordinator.unregister_transport_adapter(aid) for aid in adapter_ids[:num_adapters//2]]
+        unregister_tasks = [
+            event_coordinator.unregister_transport_adapter(aid) for aid in adapter_ids[: num_adapters // 2]
+        ]
         await asyncio.gather(*unregister_tasks)
 
         assert len(event_coordinator._transport_adapters) == num_adapters - (num_adapters // 2)
 
         # Unregister the rest
-        unregister_rest_tasks = [event_coordinator.unregister_transport_adapter(aid) for aid in adapter_ids[num_adapters//2:]]
+        unregister_rest_tasks = [
+            event_coordinator.unregister_transport_adapter(aid) for aid in adapter_ids[num_adapters // 2 :]
+        ]
         await asyncio.gather(*unregister_rest_tasks)
         assert not event_coordinator._transport_adapters

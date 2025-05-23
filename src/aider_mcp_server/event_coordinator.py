@@ -6,10 +6,11 @@ and can also manage transport adapter registrations.
 """
 
 import asyncio
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 from aider_mcp_server.atoms.event_types import EventTypes
 from aider_mcp_server.atoms.internal_types import InternalEvent
+
 # TODO: Remove EventMediator import and Union type hint after refactoring is complete
 from aider_mcp_server.event_mediator import EventMediator
 from aider_mcp_server.event_system import EventSystem
@@ -40,9 +41,9 @@ class EventCoordinator(IEventCoordinator):
             )
             # Extract the EventSystem instance from the EventMediator
             if hasattr(event_system_or_mediator, "_event_system") and isinstance(
-                getattr(event_system_or_mediator, "_event_system"), EventSystem
+                event_system_or_mediator._event_system, EventSystem
             ):
-                self._event_system = getattr(event_system_or_mediator, "_event_system")
+                self._event_system = event_system_or_mediator._event_system
             else:
                 # This case should ideally not happen if EventMediator is correctly structured
                 self._logger.error(
@@ -58,9 +59,7 @@ class EventCoordinator(IEventCoordinator):
             self._logger.error(  # type: ignore[unreachable]
                 f"EventCoordinator initialized with an invalid type for event_system_or_mediator: {type(event_system_or_mediator)}"
             )
-            raise TypeError(
-                "EventCoordinator must be initialized with an EventSystem or EventMediator instance."
-            )
+            raise TypeError("EventCoordinator must be initialized with an EventSystem or EventMediator instance.")
 
         self._logger.info("EventCoordinator initialized.")
 
@@ -88,9 +87,7 @@ class EventCoordinator(IEventCoordinator):
         async with self._lock:
             transport_id = adapter.get_transport_id()
             if transport_id in self._transport_adapters:
-                self._logger.warning(
-                    f"Transport adapter {transport_id} already registered. Overwriting."
-                )
+                self._logger.warning(f"Transport adapter {transport_id} already registered. Overwriting.")
             self._transport_adapters[transport_id] = adapter
             self._logger.info(f"Transport adapter {transport_id} registered.")
 
@@ -101,9 +98,7 @@ class EventCoordinator(IEventCoordinator):
                 del self._transport_adapters[transport_id]
                 self._logger.info(f"Transport adapter {transport_id} unregistered.")
             else:
-                self._logger.warning(
-                    f"Attempted to unregister non-existent transport adapter {transport_id}."
-                )
+                self._logger.warning(f"Attempted to unregister non-existent transport adapter {transport_id}.")
 
     # --- IEventCoordinator Implementation ---
     async def subscribe(self, event_type: EventTypes, handler: IEventHandler) -> None:
@@ -114,9 +109,7 @@ class EventCoordinator(IEventCoordinator):
 
             if handler not in self._handlers[event_type]:
                 self._handlers[event_type].append(handler)
-                self._logger.debug(
-                    f"Handler '{type(handler).__name__}' subscribed to event type '{event_type.value}'"
-                )
+                self._logger.debug(f"Handler '{type(handler).__name__}' subscribed to event type '{event_type.value}'")
             else:
                 self._logger.debug(
                     f"Handler '{type(handler).__name__}' already subscribed to event type '{event_type.value}'"
@@ -132,9 +125,7 @@ class EventCoordinator(IEventCoordinator):
                 )
                 if not self._handlers[event_type]:  # Remove event type if no handlers left
                     del self._handlers[event_type]
-                    self._logger.debug(
-                        f"Event type '{event_type.value}' removed as it has no more internal handlers."
-                    )
+                    self._logger.debug(f"Event type '{event_type.value}' removed as it has no more internal handlers.")
             else:
                 self._logger.debug(
                     f"Handler '{type(handler).__name__}' not found for event type '{event_type.value}', or event type not registered for internal handling."
@@ -178,9 +169,7 @@ class EventCoordinator(IEventCoordinator):
         # using string-based event types (event.event_type.value).
         # Transport-specific filtering (should_receive_event) and capability checks
         # should be handled within the transport adapters' EventSystem callbacks.
-        self._logger.debug(
-            f"Broadcasting event '{event.event_type.value}' with data via EventSystem."
-        )
+        self._logger.debug(f"Broadcasting event '{event.event_type.value}' with data via EventSystem.")
         try:
             # Bridge: Use enum's value (string) for EventSystem
             await self._event_system.broadcast(event.event_type.value, event.data)
@@ -253,22 +242,16 @@ class EventCoordinator(IEventCoordinator):
                 # Note: ITransportAdapter.send_event does not accept test_mode.
                 # If test_mode behavior is critical, adapter logic would need to change.
                 await adapter.send_event(event_type, data)
-                self._logger.debug(
-                    f"Sent event '{event_type.value}' to transport '{transport_id}'."
-                )
+                self._logger.debug(f"Sent event '{event_type.value}' to transport '{transport_id}'.")
             except Exception as e:
                 self._logger.error(
                     f"Error sending event '{event_type.value}' to transport '{transport_id}': {e}",
                     exc_info=True,
                 )
         else:
-            self._logger.warning(
-                f"Transport adapter '{transport_id}' not found for send_event_to_transport."
-            )
+            self._logger.warning(f"Transport adapter '{transport_id}' not found for send_event_to_transport.")
 
-    async def subscribe_to_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def subscribe_to_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """
         [DEPRECATED] Stub for transport-specific event subscription.
         TODO: Implement proper transport-level subscription management if needed, or remove.
@@ -279,9 +262,7 @@ class EventCoordinator(IEventCoordinator):
         )
         # Placeholder: Actual implementation would involve tracking subscriptions per transport.
 
-    async def unsubscribe_from_event_type(
-        self, transport_id: str, event_type: EventTypes
-    ) -> None:
+    async def unsubscribe_from_event_type(self, transport_id: str, event_type: EventTypes) -> None:
         """
         [DEPRECATED] Stub for transport-specific event unsubscription.
         TODO: Implement proper transport-level unsubscription management if needed, or remove.
