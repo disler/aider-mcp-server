@@ -60,7 +60,7 @@ class TestRequestProcessorBasics:
 
         request_processor.register_handler(request_type, handler_mock2)
         assert request_processor._handlers[request_type] is handler_mock2  # Should be overwritten
-        mock_logger.debug.assert_called_with(f"Registered handler for request type: {request_type}") # Called again
+        mock_logger.debug.assert_called_with(f"Registered handler for request type: {request_type}")  # Called again
 
     @pytest.mark.asyncio
     async def test_unregister_handler(self, request_processor: RequestProcessor, mock_logger: MagicMock):
@@ -78,9 +78,7 @@ class TestRequestProcessorBasics:
         request_type = "non_existent_request"
         request_processor.unregister_handler(request_type)
         # Should not raise an error, but log a warning
-        mock_logger.warning.assert_called_with(
-            f"Attempted to unregister non-existent handler for type: {request_type}"
-        )
+        mock_logger.warning.assert_called_with(f"Attempted to unregister non-existent handler for type: {request_type}")
 
 
 class TestRequestProcessorValidation:
@@ -107,7 +105,7 @@ class TestRequestProcessorRoutingAndExecution:
     @pytest.mark.asyncio
     async def test_process_request_successful(self, request_processor: RequestProcessor, mock_logger: MagicMock):
         request_type = "echo_request"
-        
+
         async def mock_handler(req_data):
             return {"success": True, "data": req_data.get("data", {})}
 
@@ -117,7 +115,7 @@ class TestRequestProcessorRoutingAndExecution:
         request_data = {"id": "req1", "type": request_type, "data": {"input": "hello"}}
         response = await request_processor.process_request(request_data)
 
-        handler_mock.assert_awaited_once_with(request_data) # request_data now includes 'id'
+        handler_mock.assert_awaited_once_with(request_data)  # request_data now includes 'id'
         assert response["success"]
         assert response["id"] == "req1"
         assert response["data"] == {"input": "hello"}
@@ -155,7 +153,7 @@ class TestRequestProcessorLifecycle:
     async def test_process_request_tracks_and_cleans_active_request(self, request_processor: RequestProcessor):
         request_type = "lifecycle_test"
         request_id = "lc1"
-        
+
         # Handler that allows us to inspect state mid-execution
         handler_execution_started = asyncio.Event()
         handler_can_finish = asyncio.Event()
@@ -169,7 +167,7 @@ class TestRequestProcessorLifecycle:
         request_processor.register_handler(request_type, handler_mock)
 
         request_data = {"id": request_id, "type": request_type}
-        
+
         # Start processing in background
         process_task = asyncio.create_task(request_processor.process_request(request_data))
 
@@ -178,10 +176,10 @@ class TestRequestProcessorLifecycle:
         assert isinstance(request_processor._active_requests[request_id], asyncio.Task)
 
         handler_can_finish.set()
-        response = await process_task # Wait for completion
+        response = await process_task  # Wait for completion
 
         assert response["success"]
-        assert request_id not in request_processor._active_requests # Should be cleaned up
+        assert request_id not in request_processor._active_requests  # Should be cleaned up
 
     @pytest.mark.asyncio
     async def test_cleanup_after_handler_failure(self, request_processor: RequestProcessor):
@@ -196,7 +194,7 @@ class TestRequestProcessorLifecycle:
         request_data = {"id": request_id, "type": request_type}
 
         response = await request_processor.process_request(request_data)
-        
+
         assert not response["success"]
         assert "Error processing request: Handler error" in response["error"]
         assert request_id not in request_processor._active_requests
@@ -207,7 +205,7 @@ class TestRequestProcessorLifecycle:
         request_id = "irlc1"
 
         async def invalid_response_handler(req_data):
-            return "not a dict" # Invalid response
+            return "not a dict"  # Invalid response
 
         handler_mock = AsyncMock(side_effect=invalid_response_handler)
         request_processor.register_handler(request_type, handler_mock)
@@ -240,8 +238,7 @@ class TestRequestProcessorErrorHandling:
         # The _error_response used in this path does not include 'id'
         assert f"Error processing request: {error_message}" in response["error"]
         mock_logger.error.assert_called_with(
-            f"Error processing request_id {request_id} (type: {request_type}): {error_message}",
-            exc_info=True
+            f"Error processing request_id {request_id} (type: {request_type}): {error_message}", exc_info=True
         )
 
     @pytest.mark.asyncio
@@ -271,10 +268,7 @@ class TestRequestProcessorErrorHandling:
     def test_error_response_format(self, request_processor: RequestProcessor):
         error_message = "A test error occurred."
         response = request_processor._error_response(error_message)
-        assert response == {
-            "success": False,
-            "error": error_message
-        }
+        assert response == {"success": False, "error": error_message}
 
 
 class TestRequestProcessorCancellation:
@@ -289,11 +283,11 @@ class TestRequestProcessorCancellation:
         async def long_running_handler(req_data):
             handler_started.set()
             try:
-                await asyncio.sleep(5) # Simulate long work
-                return {"success": True, "message": "completed normally"} 
+                await asyncio.sleep(5)  # Simulate long work
+                return {"success": True, "message": "completed normally"}
             except asyncio.CancelledError:
                 task_cancelled_event.set()
-                raise # Important to re-raise
+                raise  # Important to re-raise
 
         handler_mock = AsyncMock(side_effect=long_running_handler)
         request_processor.register_handler(request_type, handler_mock)
@@ -301,26 +295,25 @@ class TestRequestProcessorCancellation:
 
         # Start the request processing in the background
         process_task = asyncio.create_task(request_processor.process_request(request_data))
-        
-        await handler_started.wait() # Ensure handler has started and task is in _active_requests
+
+        await handler_started.wait()  # Ensure handler has started and task is in _active_requests
         assert request_id in request_processor._active_requests
-        
+
         cancel_result = await request_processor.cancel_request(request_id)
         assert cancel_result is True
-        
+
         # Wait for the process_request task to finish and get its response
         response = await process_task
-        
-        assert await asyncio.wait_for(task_cancelled_event.wait(), timeout=1) # Handler saw cancellation
+
+        assert await asyncio.wait_for(task_cancelled_event.wait(), timeout=1)  # Handler saw cancellation
         assert request_id not in request_processor._active_requests
-        
+
         assert not response["success"]
         assert f"Request {request_id} was cancelled" in response["error"]
-        
+
         mock_logger.info.assert_any_call(f"Attempting to cancel request_id: {request_id}")
         mock_logger.info.assert_any_call(f"Cancelled and removed request_id: {request_id} from active_requests.")
         mock_logger.warning.assert_any_call(f"Request_id: {request_id}, type: {request_type} was cancelled.")
-
 
     @pytest.mark.asyncio
     async def test_cancel_request_non_existent(self, request_processor: RequestProcessor, mock_logger: MagicMock):
@@ -343,7 +336,7 @@ class TestRequestProcessorCancellation:
         request_processor.register_handler(request_type, handler_mock)
         request_data = {"id": request_id, "type": request_type}
 
-        await request_processor.process_request(request_data) # Process and complete
+        await request_processor.process_request(request_data)  # Process and complete
         assert request_id not in request_processor._active_requests
 
         cancel_result = await request_processor.cancel_request(request_id)
@@ -360,7 +353,7 @@ class TestRequestProcessorConcurrency:
         num_requests = 10
 
         async def concurrent_handler(req_data):
-            await asyncio.sleep(0.01) # Simulate some async work
+            await asyncio.sleep(0.01)  # Simulate some async work
             return {"success": True, "data": req_data["data"]}
 
         handler_mock = AsyncMock(side_effect=concurrent_handler)
@@ -370,17 +363,17 @@ class TestRequestProcessorConcurrency:
         for i in range(num_requests):
             req_data = {"type": request_type, "data": {"index": i}, "id": f"conc_req_{i}"}
             tasks.append(request_processor.process_request(req_data))
-        
+
         responses = await asyncio.gather(*tasks)
 
         assert len(responses) == num_requests
         assert handler_mock.call_count == num_requests
         for i, response in enumerate(responses):
             assert response["success"]
-            assert response["data"]["index"] == i # Assuming order is preserved by gather or checking IDs
+            assert response["data"]["index"] == i  # Assuming order is preserved by gather or checking IDs
             assert response["id"] == f"conc_req_{i}"
-        
-        assert len(request_processor._active_requests) == 0 # All should be cleaned up
+
+        assert len(request_processor._active_requests) == 0  # All should be cleaned up
 
     @pytest.mark.asyncio
     async def test_concurrent_process_and_cancel(self, request_processor: RequestProcessor):
@@ -389,7 +382,7 @@ class TestRequestProcessorConcurrency:
         using events for deterministic control.
         """
         NUM_REQUESTS = 5
-        REQUEST_IDS_TO_CANCEL = {f"req_{i}" for i in range(0, NUM_REQUESTS, 2)} # e.g., req_0, req_2, req_4
+        REQUEST_IDS_TO_CANCEL = {f"req_{i}" for i in range(0, NUM_REQUESTS, 2)}  # e.g., req_0, req_2, req_4
         REQUEST_TYPE = "concurrent_controlled_task"
 
         handler_controls = {}  # req_id -> (started_event, finish_event)
@@ -425,7 +418,7 @@ class TestRequestProcessorConcurrency:
             started_event = asyncio.Event()
             finish_event = asyncio.Event()
             handler_controls[req_id] = (started_event, finish_event)
-            
+
             request_data = {"id": req_id, "type": REQUEST_TYPE, "payload": f"data_{i}"}
             request_details.append(request_data)
             process_tasks.append(asyncio.create_task(request_processor.process_request(request_data)))
@@ -452,33 +445,38 @@ class TestRequestProcessorConcurrency:
                 # so the handler remains in `await finish_event.wait()` when cancellation hits.
                 pass
 
-
         # Gather all responses
         # process_request catches CancelledError and returns a dict, so no exceptions here from gather
         responses = await asyncio.gather(*process_tasks)
 
         # Assertions
         assert len(responses) == NUM_REQUESTS
-        
+
         num_actually_cancelled = 0
         num_successfully_completed = 0
 
         for i, response in enumerate(responses):
             req_id = request_details[i]["id"]
-            
+
             if req_id in REQUEST_IDS_TO_CANCEL:
                 assert cancel_call_results[req_id] is True, f"cancel_request for {req_id} should have returned True"
                 assert not response.get("success"), f"Response for cancelled {req_id} should indicate failure"
-                assert f"Request {req_id} was cancelled" in response.get("error", ""), f"Error message for {req_id} incorrect"
+                assert f"Request {req_id} was cancelled" in response.get("error", ""), (
+                    f"Error message for {req_id} incorrect"
+                )
                 # As per current RequestProcessor, ID is not in error response from _error_response
-                assert "id" not in response or response.get("id") is None, f"ID should not be in cancellation error response for {req_id}"
+                assert "id" not in response or response.get("id") is None, (
+                    f"ID should not be in cancellation error response for {req_id}"
+                )
                 num_actually_cancelled += 1
             else:
-                assert response.get("success"), f"Response for non-cancelled {req_id} should indicate success. Got: {response}"
+                assert response.get("success"), (
+                    f"Response for non-cancelled {req_id} should indicate success. Got: {response}"
+                )
                 assert response.get("message") == "controlled_finish", f"Message for {req_id} incorrect"
                 assert response.get("id") == req_id, f"ID mismatch for successful {req_id}"
                 num_successfully_completed += 1
-        
+
         assert num_actually_cancelled == len(REQUEST_IDS_TO_CANCEL)
         assert num_successfully_completed == NUM_REQUESTS - len(REQUEST_IDS_TO_CANCEL)
         assert len(request_processor._active_requests) == 0, "All requests should be cleaned up from _active_requests"

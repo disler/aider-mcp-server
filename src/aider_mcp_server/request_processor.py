@@ -29,7 +29,7 @@ class RequestProcessor:
         self._handlers: Dict[str, RequestHandler] = {}
         self._active_requests: Dict[str, asyncio.Task[Dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
-        self._logger = get_logger(__name__) # Adhering to project logging patterns
+        self._logger = get_logger(__name__)  # Adhering to project logging patterns
 
     def register_handler(self, request_type: str, handler: RequestHandler) -> None:
         """
@@ -71,25 +71,23 @@ class RequestProcessor:
         """
         self._logger.debug(f"Received request: {request}")
 
-        if 'type' not in request:
+        if "type" not in request:
             self._logger.error("Request processing failed: Missing 'type' field.")
             return self._error_response("Missing request type")
 
-        request_type = request['type']
+        request_type = request["type"]
         if request_type not in self._handlers:
             self._logger.error(f"Request processing failed: Unknown request type '{request_type}'.")
             return self._error_response(f"Unknown request type: {request_type}")
 
-        request_id = request.get('id', str(uuid.uuid4()))
-        if 'id' not in request:
+        request_id = request.get("id", str(uuid.uuid4()))
+        if "id" not in request:
             self._logger.debug(f"Generated new request_id: {request_id} for request type {request_type}")
-        
-        request['id'] = request_id # Ensure request object passed to handler has the ID
+
+        request["id"] = request_id  # Ensure request object passed to handler has the ID
 
         handler = self._handlers[request_type]
-        task: asyncio.Task[Dict[str, Any]] = asyncio.create_task(
-            self._handle_request(handler, request, request_id)
-        )
+        task: asyncio.Task[Dict[str, Any]] = asyncio.create_task(self._handle_request(handler, request, request_id))
 
         async with self._lock:
             self._active_requests[request_id] = task
@@ -97,7 +95,9 @@ class RequestProcessor:
 
         try:
             response = await task
-            self._logger.info(f"Finished processing request_id: {request_id}, type: {request_type}. Success: {response.get('success', 'N/A')}")
+            self._logger.info(
+                f"Finished processing request_id: {request_id}, type: {request_type}. Success: {response.get('success', 'N/A')}"
+            )
             return response
         except asyncio.CancelledError:
             self._logger.warning(f"Request_id: {request_id}, type: {request_type} was cancelled.")
@@ -112,7 +112,9 @@ class RequestProcessor:
             # not caught by _handle_request.
             async with self._lock:
                 if request_id in self._active_requests:
-                    self._logger.debug(f"Cleaning up request_id: {request_id} from active_requests in process_request.finally.")
+                    self._logger.debug(
+                        f"Cleaning up request_id: {request_id} from active_requests in process_request.finally."
+                    )
                     del self._active_requests[request_id]
 
     async def _handle_request(
@@ -140,16 +142,18 @@ class RequestProcessor:
                 )
                 return self._error_response("Handler returned invalid response")
 
-            response['id'] = request_id # Ensure response has the request ID, as per Task 5
+            response["id"] = request_id  # Ensure response has the request ID, as per Task 5
             self._logger.debug(f"Handler for request_id: {request_id} completed successfully.")
             return response
         except asyncio.CancelledError:
-            self._logger.warning(f"Handler for request_id: {request_id} (type: {request['type']}) was cancelled during execution.")
-            raise # Re-raise to be caught by process_request or propagate
+            self._logger.warning(
+                f"Handler for request_id: {request_id} (type: {request['type']}) was cancelled during execution."
+            )
+            raise  # Re-raise to be caught by process_request or propagate
         except Exception as e:
             self._logger.error(
                 f"Error processing request_id {request_id} (type: {request['type']}): {str(e)}",
-                exc_info=True # Include traceback for server logs
+                exc_info=True,  # Include traceback for server logs
             )
             return self._error_response(f"Error processing request: {str(e)}")
 
@@ -163,10 +167,7 @@ class RequestProcessor:
         Returns:
             A dictionary representing the error response.
         """
-        return {
-            "success": False,
-            "error": message
-        }
+        return {"success": False, "error": message}
 
     async def cancel_request(self, request_id: str) -> bool:
         """
