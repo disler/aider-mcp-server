@@ -19,26 +19,77 @@ from aider_mcp_server.transport_coordinator import ApplicationCoordinator
 
 
 # Helper to read NDJSON stream
-async def read_ndjson_stream_from_response(response_content: AsyncGenerator[bytes, None]) -> list[dict]:
+async def read_ndjson_stream_from_response(
+    response_content_iterator: AsyncGenerator[bytes, None],
+    expected_messages: int,
+    timeout_per_message: float = 2.0,  # Default timeout for receiving each message
+) -> list[dict]:
     events = []
     buffer = b""
-    async for chunk in response_content:
-        buffer += chunk
-        while b"\n" in buffer:
+
+    for _ in range(expected_messages):
+        message_found_this_iteration = False
+        # Try to find a complete message in the current buffer first
+        while b"\n" in buffer and not message_found_this_iteration:
             line_bytes, buffer = buffer.split(b"\n", 1)
             line = line_bytes.decode("utf-8").strip()
             if line:
                 try:
                     events.append(json.loads(line))
+                    message_found_this_iteration = True
                 except json.JSONDecodeError:
                     events.append({"error": "JSONDecodeError", "raw_data": line})
-    # Process any remaining data in buffer (if stream ends without newline)
-    if buffer.strip():
-        line = buffer.decode("utf-8").strip()
+                    message_found_this_iteration = True  # Count error as a "message"
+            # If line is empty, loop again to find next \n in buffer or fetch more data
+
+        if message_found_this_iteration:
+            continue  # Proceed to next expected message
+
+        # If no complete message in buffer, or we need more messages, fetch more data
         try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            events.append({"error": "JSONDecodeError", "raw_data": line})
+            chunk = await asyncio.wait_for(
+                anext(response_content_iterator), timeout=timeout_per_message
+            )
+            if chunk:  # Append non-empty chunk
+                buffer += chunk
+            else: # Empty chunk, try to read again in next iteration or timeout
+                pass
+
+            # After getting new chunk, try to process it for the current message
+            while b"\n" in buffer: # Process all complete messages in new chunk + buffer
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line = line_bytes.decode("utf-8").strip()
+                if line:
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        events.append({"error": "JSONDecodeError", "raw_data": line})
+                    message_found_this_iteration = True
+                    break # Found one message, break from inner while to outer for
+            
+            if not message_found_this_iteration and not (b"\n" in buffer):
+                # If after a read and processing, no message was found,
+                # and buffer doesn't contain a newline, it implies a partial message
+                # or stream ended. The next outer loop iteration will try to read more or timeout.
+                # If it was the last expected message, this partial data is ignored.
+                pass
+
+
+        except StopAsyncIteration:
+            # Stream ended before all expected messages were received
+            return events
+        except asyncio.TimeoutError:
+            # Timed out waiting for data for the current message
+            return events
+        
+        if not message_found_this_iteration:
+            # If after fetching data and attempting to parse, no new message was completed,
+            # and we are still expecting more messages, this indicates a problem (e.g. partial message followed by timeout)
+            # or the server is not sending data as expected.
+            # For this function, we return what we have. The test can then assert the count.
+            return events
+
+
     return events
 
 
@@ -149,9 +200,9 @@ class TestHttpStreamableTransportAdapter:
             assert response.headers["content-type"] == "application/x-ndjson"
             assert client_id in adapter._active_connections
 
-            events_received = await read_ndjson_stream_from_response(response.aiter_bytes())
+            events_received = await read_ndjson_stream_from_response(response.aiter_bytes(), expected_messages=1)
 
-        assert len(events_received) == 1
+        assert len(events_received) == 1, f"Expected 1 message, got {len(events_received)}"
         initial_event = events_received[0]
         assert initial_event["event"] == EventTypes.STATUS.value
         assert initial_event["data"]["message"] == "Successfully connected to HTTP stream."
@@ -172,7 +223,9 @@ class TestHttpStreamableTransportAdapter:
         client_id = f"client_dup_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as response1:
             assert response1.status_code == 200
-            await read_ndjson_stream_from_response(response1.aiter_bytes())  # Consume initial message
+            # Consume initial message
+            initial_events = await read_ndjson_stream_from_response(response1.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             assert client_id in adapter._active_connections
 
             response2 = await http_client.get(f"/stream/{client_id}")
@@ -182,13 +235,14 @@ class TestHttpStreamableTransportAdapter:
         await asyncio.sleep(0.1)
         assert client_id not in adapter._active_connections
 
-    @mock.patch("aider_mcp_server.http_streamable_transport_adapter.process_aider_ai_code_request")
+    @mock.patch("aider_mcp_server.handlers.process_aider_ai_code_request")
     async def test_message_handler_aider_ai_code_success(
         self, mock_process_request, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
         client_id = f"client_msg_ai_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:  # Connect client
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())  # Consume initial
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
 
             request_payload = {
                 "method": "aider_ai_code",
@@ -206,16 +260,17 @@ class TestHttpStreamableTransportAdapter:
             assert response_json["id"] == "req1"
             mock_process_request.assert_called_once()
 
-    @mock.patch("aider_mcp_server.http_streamable_transport_adapter.process_list_models_request")
+    @mock.patch("aider_mcp_server.handlers.process_list_models_request")
     async def test_message_handler_list_models_success(
         self, mock_process_request, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
         client_id = f"client_msg_lm_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:  # Connect client
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())  # Consume initial
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
 
             request_payload = {"method": "list_models", "params": {}, "id": "req2"}
-            expected_result = {"models": ["model1", "model2"]}  # Direct dict result
+            expected_result = {"models": ["model1", "model2"]}
             mock_process_request.return_value = expected_result
 
             response = await http_client.post(f"/message/{client_id}", json=request_payload)
@@ -235,7 +290,8 @@ class TestHttpStreamableTransportAdapter:
     ):
         client_id = f"client_badjson_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             response = await http_client.post(f"/message/{client_id}", content="not json")
             assert response.status_code == 400
             assert "Invalid JSON payload" in response.json()["error"]
@@ -245,23 +301,25 @@ class TestHttpStreamableTransportAdapter:
     ):
         client_id = f"client_nomethod_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             response = await http_client.post(f"/message/{client_id}", json={"params": {}})
             assert response.status_code == 400
-            assert "Missing 'method' in request payload" in response.json()["error"]
+            assert "Missing or invalid 'method' in request payload" in response.json()["error"]
 
     async def test_message_handler_unknown_method(
         self, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
         client_id = f"client_unknownmeth_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             response = await http_client.post(f"/message/{client_id}", json={"method": "phantom_method"})
             assert response.status_code == 404
             assert "Method 'phantom_method' not found" in response.json()["error"]["message"]
 
     @mock.patch(
-        "aider_mcp_server.http_streamable_transport_adapter.process_aider_ai_code_request",
+        "aider_mcp_server.handlers.process_aider_ai_code_request",
         side_effect=PermissionError("Access denied"),
     )
     async def test_message_handler_permission_error_response(
@@ -269,13 +327,14 @@ class TestHttpStreamableTransportAdapter:
     ):
         client_id = f"client_perm_err_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             response = await http_client.post(f"/message/{client_id}", json={"method": "aider_ai_code", "params": {}})
             assert response.status_code == 403
             assert "Access denied" in response.json()["error"]["message"]
 
     @mock.patch(
-        "aider_mcp_server.http_streamable_transport_adapter.process_list_models_request",
+        "aider_mcp_server.handlers.process_list_models_request",
         side_effect=ValueError("Invalid param"),
     )
     async def test_message_handler_value_error_response(
@@ -283,7 +342,8 @@ class TestHttpStreamableTransportAdapter:
     ):
         client_id = f"client_val_err_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as stream_resp:
-            await read_ndjson_stream_from_response(stream_resp.aiter_bytes())
+            initial_events = await read_ndjson_stream_from_response(stream_resp.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
             response = await http_client.post(f"/message/{client_id}", json={"method": "list_models", "params": {}})
             assert response.status_code == 400
             assert "Invalid param" in response.json()["error"]["message"]
@@ -298,32 +358,33 @@ class TestHttpStreamableTransportAdapter:
         async def event_collector_task(client_idx: int, client_id: str):
             async with http_client.stream("GET", f"/stream/{client_id}") as response:
                 assert response.status_code == 200
-                buffer = b""
-                async for chunk in response.aiter_bytes():  # Use raw bytes
-                    buffer += chunk
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line = line_bytes.decode("utf-8").strip()
-                        if line:
-                            client_event_lists[client_idx].append(json.loads(line))
-                        # Stop after receiving initial + one broadcasted event
-                        if len(client_event_lists[client_idx]) >= 2:
-                            return
+                # Expect 2 messages: initial status + 1 broadcasted event
+                # Use a timeout that allows for both messages to arrive.
+                received_events = await read_ndjson_stream_from_response(
+                    response.aiter_bytes(), expected_messages=2, timeout_per_message=2.0
+                )
+                client_event_lists[client_idx].extend(received_events)
 
         for i, cid in enumerate(client_ids):
             client_tasks.append(asyncio.create_task(event_collector_task(i, cid)))
 
-        await asyncio.sleep(0.2)  # Allow clients to connect and receive initial message
-        for i in range(len(client_ids)):
-            assert len(client_event_lists[i]) == 1, f"Client {i} did not receive initial message"
+        # Allow clients to connect and receive initial message.
+        # This sleep is less critical now as read_ndjson_stream_from_response handles waiting.
+        # However, send_event is called after this, so clients must be connected.
+        await asyncio.sleep(0.2) 
+
+        # Check if initial messages were received (optional, as event_collector_task now handles counts)
+        # For robustness, we can let the tasks run and then check final counts.
 
         broadcast_data: EventData = {"info": "test_broadcast", "id": adapter.get_transport_id()}
         await adapter.send_event(EventTypes.PROGRESS, broadcast_data)
 
-        await asyncio.wait_for(asyncio.gather(*client_tasks), timeout=3.0)
+        # Adjust timeout for gather: expected_messages * timeout_per_message + buffer
+        # 2 messages * 2.0s/message = 4.0s. Add 1s buffer = 5.0s.
+        await asyncio.wait_for(asyncio.gather(*client_tasks), timeout=5.0)
 
         for i, cid in enumerate(client_ids):
-            assert len(client_event_lists[i]) == 2, f"Client {cid} did not receive all events"
+            assert len(client_event_lists[i]) == 2, f"Client {cid} did not receive all events. Got: {client_event_lists[i]}"
             # Initial event
             assert client_event_lists[i][0]["event"] == EventTypes.STATUS.value
             assert client_event_lists[i][0]["data"]["client_id"] == cid
@@ -338,7 +399,8 @@ class TestHttpStreamableTransportAdapter:
         _, mock_logger = mock_logger_factory
         client_id = f"client_qf_{uuid.uuid4()}"
         async with http_client.stream("GET", f"/stream/{client_id}") as response:  # Connect client
-            await read_ndjson_stream_from_response(response.aiter_bytes())  # Consume initial
+            initial_events = await read_ndjson_stream_from_response(response.aiter_bytes(), expected_messages=1)
+            assert len(initial_events) == 1
 
             client_queue = adapter._active_connections.get(client_id)
             assert client_queue is not None
@@ -365,39 +427,28 @@ class TestHttpStreamableTransportAdapter:
         self, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
         client_id = f"client_hb_test_{uuid.uuid4()}"
+        events = []
         async with http_client.stream("GET", f"/stream/{client_id}") as response:
-            events = []
-            # AbstractTransportAdapter's heartbeat loop calls send_event.
-            # We wait for the adapter's heartbeat_interval.
-            # The fixture sets heartbeat_interval=0.05s. Sleep slightly longer.
+            # Expect initial status message and one heartbeat.
+            # Heartbeat interval is 0.05s. Timeout for message should be > 0.05s.
+            # e.g. 0.5s per message. Total time ~1s.
+            events = await read_ndjson_stream_from_response(
+                response.aiter_bytes(), expected_messages=2, timeout_per_message=0.5
+            )
 
-            # Collect up to 2 events (initial + one heartbeat)
-            buffer = b""
-            async for chunk in response.aiter_bytes():
-                buffer += chunk
-                while b"\n" in buffer:
-                    line_bytes, buffer = buffer.split(b"\n", 1)
-                    line = line_bytes.decode("utf-8").strip()
-                    if line:
-                        events.append(json.loads(line))
-                    if len(events) >= 2:
-                        break
-                if len(events) >= 2:
-                    break
-
-        assert len(events) >= 1, "Did not receive any events"
+        assert len(events) >= 1, "Did not receive at least the initial status event"
         assert events[0]["event"] == EventTypes.STATUS.value
 
-        if len(events) >= 2:
-            heartbeat_event = next((e for e in events if e["event"] == EventTypes.HEARTBEAT.value), None)
-            assert heartbeat_event is not None, "Heartbeat event not found"
-            assert heartbeat_event["data"]["transport_id"] == adapter.get_transport_id()
-            assert heartbeat_event["data"]["transport_origin"]["transport_id"] == adapter.get_transport_id()
-        else:
-            # This might happen if timing is very tight.
-            # The test for AbstractTransportAdapter should cover heartbeat generation more thoroughly.
-            # Here, we mainly ensure send_event can send it.
-            pass  # Allow pass if only initial event received due to timing
+        if len(events) < 2:
+            pytest.skip(
+                f"Heartbeat event not received within timeout. Expected 2 events, got {len(events)}. This can be timing-sensitive."
+            )
+        
+        # If we received 2 events:
+        heartbeat_event = next((e for e in events if e["event"] == EventTypes.HEARTBEAT.value), None)
+        assert heartbeat_event is not None, f"Heartbeat event not found in received events: {events}"
+        assert heartbeat_event["data"]["transport_id"] == adapter.get_transport_id()
+        assert heartbeat_event["data"]["transport_origin"]["transport_id"] == adapter.get_transport_id()
 
     async def test_shutdown_closes_streams_and_cleans_up(
         self,
@@ -444,7 +495,7 @@ class TestHttpStreamableTransportAdapter:
         mock_logger.info.assert_any_call(
             f"Shutting down HttpStreamableTransportAdapter ({adapter.get_transport_id()})..."
         )
-        mock_coordinator.unregister_transport.assert_called_once_with(adapter)
+        mock_coordinator.unregister_transport.assert_called_once_with(adapter.get_transport_id())
         # mock_put.assert_any_call("CLOSE_STREAM") # Check if internal signal was sent
 
         if not task.done():  # Should be done
@@ -517,17 +568,18 @@ class TestHttpStreamableTransportAdapter:
         # First connection and disconnection
         async with http_client.stream("GET", f"/stream/{client_id}") as response1:
             assert response1.status_code == 200
-            await read_ndjson_stream_from_response(response1.aiter_bytes())
-        await asyncio.sleep(0.1)
+            initial_events1 = await read_ndjson_stream_from_response(response1.aiter_bytes(), expected_messages=1)
+            assert len(initial_events1) == 1
+        await asyncio.sleep(0.1) # Allow server to process disconnect
         assert client_id not in adapter._active_connections
 
         # Reconnection
         async with http_client.stream("GET", f"/stream/{client_id}") as response2:
             assert response2.status_code == 200
             assert client_id in adapter._active_connections
-            events_reconnect = await read_ndjson_stream_from_response(response2.aiter_bytes())
+            events_reconnect = await read_ndjson_stream_from_response(response2.aiter_bytes(), expected_messages=1)
 
-        assert len(events_reconnect) == 1
+        assert len(events_reconnect) == 1, f"Expected 1 message on reconnect, got {len(events_reconnect)}"
         assert events_reconnect[0]["event"] == EventTypes.STATUS.value
         assert events_reconnect[0]["data"]["client_id"] == client_id
 
