@@ -37,6 +37,7 @@ class MockHandlerClass:
 
 class EmptyHandlerClass:
     """A class with no handler methods."""
+
     pass
 
 
@@ -63,9 +64,11 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
     async def test_register_handler_overwrite(self) -> None:
         """Test that registering a handler for an existing type overwrites the old one."""
         self.registry.register_handler("test_op", mock_echo_handler)
+
         # Intentionally register a different handler for the same type
         async def new_mock_handler(request: Dict[str, Any]) -> Dict[str, Any]:
             return {"new_handler": True}
+
         self.registry.register_handler("test_op", new_mock_handler)
 
         handler = self.registry.get_handler("test_op")
@@ -74,7 +77,6 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
         # Test via handle_request
         response = await self.registry.handle_request({"type": "test_op"})
         self.assertEqual(response, {"new_handler": True})
-
 
     async def test_unregister_handler(self) -> None:
         """Test unregistering a handler."""
@@ -96,17 +98,14 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
         # Check if it's a bound method of MockHandlerClass
         self.assertIsBoundMethod(ping_handler, MockHandlerClass)
 
-
         status_handler = self.registry.get_handler("status")
         self.assertIsNotNone(status_handler)
         self.assertIsBoundMethod(status_handler, MockHandlerClass)
-
 
         # Method not starting with 'handle_' should not be registered
         self.assertIsNone(self.registry.get_handler("not_a_handler_method"))
         # Method with 'handle_' but no type should not be registered
         self.assertIsNone(self.registry.get_handler(""))
-
 
     async def test_register_empty_handler_class(self) -> None:
         """Test registering a class with no handler methods."""
@@ -118,15 +117,14 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.registry.get_supported_request_types(), [])
 
         self.registry.register_handler("echo", mock_echo_handler)
-        self.registry.register_handler("status", mock_error_handler) # Any handler will do
-        
+        self.registry.register_handler("status", mock_error_handler)  # Any handler will do
+
         supported_types = self.registry.get_supported_request_types()
-        self.assertCountEqual(supported_types, ["echo", "status"]) # Order doesn't matter
+        self.assertCountEqual(supported_types, ["echo", "status"])  # Order doesn't matter
 
         self.registry.register_handler_class(MockHandlerClass)
         supported_types_after_class = self.registry.get_supported_request_types()
         self.assertCountEqual(supported_types_after_class, ["echo", "status", "ping"])
-
 
     async def test_handle_request_success(self) -> None:
         """Test successful request handling."""
@@ -141,7 +139,6 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
         request_payload = {"type": "ping", "params": {"timeout": 100}}
         response = await self.registry.handle_request(request_payload)
         self.assertEqual(response, {"success": True, "response": "pong", "params": {"timeout": 100}})
-
 
     async def test_handle_request_missing_type(self) -> None:
         """Test handling a request that is missing the 'type' field."""
@@ -161,6 +158,7 @@ class TestHandlerRegistry(unittest.IsolatedAsyncioTestCase):
         request_payload = {"type": "error_test"}
         response = await self.registry.handle_request(request_payload)
         self.assertEqual(response, {"success": False, "error": "Error handling request: Simulated handler error"})
+
 
 if __name__ == "__main__":
     unittest.main()
