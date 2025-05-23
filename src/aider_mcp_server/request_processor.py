@@ -1,302 +1,192 @@
 """
 RequestProcessor component for handling request processing functionality.
+Based on Task 5 specification from reference/tasks/tasks.json.
 """
 
 import asyncio
-from typing import Any, Dict, Optional, Union
+import uuid
+from typing import Any, Awaitable, Callable, Dict
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.event_coordinator import EventCoordinator
-from aider_mcp_server.handler_registry import HandlerRegistry
-from aider_mcp_server.interfaces.security_service import ISecurityService
-from aider_mcp_server.mcp_types import LoggerFactory
-from aider_mcp_server.response_formatter import ResponseFormatter
-from aider_mcp_server.security import SecurityContext
-from aider_mcp_server.session_manager import SessionManager
+from aider_mcp_server.atoms.logging import get_logger
+
+# Type alias for request handlers, as specified in Task 5
+RequestHandler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
 
 
 class RequestProcessor:
     """
-    Handles the request lifecycle, validation, and execution.
-
-    Responsibilities:
-    - Processes incoming operation requests
-    - Manages request handlers
-    - Validates permissions
-    - Tracks request state
-    - Reports request status updates
+    Implements the RequestProcessor as specified in Task 5.
+    1. Validates incoming requests
+    2. Routes requests to appropriate handlers
+    3. Manages request processing lifecycle
+    4. Handles response formatting
     """
 
-    def __init__(
-        self,
-        event_coordinator: EventCoordinator,
-        session_manager: SessionManager,
-        logger_factory: LoggerFactory,
-        handler_registry: HandlerRegistry,
-        response_formatter: ResponseFormatter,
-        security_service: ISecurityService,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Initialize the RequestProcessor.
+        """
+        self._handlers: Dict[str, RequestHandler] = {}
+        self._active_requests: Dict[str, asyncio.Task[Dict[str, Any]]] = {}
+        self._lock = asyncio.Lock()
+        self._logger = get_logger(__name__) # Adhering to project logging patterns
+
+    def register_handler(self, request_type: str, handler: RequestHandler) -> None:
+        """
+        Register a handler for a specific request type.
 
         Args:
-            event_coordinator: Coordinator for sending events
-            session_manager: Manager for session information
-            logger_factory: Factory function to create loggers
-            handler_registry: Registry for managing operation handlers
-            response_formatter: Formatter for standardizing response formatting
-            security_service: Service for handling security operations
+            request_type: The type of request (e.g., "echo", "listFiles").
+            handler: The asynchronous function to handle this request type.
         """
-        self._event_coordinator = event_coordinator
-        self._session_manager = session_manager
-        self._handler_registry = handler_registry
-        self._response_formatter = response_formatter
-        self._security_service = security_service
-        self._active_requests: Dict[str, Dict[str, Any]] = {}
-        self._active_requests_lock = asyncio.Lock()
-        self._logger = logger_factory(__name__)
+        self._handlers[request_type] = handler
+        self._logger.debug(f"Registered handler for request type: {request_type}")
 
-    async def process_request(
-        self,
-        request_id: str,
-        transport_id: str,
-        operation_name: str,
-        request_data: Dict[str, Any],
-    ) -> None:
+    def unregister_handler(self, request_type: str) -> None:
         """
-        Process an incoming request.
+        Unregister a handler for a specific request type.
 
         Args:
-            request_id: Unique identifier for the request
-            transport_id: Identifier for the transport that made the request
-            operation_name: Name of the operation to execute
-            request_data: Request parameters and data
+            request_type: The type of request to unregister.
         """
-        self._logger.verbose(
-            f"Processing request {request_id} for operation '{operation_name}' from transport {transport_id}. Data: {request_data}"
-        )
-        self._logger.verbose(f"Looking up handler for operation '{operation_name}' (request_id: {request_id})")
-        handler = await self._handler_registry.get_handler(operation_name)
-        if not handler:
-            self._logger.error(f"No handler found for operation '{operation_name}' (request_id: {request_id})")
-            await self.fail_request(
-                request_id,
-                operation_name,
-                "OperationNotFound",
-                f"No handler registered for operation '{operation_name}'",
-                transport_id,
-                request_data,
-            )
-            return
-        self._logger.verbose(f"Handler found for operation '{operation_name}' (request_id: {request_id})")
-
-        required_permission = await self._handler_registry.get_required_permission(operation_name)
-        self._logger.verbose(
-            f"Required permission for '{operation_name}' is '{required_permission}' (request_id: {request_id})"
-        )
-
-        if required_permission:
-            # Get security context for the transport
-            transport_context = await self._session_manager.get_transport_security_context(transport_id)
-
-            # Check permissions using SecurityService
-            self._logger.verbose(
-                f"Checking permission '{required_permission}' for transport {transport_id} (request_id: {request_id})"
-            )
-            has_permission = await self._security_service.check_permission(transport_context, required_permission)
-
-            if not has_permission:
-                self._logger.error(f"Permission denied for operation '{operation_name}' (request_id: {request_id})")
-                # Log the security event via SecurityService
-                await self._security_service.log_security_event(
-                    "permission_denied",
-                    {
-                        "transport_id": transport_id,
-                        "request_id": request_id,
-                        "operation": operation_name,
-                        "required_permission": required_permission.value,
-                        "user_id": transport_context.user_id,
-                    },
-                )
-
-                await self.fail_request(
-                    request_id,
-                    operation_name,
-                    "PermissionDenied",
-                    f"Permission '{required_permission}' required for operation '{operation_name}'",
-                    transport_id,
-                    request_data,
-                )
-                return
-
-            self._logger.verbose(
-                f"Permission '{required_permission}' granted for transport {transport_id} (request_id: {request_id})"
-            )
-
-        # Create a task to run the handler
-        async def run_handler() -> None:
-            try:
-                self._logger.verbose(f"Starting handler execution for '{operation_name}' (request_id: {request_id})")
-                # Send status update that processing has started
-                self._logger.verbose(
-                    f"Sending 'processing' status update for '{operation_name}' (request_id: {request_id})"
-                )
-                await self._event_coordinator.send_event_to_transport(
-                    transport_id,
-                    EventTypes.STATUS,
-                    {
-                        "request_id": request_id,
-                        "status": "processing",
-                        "message": f"Processing {operation_name} request",
-                    },
-                )
-
-                # Extract parameters for the handler
-                # Get security context from the session manager
-                security_context: SecurityContext = await self._session_manager.get_transport_security_context(
-                    transport_id
-                )
-
-                # Extract parameters from request_data
-                params = request_data.get("parameters", {})
-
-                # Call the handler with all required parameters plus defaults
-                # Handler expects 6 parameters:
-                # request_id, transport_id, params, security_context, use_diff_cache, clear_cached_for_unchanged
-                self._logger.verbose(
-                    f"Calling handler for '{operation_name}' with params: {params} (request_id: {request_id})"
-                )
-                result = await handler(
-                    request_id,
-                    transport_id,
-                    params,
-                    security_context,
-                    True,  # use_diff_cache
-                    True,  # clear_cached_for_unchanged
-                )
-                self._logger.verbose(
-                    f"Handler for '{operation_name}' completed with result: {result} (request_id: {request_id})"
-                )
-
-                # Format success response
-                self._logger.verbose(f"Formatting success response for '{operation_name}' (request_id: {request_id})")
-                success_response = self._response_formatter.format_success_response(request_id, transport_id, result)
-
-                # Send the result back to the client
-                self._logger.verbose(f"Sending TOOL_RESULT event for '{operation_name}' (request_id: {request_id})")
-                await self._event_coordinator.send_event_to_transport(
-                    transport_id,
-                    EventTypes.TOOL_RESULT,
-                    {
-                        "request_id": request_id,
-                        "tool_name": operation_name,
-                        "result": success_response,
-                    },
-                )
-                self._logger.verbose(f"Successfully sent TOOL_RESULT for '{operation_name}' (request_id: {request_id})")
-            except Exception as e:
-                self._logger.error(f"Error processing request {request_id} for '{operation_name}': {e}", exc_info=True)
-                await self.fail_request(
-                    request_id,
-                    operation_name,
-                    "ProcessingError",
-                    str(e),
-                    transport_id,
-                    request_data,
-                )
-            finally:
-                self._logger.verbose(f"Cleaning up request {request_id} for '{operation_name}'")
-                await self._cleanup_request(request_id)
-
-        task = asyncio.create_task(run_handler())
-        # Store the request state
-        async with self._active_requests_lock:
-            self._active_requests[request_id] = {
-                "operation_name": operation_name,
-                "transport_id": transport_id,
-                "task": task,
-                "status": "processing",
-                "details": request_data,
-            }
-
-    async def fail_request(
-        self,
-        request_id: str,
-        operation_name: str,
-        error: str,
-        error_details: Union[str, Dict[str, Any]],
-        originating_transport_id: Optional[str] = None,
-        request_details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Mark a request as failed.
-
-        Args:
-            request_id: Unique identifier for the request
-            operation_name: Name of the operation
-            error: Error code or short description
-            error_details: Detailed error information
-            originating_transport_id: Identifier for the transport that made the request
-            request_details: Original request parameters and data
-        """
-        self._logger.verbose(
-            f"Failing request {request_id} for operation '{operation_name}'. Error: {error}, Details: {error_details}"
-        )
-        if originating_transport_id is None:
-            self._logger.warning(f"Cannot send failure notification for request {request_id}: no transport ID provided")
-            return
-
-        # Format error response - convert error_details to appropriate format
-        self._logger.verbose(f"Formatting error response for request {request_id}")
-        error_message = error
-        error_code = None
-
-        # If error_details is a dict, use it for details parameter
-        # If it's a string, use it as the error message instead
-        details = None
-        if isinstance(error_details, dict):
-            details = error_details
+        if request_type in self._handlers:
+            del self._handlers[request_type]
+            self._logger.debug(f"Unregistered handler for request type: {request_type}")
         else:
-            error_message = error_details
+            self._logger.warning(f"Attempted to unregister non-existent handler for type: {request_type}")
 
-        error_response = self._response_formatter.format_error_response(
-            request_id, originating_transport_id, error_message, error_code, details
-        )
-
-        # Send failure message as a TOOL_RESULT event
-        self._logger.verbose(f"Sending TOOL_RESULT (failure) for request {request_id}")
-        await self._event_coordinator.send_event_to_transport(
-            originating_transport_id,
-            EventTypes.TOOL_RESULT,
-            {
-                "request_id": request_id,
-                "tool_name": operation_name,
-                "result": error_response,
-            },
-        )
-
-        # Also send a STATUS event to indicate failure
-        self._logger.verbose(f"Sending STATUS (failed) for request {request_id}")
-        await self._event_coordinator.send_event_to_transport(
-            originating_transport_id,
-            EventTypes.STATUS,
-            {
-                "request_id": request_id,
-                "status": "failed",
-                "message": f"Operation {operation_name} failed: {error}",
-            },
-        )
-        self._logger.verbose(f"Cleaning up failed request {request_id}")
-        await self._cleanup_request(request_id)
-
-    async def _cleanup_request(self, request_id: str) -> None:
+    async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Clean up the request state.
+        Process an incoming request and return a response.
+
+        Validates the request, routes it to the appropriate handler,
+        manages its lifecycle, and formats the response.
+
+        Args:
+            request: The request dictionary. Expected to have a 'type' key.
+                     May have an 'id' key for request tracking.
+
+        Returns:
+            A dictionary representing the response.
         """
-        self._logger.verbose(f"Entering _cleanup_request for request_id: {request_id}")
-        async with self._active_requests_lock:
+        self._logger.debug(f"Received request: {request}")
+
+        if 'type' not in request:
+            self._logger.error("Request processing failed: Missing 'type' field.")
+            return self._error_response("Missing request type")
+
+        request_type = request['type']
+        if request_type not in self._handlers:
+            self._logger.error(f"Request processing failed: Unknown request type '{request_type}'.")
+            return self._error_response(f"Unknown request type: {request_type}")
+
+        request_id = request.get('id', str(uuid.uuid4()))
+        if 'id' not in request:
+            self._logger.debug(f"Generated new request_id: {request_id} for request type {request_type}")
+        
+        request['id'] = request_id # Ensure request object passed to handler has the ID
+
+        handler = self._handlers[request_type]
+        task: asyncio.Task[Dict[str, Any]] = asyncio.create_task(
+            self._handle_request(handler, request, request_id)
+        )
+
+        async with self._lock:
+            self._active_requests[request_id] = task
+        self._logger.info(f"Started processing request_id: {request_id}, type: {request_type}")
+
+        try:
+            response = await task
+            self._logger.info(f"Finished processing request_id: {request_id}, type: {request_type}. Success: {response.get('success', 'N/A')}")
+            return response
+        except asyncio.CancelledError:
+            self._logger.warning(f"Request_id: {request_id}, type: {request_type} was cancelled.")
+            # Ensure it's removed if cancellation happened before finally block in process_request
+            # cancel_request should have already removed it if called.
+            async with self._lock:
+                if request_id in self._active_requests:
+                    del self._active_requests[request_id]
+            return self._error_response(f"Request {request_id} was cancelled")
+        finally:
+            # This finally block ensures removal if the task completes normally or with an unhandled exception
+            # not caught by _handle_request.
+            async with self._lock:
+                if request_id in self._active_requests:
+                    self._logger.debug(f"Cleaning up request_id: {request_id} from active_requests in process_request.finally.")
+                    del self._active_requests[request_id]
+
+    async def _handle_request(
+        self, handler: RequestHandler, request: Dict[str, Any], request_id: str
+    ) -> Dict[str, Any]:
+        """
+        Internal method to execute the handler and manage its outcome.
+
+        Args:
+            handler: The handler function to execute.
+            request: The request dictionary (guaranteed to have 'id' and 'type').
+            request_id: The unique ID for this request.
+
+        Returns:
+            A dictionary representing the response from the handler or an error response.
+        """
+        try:
+            self._logger.debug(f"Executing handler for request_id: {request_id}, type: {request['type']}")
+            response = await handler(request)
+
+            if not isinstance(response, dict):
+                self._logger.error(
+                    f"Handler for request_id {request_id} (type: {request['type']}) "
+                    f"returned invalid response type: {type(response)}. Expected dict."
+                )
+                return self._error_response("Handler returned invalid response")
+
+            response['id'] = request_id # Ensure response has the request ID, as per Task 5
+            self._logger.debug(f"Handler for request_id: {request_id} completed successfully.")
+            return response
+        except asyncio.CancelledError:
+            self._logger.warning(f"Handler for request_id: {request_id} (type: {request['type']}) was cancelled during execution.")
+            raise # Re-raise to be caught by process_request or propagate
+        except Exception as e:
+            self._logger.error(
+                f"Error processing request_id {request_id} (type: {request['type']}): {str(e)}",
+                exc_info=True # Include traceback for server logs
+            )
+            return self._error_response(f"Error processing request: {str(e)}")
+
+    def _error_response(self, message: str) -> Dict[str, Any]:
+        """
+        Create a standardized error response as per Task 5.
+
+        Args:
+            message: The error message.
+
+        Returns:
+            A dictionary representing the error response.
+        """
+        return {
+            "success": False,
+            "error": message
+        }
+
+    async def cancel_request(self, request_id: str) -> bool:
+        """
+        Cancel an active request by ID, as per Task 5.
+
+        Args:
+            request_id: The ID of the request to cancel.
+
+        Returns:
+            True if the request was found and cancellation was attempted, False otherwise.
+        """
+        async with self._lock:
             if request_id in self._active_requests:
+                task_to_cancel = self._active_requests[request_id]
+                self._logger.info(f"Attempting to cancel request_id: {request_id}")
+                task_to_cancel.cancel()
+                # Task 5 specifies deleting the entry from _active_requests here.
                 del self._active_requests[request_id]
-                self._logger.verbose(f"Removed request {request_id} from active requests.")
+                self._logger.info(f"Cancelled and removed request_id: {request_id} from active_requests.")
+                return True
             else:
-                self._logger.verbose(f"Request {request_id} not found in active requests for cleanup.")
+                self._logger.warning(f"Attempted to cancel non-existent or already completed request_id: {request_id}")
+                return False
