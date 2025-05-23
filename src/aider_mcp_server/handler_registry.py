@@ -5,18 +5,17 @@ This module handles registration and management of operation handlers.
 Extracted from ApplicationCoordinator to improve modularity and maintainability.
 """
 
-import asyncio
+import inspect
 import logging
 import typing
-from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Type
 
 from aider_mcp_server.mcp_types import (
     LoggerFactory,
     LoggerProtocol,
-    OperationResult,
-    RequestParameters,
 )
-from aider_mcp_server.security import Permissions, SecurityContext
+
+# from aider_mcp_server.security import Permissions, SecurityContext # Removed
 
 # Initialize the logger factory
 get_logger_func: LoggerFactory
@@ -65,11 +64,8 @@ except ImportError:
 
 logger = get_logger_func(__name__)
 
-# Type alias for handler functions
-HandlerFunc = Callable[
-    [str, str, RequestParameters, SecurityContext, bool, bool],
-    Coroutine[Any, Any, OperationResult],
-]
+# Type alias for request handlers, consistent with Task 5 (RequestProcessor) and Task 8 spec
+RequestHandler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
 
 
 class HandlerRegistry:
@@ -84,109 +80,101 @@ class HandlerRegistry:
 
     def __init__(self) -> None:
         """Initialize the HandlerRegistry."""
-        self._handlers: Dict[str, Tuple[HandlerFunc, Optional[Permissions]]] = {}
-        self._handlers_lock = asyncio.Lock()
-
+        self._handlers: Dict[str, RequestHandler] = {}
         logger.info("HandlerRegistry initialized")
 
-    async def register_handler(
-        self,
-        operation_name: str,
-        handler: HandlerFunc,
-        required_permission: Optional[Permissions] = None,
-    ) -> None:
+    def register_handler(self, request_type: str, handler: RequestHandler) -> None:
         """
-        Registers a handler function for a specific operation.
+        Register a handler for a specific request type.
 
         Args:
-            operation_name: The name of the operation
-            handler: The handler function to register
-            required_permission: Optional permission required to execute the operation
+            request_type: The type of request (e.g., "echo", "listFiles").
+            handler: The asynchronous function to handle this request type.
         """
-        async with self._handlers_lock:
-            if operation_name in self._handlers:
-                logger.warning(f"Handler for operation '{operation_name}' already registered. Overwriting.")
-            self._handlers[operation_name] = (handler, required_permission)
-            logger.info(f"Handler registered for operation: '{operation_name}'")
+        # Overwrites existing handler for the same request_type without warning, as per Task 8 spec.
+        self._handlers[request_type] = handler
+        logger.info(f"Handler registered for request type: '{request_type}'")
 
-    async def unregister_handler(self, operation_name: str) -> None:
+    def register_handler_class(self, handler_class: Type[Any]) -> None:
         """
-        Unregisters a handler function.
+        Register all handler methods from a class.
+        Handler methods are expected to be named 'handle_<request_type>'.
 
         Args:
-            operation_name: The name of the operation
+            handler_class: The class containing handler methods.
         """
-        async with self._handlers_lock:
-            if operation_name in self._handlers:
-                del self._handlers[operation_name]
-                logger.info(f"Handler unregistered for operation: '{operation_name}'")
-            else:
-                logger.warning(f"Attempted to unregister non-existent handler: '{operation_name}'")
+        instance = handler_class()
+        for name, method in inspect.getmembers(instance, inspect.ismethod):
+            if name.startswith("handle_"):
+                request_type = name[7:]  # Remove 'handle_' prefix
+                self.register_handler(request_type, method)
+                logger.debug(
+                    f"Registered method {name} from class {handler_class.__name__} for request type '{request_type}'"
+                )
 
-    async def get_handler(self, operation_name: str) -> Optional[HandlerFunc]:
+    def unregister_handler(self, request_type: str) -> None:
         """
-        Gets the handler function for a specific operation name.
+        Unregister a handler for a specific request type.
 
         Args:
-            operation_name: The name of the operation
+            request_type: The type of request to unregister.
+        """
+        if request_type in self._handlers:
+            del self._handlers[request_type]
+            logger.info(f"Handler unregistered for request type: '{request_type}'")
+        else:
+            logger.warning(f"Attempted to unregister non-existent handler for request type: '{request_type}'")
+
+    def get_handler(self, request_type: str) -> Optional[RequestHandler]:
+        """
+        Get a handler for a specific request type.
+
+        Args:
+            request_type: The name of the request type.
 
         Returns:
-            The handler function or None if it doesn't exist
+            The handler function or None if it doesn't exist.
         """
-        handler_info = await self.get_handler_info(operation_name)
-        return handler_info[0] if handler_info else None
+        return self._handlers.get(request_type)
 
-    async def get_required_permission(self, operation_name: str) -> Optional[Permissions]:
+    def get_supported_request_types(self) -> List[str]:
         """
-        Gets the required permission for a specific operation name.
+        Get a list of all supported request types.
+
+        Returns:
+            A list of strings, where each string is a registered request type.
+        """
+        return list(self._handlers.keys())
+
+    async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle a request using the appropriate registered handler.
 
         Args:
-            operation_name: The name of the operation
+            request: The request dictionary, expected to contain a 'type' field.
 
         Returns:
-            The required permission or None if none is required or the operation doesn't exist
+            A dictionary representing the response from the handler or an error response.
         """
-        handler_info = await self.get_handler_info(operation_name)
-        return handler_info[1] if handler_info else None
+        if "type" not in request:
+            logger.error("Request handling failed: Missing 'type' field in request.")
+            return {"success": False, "error": "Missing request type"}
 
-    async def get_handler_info(self, operation_name: str) -> Optional[Tuple[HandlerFunc, Optional[Permissions]]]:
-        """
-        Gets handler function and required permission by operation name.
+        request_type = request["type"]
+        handler = self.get_handler(request_type)
 
-        Args:
-            operation_name: The name of the operation
+        if not handler:
+            logger.error(f"Request handling failed: Unknown request type '{request_type}'.")
+            return {"success": False, "error": f"Unknown request type: {request_type}"}
 
-        Returns:
-            A tuple of (handler_function, required_permission) or None if the operation doesn't exist
-        """
-        async with self._handlers_lock:
-            return self._handlers.get(operation_name)
-
-    async def has_handler(self, operation_name: str) -> bool:
-        """
-        Checks if a handler exists for the specified operation.
-
-        Args:
-            operation_name: The name of the operation
-
-        Returns:
-            True if a handler exists, False otherwise
-        """
-        async with self._handlers_lock:
-            return operation_name in self._handlers
-
-    async def get_all_operations(self) -> Dict[str, Optional[Permissions]]:
-        """
-        Gets all registered operations and their required permissions.
-
-        Returns:
-            Dictionary mapping operation names to their required permissions
-        """
-        async with self._handlers_lock:
-            return {name: info[1] for name, info in self._handlers.items()}
-
-    async def clear(self) -> None:
-        """Clears all registered handlers."""
-        async with self._handlers_lock:
-            self._handlers.clear()
-        logger.info("HandlerRegistry cleared")
+        try:
+            logger.debug(f"Executing handler for request type '{request_type}'. Request ID: {request.get('id', 'N/A')}")
+            response = await handler(request)
+            logger.debug(f"Handler for request type '{request_type}' completed. Request ID: {request.get('id', 'N/A')}")
+            return response
+        except Exception as e:
+            logger.error(
+                f"Error handling request type '{request_type}': {str(e)}. Request ID: {request.get('id', 'N/A')}",
+                exc_info=True,
+            )
+            return {"success": False, "error": f"Error handling request: {str(e)}"}

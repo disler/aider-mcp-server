@@ -67,6 +67,8 @@ class ParsedMessagePayload(BaseModel):
 class HttpStreamableTransportAdapter(AbstractTransportAdapter):
     """HTTP Streamable transport adapter for MCP server."""
 
+    logger: LoggerProtocol
+
     def __init__(
         self,
         coordinator: Optional[ApplicationCoordinator] = None,
@@ -105,12 +107,9 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
         # Logger setup
         from aider_mcp_server.atoms.logging import get_logger as default_get_logger
 
-        if get_logger is None:
-            self.logger: LoggerProtocol = default_get_logger(
-                f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}"
-            )
-        else:
-            self.logger = get_logger(f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}")
+        # Determine the logger function to use (either the passed one or the default)
+        effective_get_logger = default_get_logger if get_logger is None else get_logger
+        self.logger = effective_get_logger(f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}")
 
         self._host = host
         self._port = port
@@ -276,6 +275,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
                             return None
                     else:
                         self.logger.warning(f"Unexpected socket_info format: {socket_info}")
+                        return None
         self.logger.debug("Server instance not available or not started, or sockets not found, cannot get actual port.")
         return None
 
