@@ -164,8 +164,6 @@ def _process_diff_chunks(file_diff: str, max_context_lines: int, max_file_kb: in
     chunk_matches = list(re.finditer(chunk_pattern, file_diff))
 
     for i, match in enumerate(chunk_matches):
-        # The content of the chunk starts after the @@ line
-        chunk_header_end = match.end()
         # Find the start of the next chunk header, or end of file_diff
         chunk_content_end = chunk_matches[i + 1].start() if i + 1 < len(chunk_matches) else len(file_diff)
         
