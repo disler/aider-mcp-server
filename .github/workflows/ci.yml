@@ -32,7 +32,6 @@ jobs:
           fi
 
   test:
-    needs: lint_and_types
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -64,7 +63,6 @@ jobs:
           fail_ci_if_error: false
 
   test-compatibility:
-    needs: lint_and_types
     runs-on: ubuntu-latest
     strategy:
       matrix:
