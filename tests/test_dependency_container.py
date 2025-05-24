@@ -416,5 +416,5 @@ async def test_container_with_logger(mock_logger_factory):
         await container.register_singleton(ILogger, implementation_type=Logger)
 
         # Verify logging was called
-        mock_logger_factory.assert_called_once_with("aider_mcp_server.dependency_container")
+        mock_logger_factory.assert_called_once_with("aider_mcp_server.templates.configuration.dependency_container")
         mock_logger_factory.return_value.verbose.assert_called_with("Registered singleton for ILogger")

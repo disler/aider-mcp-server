@@ -1,5 +1,5 @@
 # Import the module containing the function to be patched
-import aider_mcp_server.server
+import aider_mcp_server.templates.servers.server
 
 
 # Define the patched version of is_git_repository

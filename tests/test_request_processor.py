@@ -19,7 +19,7 @@ def mock_logger():
 
 
 @pytest.fixture
-@patch("aider_mcp_server.request_processor.get_logger")
+@patch("aider_mcp_server.organisms.processors.request_processor.get_logger")
 def request_processor(mock_get_logger, mock_logger):
     """Fixture for a RequestProcessor instance with a mocked logger."""
     mock_get_logger.return_value = mock_logger
@@ -123,7 +123,7 @@ class TestRequestProcessorRoutingAndExecution:
         mock_logger.info.assert_any_call(f"Finished processing request_id: req1, type: {request_type}. Success: True")
 
     @pytest.mark.asyncio
-    @patch("aider_mcp_server.request_processor.uuid.uuid4")
+    @patch("aider_mcp_server.organisms.processors.request_processor.uuid.uuid4")
     async def test_process_request_generates_id_if_missing(
         self, mock_uuid4: MagicMock, request_processor: RequestProcessor, mock_logger: MagicMock
     ):

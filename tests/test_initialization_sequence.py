@@ -55,7 +55,7 @@ class TestInitializationSequence(unittest.IsolatedAsyncioTestCase):
         self.mock_app_coordinator_cls.assert_called_once()
         self.assertFalse(self.init_seq._initialized)
         self.assertIsInstance(self.init_seq._initialization_lock, asyncio.Lock)
-        self.mock_get_logger.assert_called_once_with("aider_mcp_server.initialization_sequence")
+        self.mock_get_logger.assert_called_once_with("aider_mcp_server.templates.initialization.initialization_sequence")
         self.assertIs(self.init_seq._logger, mock_logger_instance)
 
     async def test_initialize_successful_no_transports(self):

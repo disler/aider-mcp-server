@@ -143,8 +143,8 @@ def mock_logger_factory():
 async def registry(mock_logger_factory: Any):
     # Patch get_logger_func in both modules where it's imported/used
     with (
-        patch("aider_mcp_server.transport_adapter_registry.get_logger_func", mock_logger_factory),
-        patch("aider_mcp_server.transport_adapter.get_logger_func", mock_logger_factory),
+        patch("aider_mcp_server.organisms.registries.transport_adapter_registry.get_logger_func", mock_logger_factory),
+        patch("aider_mcp_server.molecules.transport.base_adapter.get_logger_func", mock_logger_factory),
     ):
         reg = TransportAdapterRegistry(logger_factory=mock_logger_factory)
         yield reg
@@ -182,8 +182,8 @@ class TestRegistryInitialization:
         assert registry._adapters == {}
         assert registry._lock is not None
         # Check if the main registry logger was requested
-        assert "aider_mcp_server.transport_adapter_registry" in mock_logger_factory.logger_mocks
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        assert "aider_mcp_server.organisms.registries.transport_adapter_registry" in mock_logger_factory.logger_mocks
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.info.assert_any_call("TransportAdapterRegistry initialized")
 
 
@@ -212,7 +212,7 @@ class TestDiscoverAdapters:
         assert len(registry._adapter_classes) == 2
 
         # Verify logging
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.info.assert_any_call(
             f"Discovered transport adapter: MockAdapterOne for type '{MockAdapterOne.TRANSPORT_TYPE_NAME}'"
         )
@@ -235,7 +235,7 @@ class TestDiscoverAdapters:
 
             assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
             assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == MockAdapterOne
-            logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+            logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
             logger.warning.assert_any_call(
                 f"Package {mock_pkg_name} has no __path__ attribute. Cannot discover modules."
             )
@@ -248,13 +248,13 @@ class TestDiscoverAdapters:
     ):
         mock_pkg_name = "non_existent_pkg"
         with patch(
-            "aider_mcp_server.transport_adapter_registry.importlib.import_module",
+            "aider_mcp_server.organisms.registries.transport_adapter_registry.importlib.import_module",
             side_effect=ImportError(f"No module named {mock_pkg_name}"),
         ):
             registry.discover_adapters(mock_pkg_name)
 
             assert not registry._adapter_classes
-            logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+            logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
             logger.error.assert_any_call(f"Failed to import package: {mock_pkg_name}")
 
     async def test_discover_adapters_module_import_error(
@@ -268,7 +268,7 @@ class TestDiscoverAdapters:
 
         # Should log error and not crash
         assert not registry._adapter_classes
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.error.assert_any_call(f"Failed to import package: {mock_pkg_name}")
 
     async def test_discover_adapters_skips_invalid_adapters(
@@ -292,7 +292,7 @@ class TestDiscoverAdapters:
         assert len(registry._adapter_classes) == 1
 
         # Verify warnings were logged
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.warning.assert_any_call(
             "Adapter class AdapterWithoutTypeName in module test_module "
             "does not define a valid TRANSPORT_TYPE_NAME string attribute. Skipping."
@@ -323,7 +323,7 @@ class TestDiscoverAdapters:
         assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == DuplicateAdapter
 
         # Verify warning was logged
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.warning.assert_any_call(
             "Duplicate transport type 'mock_one' found. Class DuplicateAdapter will overwrite MockAdapterOne."
         )
@@ -346,7 +346,7 @@ class TestInitializeAdapter:
         assert adapter.config.get("custom_setting") == "value"
         assert registry.get_adapter("test_adapter_001") == adapter
 
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.info.assert_any_call(f"Initializing transport adapter of type: {MockAdapterOne.TRANSPORT_TYPE_NAME}")
         logger.info.assert_any_call(
             f"Successfully initialized adapter test_adapter_001 of type {MockAdapterOne.TRANSPORT_TYPE_NAME}"
@@ -360,7 +360,7 @@ class TestInitializeAdapter:
         assert mock_coordinator.subscribe_to_event_type.call_count == len(expected_capabilities)
 
         # Check adapter's own logger
-        adapter_logger_name = f"aider_mcp_server.transport_adapter.MockAdapterOne.{adapter.get_transport_id()}"
+        adapter_logger_name = f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter.get_transport_id()}"
         assert adapter_logger_name in mock_logger_factory.logger_mocks
         adapter_logger = mock_logger_factory.logger_mocks[adapter_logger_name]
         adapter_logger.info.assert_any_call(
@@ -383,7 +383,7 @@ class TestInitializeAdapter:
     ):
         adapter = await registry.initialize_adapter("unknown_type", mock_coordinator, {})
         assert adapter is None
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.error.assert_any_call("No adapter class found for transport type: unknown_type")
 
     async def test_initialize_adapter_init_method_fails(
@@ -393,7 +393,7 @@ class TestInitializeAdapter:
 
         adapter = await registry.initialize_adapter(FailingInitAdapter.TRANSPORT_TYPE_NAME, mock_coordinator, {})
         assert adapter is None
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.error.assert_any_call(
             f"Failed to initialize adapter of type {FailingInitAdapter.TRANSPORT_TYPE_NAME}: Simulated initialization failure",
             exc_info=True,
@@ -447,14 +447,14 @@ class TestShutdownAllAdapters:
         mock_coordinator.unregister_transport.assert_any_call("shutdown_test_id2")
         assert mock_coordinator.unregister_transport.call_count == 2
 
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.info.assert_any_call("Shutting down all transport adapters...")
         logger.info.assert_any_call(f"Shutting down adapter {adapter1.get_transport_id()}")
         logger.info.assert_any_call(f"Shutting down adapter {adapter2.get_transport_id()}")
         logger.info.assert_any_call("All transport adapters shut down and registry cleared.")
 
         # Check adapter's own logger for shutdown message
-        adapter1_logger_name = f"aider_mcp_server.transport_adapter.MockAdapterOne.{adapter1.get_transport_id()}"
+        adapter1_logger_name = f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter1.get_transport_id()}"
         adapter1_logger = mock_logger_factory.logger_mocks[adapter1_logger_name]
         adapter1_logger.info.assert_any_call(f"{adapter1.get_transport_type()} shutdown")
 
@@ -491,7 +491,7 @@ class TestShutdownAllAdapters:
         # My FailingShutdownAdapter does not call super().shutdown(), so no unregister for it.
         assert mock_coordinator.unregister_transport.call_count == 1
 
-        logger = mock_logger_factory.logger_mocks["aider_mcp_server.transport_adapter_registry"]
+        logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
         logger.error.assert_any_call(
             f"Error shutting down adapter {adapter_fail.get_transport_id()}: Simulated shutdown failure", exc_info=True
         )

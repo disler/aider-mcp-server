@@ -111,7 +111,7 @@ class TestEventCoordinatorLifecycle:
         self, event_coordinator: EventCoordinator, mock_logger_factory: MagicMock, mock_event_system: AsyncMock
     ):
         logger = mock_logger_factory.return_value
-        mock_logger_factory.assert_called_once_with("aider_mcp_server.event_coordinator")
+        mock_logger_factory.assert_called_once_with("aider_mcp_server.organisms.coordinators.event_coordinator")
         logger.info.assert_called_once_with("EventCoordinator initialized.")
         assert event_coordinator._event_system is mock_event_system
         assert event_coordinator._handlers == {}
