@@ -23,7 +23,7 @@ class TestConfigurationSystem(unittest.TestCase):
         ConfigurationSystem._initialized = False
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_singleton_pattern(self, mock_get_logger):
         """Test that ConfigurationSystem follows singleton pattern."""
         mock_logger = MagicMock()
@@ -41,7 +41,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertIs(config1, config3)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_default_configuration(self, mock_get_logger):
         """Test that default configuration values are properly set."""
         mock_logger = MagicMock()
@@ -73,7 +73,7 @@ class TestConfigurationSystem(unittest.TestCase):
         },
         clear=True,
     )
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_environment_variable_loading(self, mock_get_logger):
         """Test loading configuration from environment variables."""
         mock_logger = MagicMock()
@@ -93,7 +93,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertEqual(config.get("application", "max", "concurrent", "requests"), 50)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_type_conversion(self, mock_get_logger):
         """Test type conversion for configuration values."""
         mock_logger = MagicMock()
@@ -132,7 +132,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertEqual(config._convert_value(""), "")
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_file_loading_json(self, mock_get_logger):
         """Test loading configuration from JSON files."""
         mock_logger = MagicMock()
@@ -170,7 +170,7 @@ class TestConfigurationSystem(unittest.TestCase):
     @patch("pathlib.Path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data="logging:\n  level: WARNING")
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_file_loading_yaml(self, mock_get_logger, mock_file, mock_exists, mock_yaml):
         """Test loading configuration from YAML files."""
         mock_logger = MagicMock()
@@ -194,7 +194,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertEqual(config.get("logging", "level"), "WARNING")
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_file_loading_errors(self, mock_get_logger):
         """Test error handling in file loading."""
         mock_logger = MagicMock()
@@ -218,7 +218,7 @@ class TestConfigurationSystem(unittest.TestCase):
             os.unlink(txt_file)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_configuration_access(self, mock_get_logger):
         """Test configuration value access methods."""
         mock_logger = MagicMock()
@@ -249,7 +249,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertIn("application", all_config)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_configuration_modification(self, mock_get_logger):
         """Test configuration value modification."""
         mock_logger = MagicMock()
@@ -268,7 +268,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertNotEqual(config.get("logging", "level"), original_level)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_transport_specific_methods(self, mock_get_logger):
         """Test transport-specific configuration methods."""
         mock_logger = MagicMock()
@@ -293,7 +293,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertFalse(config.is_transport_enabled("unknown"))
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_configuration_validation(self, mock_get_logger):
         """Test configuration validation."""
         mock_logger = MagicMock()
@@ -329,7 +329,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertTrue(any("Invalid max concurrent requests" in error for error in errors))
 
     @patch.dict(os.environ, {"AIDER_MCP_TEST_VALUE": "original"}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_configuration_reload(self, mock_get_logger):
         """Test configuration reload functionality."""
         mock_logger = MagicMock()
@@ -346,7 +346,7 @@ class TestConfigurationSystem(unittest.TestCase):
             self.assertEqual(config.get("test", "value"), "updated")
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_nested_path_access(self, mock_get_logger):
         """Test accessing deeply nested configuration paths."""
         mock_logger = MagicMock()
@@ -369,7 +369,7 @@ class TestConfigurationSystem(unittest.TestCase):
         self.assertIsNone(config.get("level1", "nonexistent", "key"))
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_configuration_merging(self, mock_get_logger):
         """Test configuration merging behavior."""
         mock_logger = MagicMock()
@@ -408,7 +408,7 @@ class TestConfigurationSystem(unittest.TestCase):
             os.unlink(json_file)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     def test_edge_cases(self, mock_get_logger):
         """Test edge cases and error conditions."""
         mock_logger = MagicMock()

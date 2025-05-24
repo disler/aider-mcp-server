@@ -176,12 +176,12 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -404,12 +404,12 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -632,12 +632,12 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -860,12 +860,12 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -1185,12 +1185,12 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 

@@ -9,15 +9,15 @@ import importlib.metadata
 import logging
 
 # Import main from cli.py instead of __main__.py to avoid circular imports
-from .cli import main  # Import main function for entry point
+from .templates.initialization.cli import main  # Import main function for entry point
 from .interfaces.transport_adapter import ITransportAdapter, TransportAdapterBase
-from .multi_transport_server import serve_multi_transport
-from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
-from .sse_server import serve_sse
-from .sse_transport_adapter import SSETransportAdapter
-from .stdio_transport_adapter import StdioTransportAdapter
+from .templates.servers.multi_transport_server import serve_multi_transport
+from .templates.servers.server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
+from .templates.servers.sse_server import serve_sse
+from .organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from .organisms.transports.stdio.stdio_transport_adapter import StdioTransportAdapter
 from .molecules.transport.base_adapter import AbstractTransportAdapter
-from .transport_coordinator import ApplicationCoordinator
+from .pages.application.coordinator import ApplicationCoordinator
 
 # Get the package version dynamically from installed package metadata
 try:

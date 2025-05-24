@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aider_mcp_server.application_coordinator import ApplicationCoordinator
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.discovery.transport_discovery import DiscoveryService, get_discovery_service
 
 
@@ -31,7 +31,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         DiscoveryService._instance = None
         DiscoveryService._initialized = False
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     def test_singleton_pattern(self, mock_get_logger):
         """Test that DiscoveryService follows singleton pattern."""
         mock_logger = MagicMock()
@@ -48,7 +48,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         service3 = get_discovery_service()
         self.assertIs(service1, service3)
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     def test_set_coordinator(self, mock_get_logger):
         """Test setting the ApplicationCoordinator."""
         mock_logger = MagicMock()
@@ -60,7 +60,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service._coordinator, self.mock_coordinator)
         mock_logger.info.assert_called_with("ApplicationCoordinator set for discovery service")
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_register_discovery_callback(self, mock_get_logger):
         """Test registering discovery callbacks."""
         mock_logger = MagicMock()
@@ -82,7 +82,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         self.assertIn(callback_id, service._registered_callbacks)
         self.assertEqual(service._registered_callbacks[callback_id], mock_callback)
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_unregister_discovery_callback(self, mock_get_logger):
         """Test unregistering discovery callbacks."""
         mock_logger = MagicMock()
@@ -107,7 +107,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         await service.unregister_discovery_callback("non-existent-id")
         mock_logger.warning.assert_called()
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_notify_transport_available(self, mock_get_logger):
         """Test notifying when a transport becomes available."""
         mock_logger = MagicMock()
@@ -141,7 +141,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         # Should call registered callback
         mock_callback.assert_called_once()
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_notify_transport_unavailable(self, mock_get_logger):
         """Test notifying when a transport becomes unavailable."""
         mock_logger = MagicMock()
@@ -165,7 +165,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         # Should broadcast event to coordinator
         self.mock_coordinator.broadcast_event.assert_called_with("transport_unavailable", {"name": transport_name})
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_check_coordinator_available(self, mock_get_logger):
         """Test checking coordinator availability."""
         mock_logger = MagicMock()
@@ -190,7 +190,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         available = await service.check_coordinator_available()
         self.assertTrue(available)
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_get_available_transports(self, mock_get_logger):
         """Test getting available transports."""
         mock_logger = MagicMock()
@@ -221,7 +221,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sse_info["port"], 8000)
         self.assertEqual(sse_info["status"], "available")
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_get_transport_info(self, mock_get_logger):
         """Test getting specific transport information."""
         mock_logger = MagicMock()
@@ -246,7 +246,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         info = await service.get_transport_info("non_existent")
         self.assertIsNone(info)
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_discover_transports(self, mock_get_logger):
         """Test discovering transports from coordinator."""
         mock_logger = MagicMock()
@@ -267,7 +267,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         # Should return active adapters from registry
         self.assertEqual(set(transports), {"sse", "stdio"})
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_register_transport_with_coordinator(self, mock_get_logger):
         """Test registering transport with coordinator."""
         mock_logger = MagicMock()
@@ -296,7 +296,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info["host"], "localhost")
         self.assertEqual(info["port"], 8000)
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_callback_error_handling(self, mock_get_logger):
         """Test error handling in discovery callbacks."""
         mock_logger = MagicMock()
@@ -322,7 +322,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
         # Error should be logged but not propagated
         mock_logger.error.assert_called()
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_shutdown(self, mock_get_logger):
         """Test discovery service shutdown."""
         mock_logger = MagicMock()
@@ -351,7 +351,7 @@ class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):
 
         mock_logger.info.assert_called()
 
-    @patch("aider_mcp_server.transport_discovery.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
     async def test_error_propagation(self, mock_get_logger):
         """Test that appropriate errors are raised as TransportError."""
         mock_logger = MagicMock()

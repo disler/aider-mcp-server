@@ -2,7 +2,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aider_mcp_server.application_coordinator import ApplicationCoordinator
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.internal_types import InternalEvent
 from aider_mcp_server.templates.configuration.configuration_system import ConfigurationSystem
@@ -74,10 +74,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         InitializationSequence._instance = None
         InitializationSequence._initialized = False
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_full_system_initialization_and_shutdown(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -103,10 +103,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         # Verify shutdown state
         self.assertFalse(init_sequence._initialized)
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_request_processing_end_to_end(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -152,10 +152,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_event_broadcasting_system(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -195,10 +195,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_transport_discovery_integration(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -238,10 +238,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_configuration_system_integration(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -271,10 +271,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         errors = config.validate()
         self.assertEqual(len(errors), 0)  # Should have no validation errors
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_error_handling_integration(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -311,10 +311,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_concurrent_request_processing(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -363,10 +363,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_component_lifecycle_management(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -403,10 +403,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             InitializationSequence._instance = None
             InitializationSequence._initialized = False
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_transport_configuration_integration(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):
@@ -439,10 +439,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         await init_sequence.shutdown()
 
-    @patch("aider_mcp_server.initialization_sequence.get_logger")
-    @patch("aider_mcp_server.application_coordinator.get_logger")
-    @patch("aider_mcp_server.transport_discovery.get_logger")
-    @patch("aider_mcp_server.configuration_system.get_logger")
+    @patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger")
+    @patch("aider_mcp_server.pages.application.coordinator.get_logger")
+    @patch("aider_mcp_server.organisms.discovery.transport_discovery.get_logger")
+    @patch("aider_mcp_server.templates.configuration.configuration_system.get_logger")
     async def test_system_resilience_and_recovery(
         self, mock_config_logger, mock_discovery_logger, mock_coordinator_logger, mock_init_logger
     ):

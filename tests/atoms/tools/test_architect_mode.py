@@ -40,7 +40,7 @@ def test_configure_model_architect_mode():
     assert model is not None
 
 
-@patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder")
 def test_setup_aider_coder_architect_mode(mock_coder):
     """Test that _setup_aider_coder correctly configures the Coder with architect mode."""
     # Setup mock
@@ -106,9 +106,9 @@ def test_setup_aider_coder_architect_mode(mock_coder):
 
 
 @pytest.mark.asyncio
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
 async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, mock_configure_model):
     """Test code_with_aider function with architect mode parameters."""
     # Setup mocks
@@ -162,9 +162,9 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
 
 
 @pytest.mark.asyncio
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
 async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mock_configure_model):
     """Test code_with_aider function with default (non-architect) mode."""
     # Setup mocks

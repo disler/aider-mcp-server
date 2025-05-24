@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Dict, List, Optional
 
-from aider_mcp_server.application_coordinator import ApplicationCoordinator
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.atoms.logging.logger import get_logger
 
 

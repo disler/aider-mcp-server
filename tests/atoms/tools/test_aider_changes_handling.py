@@ -132,13 +132,13 @@ class TestAiderChangesHandling:
     @pytest.mark.asyncio
     async def test_process_coder_results_with_changes(self):
         """Test _process_coder_results with meaningful changes."""
-        with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
+        with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
 
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = True
 
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
                     mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
 
                     # Call the function
@@ -153,14 +153,14 @@ class TestAiderChangesHandling:
     @pytest.mark.asyncio
     async def test_process_coder_results_no_changes(self):
         """Test _process_coder_results with no meaningful changes."""
-        with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
+        with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
 
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = False
 
                 # Also mock get_file_status_summary
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_file_status_summary") as mock_status:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_file_status_summary") as mock_status:
                     mock_status.return_value = {
                         "has_changes": False,
                         "status_summary": "No changes detected.",
@@ -168,7 +168,7 @@ class TestAiderChangesHandling:
                         "files_modified": 0,
                     }
 
-                    with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
+                    with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
                         mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
 
                         # Call the function

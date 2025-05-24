@@ -10,9 +10,9 @@ from aider_mcp_server.molecules.tools.changes_summarizer import summarize_change
 
 
 @pytest.mark.asyncio
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
 async def test_format_includes_summary(mock_configure_model, mock_setup_coder, mock_run_aider):
     """Test that the response format includes changes summary."""
     with tempfile.TemporaryDirectory() as temp_dir:
