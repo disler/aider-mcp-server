@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 import pytest_asyncio
 
-from aider_mcp_server.atoms.diff_cache import DiffCache, get_object_size
+from aider_mcp_server.atoms.utils.diff_cache import DiffCache, get_object_size
 
 
 @pytest_asyncio.fixture

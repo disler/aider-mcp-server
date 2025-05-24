@@ -4,9 +4,9 @@ Response formatter for standardizing response formatting for different transport
 
 from typing import Any, Dict, Optional
 
-from aider_mcp_server.application_errors import BaseApplicationError
+from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
-from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, OperationResult
 
 
 class ResponseFormatter:

@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional, Protocol, Type
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.atoms.internal_types import (
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.internal_types import (
     InternalRequest,
     InternalResponse,
 )

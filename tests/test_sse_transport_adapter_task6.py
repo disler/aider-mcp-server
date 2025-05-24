@@ -5,8 +5,8 @@ from unittest import mock
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.sse_transport_adapter_task6 import SSETransportAdapter
 
 

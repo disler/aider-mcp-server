@@ -176,7 +176,7 @@ async def test_stdio_to_sse_event_forwarding(coordinator_with_discovery, mock_in
     }
 
     # Simulate event from stdio
-    from aider_mcp_server.atoms.event_types import EventTypes
+    from aider_mcp_server.atoms.types.event_types import EventTypes
 
     await coordinator._send_event_to_transports(
         event_type=EventTypes.STATUS,
@@ -231,7 +231,7 @@ async def test_health_check_monitoring(coordinator_with_discovery, mock_input_ou
     sse_adapter.monitor_stdio_transport_id = stdio_adapter.transport_id
 
     # Simulate heartbeat event
-    from aider_mcp_server.atoms.event_types import EventTypes
+    from aider_mcp_server.atoms.types.event_types import EventTypes
 
     await coordinator.broadcast_event(
         event_type=EventTypes.HEARTBEAT,
@@ -279,7 +279,7 @@ async def test_coordinator_discovery_integration(mock_input_output):
         mock_coordinator._send_event_to_transports = AsyncMock()
         mock_coordinator.shutdown = AsyncMock()
 
-        from aider_mcp_server.atoms.event_types import EventTypes
+        from aider_mcp_server.atoms.types.event_types import EventTypes
 
         mock_coordinator.atoms = MagicMock()
         mock_coordinator.atoms.event_types = EventTypes

@@ -10,14 +10,14 @@ import pytest
 # Use absolute imports from the package root
 # Import the cli module for testing
 import aider_mcp_server.cli as cli_module
-from aider_mcp_server.atoms.atoms_utils import (
+from aider_mcp_server.atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
 
 # Import Logger for mocking
-from aider_mcp_server.atoms.logging import Logger
+from aider_mcp_server.atoms.logging.logger import Logger
 
 
 # Helper function to run the main function with specific args

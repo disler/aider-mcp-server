@@ -21,8 +21,8 @@ from urllib.parse import parse_qs
 
 from aiohttp import web
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 # Issue deprecation warning on import

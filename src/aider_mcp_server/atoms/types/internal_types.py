@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 
 
 class ErrorContext(BaseModel):

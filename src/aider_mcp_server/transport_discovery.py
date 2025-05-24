@@ -3,7 +3,7 @@ import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from aider_mcp_server.application_coordinator import ApplicationCoordinator
-from aider_mcp_server.atoms.logging import Logger, get_logger
+from aider_mcp_server.atoms.logging.logger import Logger, get_logger
 from aider_mcp_server.error_handling import ErrorHandler, TransportError
 
 

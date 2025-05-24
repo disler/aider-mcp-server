@@ -19,15 +19,15 @@ from typing import (
 )
 
 # Use absolute imports from the package root
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import TransportAdapterBase
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
     LoggerFactory,
     LoggerProtocol,
     RequestParameters,
 )
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 # Import ApplicationCoordinator from transport_coordinator only during type checking
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ get_logger_func: LoggerFactory
 
 try:
     # Attempt to import the custom logger using absolute path
-    from aider_mcp_server.atoms.logging import get_logger as custom_get_logger
+    from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
 
     # Cast the custom logger function to the protocol type
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
@@ -54,7 +54,7 @@ except ImportError:
         logging.basicConfig(level=logging.INFO)
     temp_logger = logging.getLogger(__name__)
     temp_logger.warning(
-        "Could not import custom logger from aider_mcp_server.atoms.logging. Using standard logging fallback."
+        "Could not import custom logger from aider_mcp_server.atoms.logging.logger. Using standard logging fallback."
     )
 
 

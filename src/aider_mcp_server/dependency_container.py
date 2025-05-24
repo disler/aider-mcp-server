@@ -17,7 +17,7 @@ from aider_mcp_server.interfaces.dependency_container import (
     Scope,
     TFactory,
 )
-from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 T = TypeVar("T")
 R = TypeVar("R")

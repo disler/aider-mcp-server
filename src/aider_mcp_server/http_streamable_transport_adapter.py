@@ -30,14 +30,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
     LoggerFactory,
     LoggerProtocol,
     RequestParameters,
 )
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.transport_adapter import (
     AbstractTransportAdapter,
 )
@@ -105,7 +105,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
         )
 
         # Logger setup
-        from aider_mcp_server.atoms.logging import get_logger as default_get_logger
+        from aider_mcp_server.atoms.logging.logger import get_logger as default_get_logger
 
         # Determine the logger function to use (either the passed one or the default)
         effective_get_logger = default_get_logger if get_logger is None else get_logger

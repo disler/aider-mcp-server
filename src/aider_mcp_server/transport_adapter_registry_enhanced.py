@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type
 
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 

@@ -4,8 +4,8 @@ Module for formatting error responses in a standardized way.
 
 from typing import Any, Callable, Dict, Optional
 
-from aider_mcp_server.application_errors import BaseApplicationError
-from aider_mcp_server.mcp_types import LoggerFactory, OperationResult
+from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, OperationResult
 
 
 class ErrorResponseFormatter:

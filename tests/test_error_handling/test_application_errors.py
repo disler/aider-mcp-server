@@ -1,6 +1,6 @@
 import pytest
 
-from aider_mcp_server.application_errors import (
+from aider_mcp_server.atoms.errors.application_errors import (
     AuthorizationError,
     BaseApplicationError,
     ConnectionFailedError,
@@ -11,7 +11,7 @@ from aider_mcp_server.application_errors import (
     TransportError,
     ValidationError,
 )
-from aider_mcp_server.atoms.data_types import MCPErrorResponse
+from aider_mcp_server.atoms.types.data_types import MCPErrorResponse
 
 
 def test_base_application_error():

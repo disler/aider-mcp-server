@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from aider_mcp_server.application_errors import BaseApplicationError
+from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.response_formatter import ResponseFormatter
 

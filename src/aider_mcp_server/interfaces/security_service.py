@@ -5,7 +5,7 @@ Security service interface for centralized security operations.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 
 
 class ISecurityService(ABC):

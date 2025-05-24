@@ -10,13 +10,13 @@ import logging
 import typing
 from typing import Any, Awaitable, Callable, Dict, List
 
-from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 # Initialize the logger factory
 get_logger_func: LoggerFactory
 
 try:
-    from aider_mcp_server.atoms.logging import get_logger as custom_get_logger
+    from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
 
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:

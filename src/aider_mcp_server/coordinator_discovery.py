@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypeVar
 
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 
 T = TypeVar("T")
 

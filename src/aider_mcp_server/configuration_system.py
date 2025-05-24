@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from aider_mcp_server.atoms.logging import Logger, get_logger
+from aider_mcp_server.atoms.logging.logger import Logger, get_logger
 
 
 class ConfigurationSystem:

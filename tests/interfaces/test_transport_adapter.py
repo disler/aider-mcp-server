@@ -10,13 +10,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import (
     ITransportAdapter,
     TransportAdapterBase,
 )
-from aider_mcp_server.mcp_types import EventData, RequestParameters
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.types.mcp_types import EventData, RequestParameters
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 
 class ConcreteTransportAdapter(TransportAdapterBase):

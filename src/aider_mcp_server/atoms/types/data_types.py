@@ -2,7 +2,7 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, Field
 
-from aider_mcp_server.application_errors import BaseApplicationError
+from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
 
 T = TypeVar("T")
 

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 if TYPE_CHECKING:
     from aider_mcp_server.event_mediator import EventMediator

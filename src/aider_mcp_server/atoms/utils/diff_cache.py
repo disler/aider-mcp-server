@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union, cast
 
-from aider_mcp_server.mcp_types import AsyncTask
+from aider_mcp_server.atoms.types.mcp_types import AsyncTask
 
 
 # Helper function for size estimation

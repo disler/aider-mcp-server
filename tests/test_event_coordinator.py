@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.atoms.internal_types import InternalEvent
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.internal_types import InternalEvent
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.interfaces.event_handler import IEventHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.mcp_types import LoggerProtocol
+from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 
 
 # --- Mock Implementations ---

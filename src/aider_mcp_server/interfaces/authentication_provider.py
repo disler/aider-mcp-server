@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
-from aider_mcp_server.security import Permissions
+from aider_mcp_server.atoms.security.context import Permissions
 
 
 @dataclass

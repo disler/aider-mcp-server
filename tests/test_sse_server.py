@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.mcp_types import LoggerProtocol
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 from aider_mcp_server.sse_server import run_sse_server
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 

@@ -8,7 +8,7 @@ It manages registration, lifecycle, and access to request handlers.
 import inspect
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Type
 
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 
 # Type alias for handler functions, as specified in Task 8
 RequestHandler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]

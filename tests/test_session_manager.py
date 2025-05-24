@@ -2,7 +2,7 @@ from datetime import timedelta  # Added import for timedelta
 
 import pytest
 
-from aider_mcp_server.security import Permissions
+from aider_mcp_server.atoms.security.context import Permissions
 from aider_mcp_server.session_manager import SessionManager
 
 

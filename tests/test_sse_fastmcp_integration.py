@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 
 

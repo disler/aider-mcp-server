@@ -6,7 +6,7 @@ from typing import Protocol
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.internal_types import InternalRequest, InternalResponse
+from aider_mcp_server.atoms.types.internal_types import InternalRequest, InternalResponse
 
 
 @runtime_checkable

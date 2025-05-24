@@ -2,8 +2,8 @@ from typing import Any, Dict, Optional, Protocol, Set
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 
 @runtime_checkable

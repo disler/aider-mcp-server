@@ -7,7 +7,7 @@ import typing
 from typing import Any, Dict, List, Optional, Type
 
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.mcp_types import LoggerFactory, LoggerProtocol
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
 if typing.TYPE_CHECKING:
@@ -19,7 +19,7 @@ get_logger_func: LoggerFactory
 
 try:
     # Attempt to import the custom logger from the project structure
-    from aider_mcp_server.atoms.logging import get_logger as custom_get_logger
+    from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
 
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:

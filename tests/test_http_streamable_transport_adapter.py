@@ -8,10 +8,10 @@ import httpx  # For making async HTTP requests
 import pytest
 import pytest_asyncio
 
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.http_streamable_transport_adapter import HttpStreamableTransportAdapter
-from aider_mcp_server.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 # Mocked dependencies
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator

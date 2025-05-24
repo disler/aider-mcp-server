@@ -19,19 +19,19 @@ from typing import (
 )
 
 # Use absolute imports from the package root
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
 
 # Import the interface directly for runtime
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.mcp_types import (
     AsyncTask,
     LoggerFactory,
     LoggerProtocol,
     OperationResult,
     RequestParameters,
 )
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 
 # Import only during type checking
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ get_logger_func: LoggerFactory
 
 try:
     # Use absolute import path
-    from aider_mcp_server.atoms.logging import get_logger as custom_get_logger
+    from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
 
     get_logger_func = typing.cast(LoggerFactory, custom_get_logger)
 except ImportError:

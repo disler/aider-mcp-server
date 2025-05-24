@@ -20,11 +20,11 @@ from typing import (
 )
 
 # Use absolute imports from the package root
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
 )
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.transport_adapter import (
     AbstractTransportAdapter,
 )
@@ -63,7 +63,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
             **kwargs: Additional keyword arguments (ignored)
         """
         if get_logger is None:
-            from aider_mcp_server.atoms.logging import get_logger
+            from aider_mcp_server.atoms.logging.logger import get_logger
 
         super().__init__(
             transport_id="sse",

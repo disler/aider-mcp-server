@@ -4,8 +4,8 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, Callable, Coroutine, Optional
 
-from aider_mcp_server.atoms.logging import Logger, get_logger
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.logging.logger import Logger, get_logger
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.server import is_git_repository
 from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.transport_coordinator import ApplicationCoordinator

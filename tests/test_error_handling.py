@@ -2,7 +2,7 @@ import asyncio
 import unittest
 from unittest.mock import MagicMock, patch
 
-from aider_mcp_server.atoms.logging import Logger as ProjectLogger
+from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
 from aider_mcp_server.error_handling import (
     AiderMCPError,
     ConfigurationError,

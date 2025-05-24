@@ -7,13 +7,13 @@ from pathlib import Path  # Import Path
 from typing import Callable, Optional, Tuple
 
 # Use absolute imports from the package root
-from aider_mcp_server.atoms.atoms_utils import (
+from aider_mcp_server.atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.logging import Logger, get_logger
-from aider_mcp_server.mcp_types import LoggerProtocol
+from aider_mcp_server.atoms.logging.logger import Logger, get_logger
+from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 from aider_mcp_server.multi_transport_server import serve_multi_transport  # multi mode
 from aider_mcp_server.server import (  # stdio mode and validation
     is_git_repository,

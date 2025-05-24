@@ -9,7 +9,7 @@ import unittest
 import warnings
 from unittest.mock import AsyncMock, MagicMock
 
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.sse_transport_adapter_modernized import ModernizedSSETransportAdapter
 
 

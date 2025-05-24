@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Dict, Optional, Type
 
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.event_coordinator import EventCoordinator
 from aider_mcp_server.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry, RequestHandler

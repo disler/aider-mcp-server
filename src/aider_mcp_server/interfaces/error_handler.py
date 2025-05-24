@@ -6,7 +6,7 @@ from typing import Optional, Protocol
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.internal_types import ErrorContext
+from aider_mcp_server.atoms.types.internal_types import ErrorContext
 
 
 @runtime_checkable

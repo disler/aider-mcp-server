@@ -13,8 +13,8 @@ from aider.io import InputOutput
 from aider.models import Model
 
 # Internal imports
-from aider_mcp_server.atoms.diff_cache import DiffCache
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.utils.diff_cache import DiffCache
+from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.atoms.tools.aider_compatibility import (
     filter_supported_params,
     get_aider_version,

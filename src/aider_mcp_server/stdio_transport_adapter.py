@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Set, TextIO, Union
 
 # Use absolute imports from the package root
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.mcp_types import (
     AsyncTask,
     EventData,
     RequestParameters,
 )
-from aider_mcp_server.security import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
+from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
 if TYPE_CHECKING:
@@ -179,7 +179,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # In a networked implementation, this would involve creating a client connection
 
             # Get logger factory from the transport coordinator module
-            from aider_mcp_server.atoms.logging import get_logger
+            from aider_mcp_server.atoms.logging.logger import get_logger
 
             self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
             await self.initialize()

@@ -6,8 +6,8 @@ from typing import Protocol
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.atoms.internal_types import InternalEvent
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.internal_types import InternalEvent
 from aider_mcp_server.interfaces.event_handler import IEventHandler
 
 

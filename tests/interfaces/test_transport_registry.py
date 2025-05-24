@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import pytest_asyncio
 
-from aider_mcp_server.atoms.event_types import EventTypes
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import (
     TransportAdapterBase,
 )

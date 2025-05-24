@@ -20,12 +20,12 @@ import uvicorn
 # Use absolute imports from the package root
 from fastapi import FastAPI, Request
 
-from aider_mcp_server.atoms.atoms_utils import (
+from aider_mcp_server.atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
@@ -33,11 +33,11 @@ from aider_mcp_server.handlers import (
 from aider_mcp_server.interfaces.shutdown_context import ShutdownContextProtocol
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
-from aider_mcp_server.mcp_types import (
+from aider_mcp_server.atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
-from aider_mcp_server.security import Permissions, SecurityContext
+from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
 from aider_mcp_server.server import is_git_repository

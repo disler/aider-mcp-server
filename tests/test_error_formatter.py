@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 import pytest
 
-from aider_mcp_server.application_errors import (
+from aider_mcp_server.atoms.errors.application_errors import (
     BaseApplicationError,
     ProcessingError,
     SecurityError,
