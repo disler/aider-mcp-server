@@ -248,7 +248,7 @@ def goodbye():
         assert found_file, "test_file.py should be in the files array"
 
         # Verify file contents summary
-        assert "Changed 1 files" in file_result["summary"]
+        assert "Processed 1 files" in file_result["summary"]
 
         # Check for test_file.py in file result files array
         found_file = False
