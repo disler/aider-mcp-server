@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from aider_mcp_server.dependency_container import DependencyContainer
+from aider_mcp_server.templates.configuration.dependency_container import DependencyContainer
 from aider_mcp_server.interfaces.dependency_container import (
     CircularDependencyError,
     DependencyRegistrationError,

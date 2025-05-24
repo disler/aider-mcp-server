@@ -2,7 +2,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
-from aider_mcp_server.initialization_sequence import InitializationSequence
+from aider_mcp_server.templates.initialization.initialization_sequence import InitializationSequence
 
 # Mock get_logger before it's used by the module under test
 mock_logger_instance = MagicMock()

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
-from aider_mcp_server.configuration_system import ConfigurationSystem, get_config
+from aider_mcp_server.templates.configuration.configuration_system import ConfigurationSystem, get_config
 
 
 class TestConfigurationSystem(unittest.TestCase):

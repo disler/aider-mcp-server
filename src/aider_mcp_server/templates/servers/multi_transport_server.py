@@ -40,7 +40,7 @@ from aider_mcp_server.atoms.types.mcp_types import (
 from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
-from aider_mcp_server.server import is_git_repository
+from aider_mcp_server.templates.servers.server import is_git_repository
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Define a generic type variable for Task

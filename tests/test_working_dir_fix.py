@@ -8,7 +8,7 @@ import pytest
 
 from aider_mcp_server.organisms.processors.handlers import process_aider_ai_code_request
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.sse_server import run_sse_server
+from aider_mcp_server.templates.servers.sse_server import run_sse_server
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 

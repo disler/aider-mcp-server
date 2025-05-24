@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aider_mcp_server.application_coordinator import ApplicationCoordinator
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.internal_types import InternalEvent
-from aider_mcp_server.configuration_system import ConfigurationSystem
+from aider_mcp_server.templates.configuration.configuration_system import ConfigurationSystem
 from aider_mcp_server.organisms.processors.error_handling import ErrorHandler, HandlerError
-from aider_mcp_server.initialization_sequence import InitializationSequence
+from aider_mcp_server.templates.initialization.initialization_sequence import InitializationSequence
 from aider_mcp_server.organisms.discovery.transport_discovery import DiscoveryService
 
 

@@ -12,7 +12,7 @@ from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
 from aider_mcp_server.organisms.processors.request_processor import RequestProcessor
 from aider_mcp_server.molecules.handlers.response_formatter import ResponseFormatter
 from aider_mcp_server.molecules.security.security_service import SecurityService
-from aider_mcp_server.session_manager import SessionManager
+from aider_mcp_server.templates.initialization.session_manager import SessionManager
 from aider_mcp_server.molecules.transport.base_adapter_registry import TransportAdapterRegistry
 
 

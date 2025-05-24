@@ -13,7 +13,7 @@ from aider_mcp_server.atoms.logging.logger import Logger  # Import Logger for sp
 
 # Use absolute imports from the package root
 # Import main from cli instead of __main__ to prevent RuntimeWarning
-from aider_mcp_server.cli import main
+from aider_mcp_server.templates.initialization.cli import main
 
 
 @pytest.fixture

@@ -14,7 +14,7 @@ import pytest
 import uvicorn
 from starlette.applications import Starlette
 
-from aider_mcp_server.sse_server import run_sse_server
+from aider_mcp_server.templates.servers.sse_server import run_sse_server
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 
 

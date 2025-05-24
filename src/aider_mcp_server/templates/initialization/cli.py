@@ -14,12 +14,12 @@ from aider_mcp_server.atoms.utils.atoms_utils import (
 )
 from aider_mcp_server.atoms.logging.logger import Logger, get_logger
 from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
-from aider_mcp_server.multi_transport_server import serve_multi_transport  # multi mode
-from aider_mcp_server.server import (  # stdio mode and validation
+from aider_mcp_server.templates.servers.multi_transport_server import serve_multi_transport  # multi mode
+from aider_mcp_server.templates.servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
 )
-from aider_mcp_server.sse_server import serve_sse  # sse mode
+from aider_mcp_server.templates.servers.sse_server import serve_sse  # sse mode
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Configure logging early
