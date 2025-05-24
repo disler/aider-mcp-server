@@ -25,12 +25,7 @@ from aider_mcp_server.atoms.logging import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.transport_adapter import AbstractTransportAdapter
 
-try:
-    from typing import TYPE_CHECKING
-    if TYPE_CHECKING:
-        from aider_mcp_server.application_coordinator import ApplicationCoordinator
-except ImportError:
-    TYPE_CHECKING = False
+# No TYPE_CHECKING imports needed
 
 
 class TransportProtocolVersion(Enum):
@@ -81,7 +76,7 @@ class EnhancedTransportAdapterRegistry:
     - Support for authorization framework and latest features
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the enhanced transport adapter registry."""
         self._logger = get_logger(__name__)
         
@@ -101,7 +96,7 @@ class EnhancedTransportAdapterRegistry:
         self._lock = asyncio.Lock()
         
         # Health monitoring
-        self._health_stats = {
+        self._health_stats: Dict[str, Any] = {
             "total_transports_discovered": 0,
             "recommended_transports": 0,
             "deprecated_transports": 0,
@@ -293,7 +288,7 @@ class EnhancedTransportAdapterRegistry:
             Dictionary with recommended, supported, and deprecated transports
         """
         async with self._lock:
-            recommendations = {
+            recommendations: Dict[str, Any] = {
                 "recommended": [],
                 "supported": [],
                 "deprecated": [],
@@ -314,7 +309,7 @@ class EnhancedTransportAdapterRegistry:
                 }
                 
                 if metadata.capabilities.deprecated:
-                    transport_info["deprecation_message"] = metadata.capabilities.deprecation_message
+                    transport_info["deprecation_message"] = metadata.capabilities.deprecation_message or "Transport is deprecated"
                 
                 # Categorize transport
                 if metadata.status == TransportStatus.RECOMMENDED:
@@ -325,7 +320,7 @@ class EnhancedTransportAdapterRegistry:
                     recommendations["supported"].append(transport_info)
                 
                 # Add rationale
-                rationale = []
+                rationale: List[str] = []
                 if metadata.capabilities.protocol_version == TransportProtocolVersion.MCP_2025_03_26:
                     rationale.append("Latest MCP Protocol 2025-03-26 support")
                 if metadata.capabilities.supports_authorization:
@@ -333,7 +328,8 @@ class EnhancedTransportAdapterRegistry:
                 if metadata.capabilities.supports_bidirectional:
                     rationale.append("Bidirectional communication")
                 if metadata.capabilities.deprecated:
-                    rationale.append(f"Deprecated: {metadata.capabilities.deprecation_message}")
+                    msg = metadata.capabilities.deprecation_message or "No specific reason provided"
+                    rationale.append(f"Deprecated: {msg}")
                     
                 recommendations["rationale"][transport_type] = rationale
             
@@ -342,7 +338,7 @@ class EnhancedTransportAdapterRegistry:
     async def initialize_adapter(
         self,
         transport_type: str,
-        coordinator: "ApplicationCoordinator",
+        coordinator: Any,  # ApplicationCoordinator
         config: Optional[Dict[str, Any]] = None
     ) -> Optional[ITransportAdapter]:
         """
