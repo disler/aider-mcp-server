@@ -7,7 +7,7 @@ import asyncio
 import uuid
 from typing import Any, Awaitable, Callable, Dict
 
-from aider_mcp_server.atoms.logging.logger import get_logger
+from ...atoms.logging.logger import get_logger
 
 # Type alias for request handlers, as specified in Task 5
 RequestHandler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]

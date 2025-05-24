@@ -11,13 +11,13 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from aider_mcp_server.atoms.utils.atoms_utils import DEFAULT_EDITOR_MODEL
-from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.organisms.processors.handlers import (
+from ...atoms.utils.atoms_utils import DEFAULT_EDITOR_MODEL
+from ...atoms.logging.logger import get_logger
+from ...organisms.processors.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
-from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT
+from ...atoms.security.context import ANONYMOUS_SECURITY_CONTEXT
 
 # Configure logging
 logger = get_logger(__name__)

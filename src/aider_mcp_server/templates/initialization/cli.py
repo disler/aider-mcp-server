@@ -6,21 +6,21 @@ import sys
 from pathlib import Path  # Import Path
 from typing import Callable, Optional, Tuple
 
-# Use absolute imports from the package root
-from aider_mcp_server.atoms.utils.atoms_utils import (
+# Use relative imports within the package
+from ...atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.logging.logger import Logger, get_logger
-from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
-from aider_mcp_server.templates.servers.multi_transport_server import serve_multi_transport  # multi mode
-from aider_mcp_server.templates.servers.server import (  # stdio mode and validation
+from ...atoms.logging.logger import Logger, get_logger
+from ...atoms.types.mcp_types import LoggerProtocol
+from ..servers.multi_transport_server import serve_multi_transport  # multi mode
+from ..servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
 )
-from aider_mcp_server.templates.servers.sse_server import serve_sse  # sse mode
-from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from ..servers.sse_server import serve_sse  # sse mode
+from ...pages.application.coordinator import ApplicationCoordinator
 
 # Configure logging early
 log_dir_path: Optional[Path] = None

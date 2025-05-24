@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional
 # Assuming 'atoms' is a sub-package of 'aider_mcp_server' based on other project files.
 # If 'atoms' is a top-level package, this import might need adjustment
 # (e.g., from atoms.logging import get_logger, Logger as ProjectLogger)
-from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
-from aider_mcp_server.atoms.logging.logger import get_logger
+from ...atoms.logging.logger import Logger as ProjectLogger
+from ...atoms.logging.logger import get_logger
 
 
 # Custom Exception Hierarchy

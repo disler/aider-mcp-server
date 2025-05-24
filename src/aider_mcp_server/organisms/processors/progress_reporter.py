@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 # Import ApplicationCoordinator for reporting progress
 if TYPE_CHECKING:
-    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from ..coordinators.transport_coordinator import ApplicationCoordinator
 
 
 # Use standard logging; configuration should be handled elsewhere

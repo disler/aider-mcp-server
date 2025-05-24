@@ -20,28 +20,28 @@ import uvicorn
 # Use absolute imports from the package root
 from fastapi import FastAPI, Request
 
-from aider_mcp_server.atoms.utils.atoms_utils import (
+from ...atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.organisms.processors.handlers import (
+from ...atoms.logging.logger import get_logger
+from ...organisms.processors.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
-from aider_mcp_server.interfaces.shutdown_context import ShutdownContextProtocol
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
-from aider_mcp_server.atoms.types.mcp_types import (
+from ...interfaces.shutdown_context import ShutdownContextProtocol
+from ...interfaces.transport_adapter import ITransportAdapter
+from ...interfaces.transport_registry import TransportAdapterRegistry
+from ...atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
-from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
+from ...atoms.security.context import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
-from aider_mcp_server.templates.servers.server import is_git_repository
-from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from .server import is_git_repository
+from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Define a generic type variable for Task
 T = TypeVar("T")
