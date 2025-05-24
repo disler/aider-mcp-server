@@ -63,6 +63,49 @@ try:
 except ImportError:
     HAS_DOTENV = False
 
+
+def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
+    """Helper to check individual API keys and update result."""
+    logger.info("Checking API keys in environment...")
+    for key, provider in keys_to_check.items():
+        if os.environ.get(key):
+            logger.info(f"✓ {provider} API key found ({key})")
+            result["found"].append(key)
+            result["any_keys_found"] = True
+        else:
+            logger.warning(f"✗ {provider} API key missing ({key})")
+            result["missing"].append(key)
+
+
+def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
+    """Helper to handle GEMINI_API_KEY and GOOGLE_API_KEY aliasing."""
+    if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key is not None:  # Explicit check for None
+            logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+            missing_list = result["missing"]
+            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
+                missing_list.remove("GOOGLE_API_KEY")
+                found_list = result["found"]
+                if isinstance(found_list, list):
+                    found_list.append("GOOGLE_API_KEY")
+
+
+def _determine_available_providers(provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
+    """Helper to determine available providers based on found keys."""
+    for provider, keys in provider_keys.items():
+        found_list = result["found"]
+        available_providers = result["available_providers"]
+        missing_providers = result["missing_providers"]
+
+        if isinstance(found_list, list) and any(key in found_list for key in keys):
+            if isinstance(available_providers, list):
+                available_providers.append(provider)
+        elif isinstance(missing_providers, list):
+            missing_providers.append(provider)
+
+
 # Configure logging for this module
 logger = get_logger(__name__)
 
@@ -207,7 +250,6 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         "VERTEX_AI_API_KEY": "Vertex AI",
     }
 
-    # Define provider to key mappings
     provider_keys = {
         "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
         "openai": ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"],
@@ -223,40 +265,9 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         "any_keys_found": False,
     }
 
-    logger.info("Checking API keys in environment...")
-    for key, provider in keys_to_check.items():
-        if os.environ.get(key):
-            logger.info(f"✓ {provider} API key found ({key})")
-            result["found"].append(key)
-            result["any_keys_found"] = True
-        else:
-            logger.warning(f"✗ {provider} API key missing ({key})")
-            result["missing"].append(key)
-
-    # Special handling for Gemini/Google - check if we need to copy between variables
-    if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        if gemini_key is not None:  # Explicit check for None
-            logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-            os.environ["GOOGLE_API_KEY"] = gemini_key
-            missing_list = result["missing"]
-            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
-                missing_list.remove("GOOGLE_API_KEY")
-                found_list = result["found"]
-                if isinstance(found_list, list):
-                    found_list.append("GOOGLE_API_KEY")
-
-    # Determine available providers
-    for provider, keys in provider_keys.items():
-        found_list = result["found"]
-        available_providers = result["available_providers"]
-        missing_providers = result["missing_providers"]
-
-        if isinstance(found_list, list) and any(key in found_list for key in keys):
-            if isinstance(available_providers, list):
-                available_providers.append(provider)
-        elif isinstance(missing_providers, list):
-            missing_providers.append(provider)
+    _check_individual_api_keys(keys_to_check, result)
+    _handle_gemini_api_key_alias(result)
+    _determine_available_providers(provider_keys, result)
 
     return result
 
@@ -721,6 +732,125 @@ def _check_for_meaningful_changes(relative_editable_files: List[str], working_di
     return False
 
 
+async def _handle_diff_cache_processing(
+    cache_key: str,
+    raw_diff_output: str,
+    use_diff_cache: bool,
+    clear_cached_for_unchanged: bool,
+) -> tuple[str, bool]:
+    """Handles diff cache logic and returns final diff content and cache status."""
+    global diff_cache
+    is_cached_diff = False
+    final_diff_content = raw_diff_output or "No git-tracked changes detected."
+
+    if use_diff_cache and diff_cache is not None:
+        logger.info(f"Attempting to use diff cache for key: {cache_key}")
+        try:
+            changes_from_cache = await diff_cache.compare_and_cache(
+                cache_key,
+                {"diff": raw_diff_output},  # Wrap the diff string in a dict as expected by cache
+                clear_cached_for_unchanged,
+            )
+            is_cached_diff = True
+            logger.info("Diff cache operation successful.")
+
+            if diff_cache is not None: # Log cache stats
+                stats = diff_cache.get_stats()
+                logger.info(
+                    f"Diff cache stats: Hits={stats.get('hits')}, Misses={stats.get('misses')}, Total={stats.get('total_accesses')}, Size={stats.get('current_size')} bytes, Max Size={stats.get('max_size')} bytes, Hit Rate={stats.get('hit_rate', 0.0):.2f}"
+                )
+
+            if changes_from_cache is None:
+                logger.warning("Cache returned None - this should ideally not happen with current implementation.")
+                final_diff_content = "Error retrieving changes from cache." # Fallback
+            elif not changes_from_cache:  # Empty dict means no changes detected by cache
+                logger.info("Cache comparison detected no changes.")
+                final_diff_content = "No git-tracked changes detected by cache comparison."
+            else:  # Changes were detected by cache
+                logger.info("Cache comparison detected changes.")
+                final_diff_content = changes_from_cache.get("diff", "Error retrieving changes from cache.")
+                if not final_diff_content: # Should not happen if changes_from_cache is not empty
+                    logger.warning("Cache comparison returned empty diff string despite changes_from_cache not being empty.")
+                    final_diff_content = "No git-tracked changes detected by cache comparison."
+        except Exception as e:
+            logger.error(f"Error using diff cache for key {cache_key}: {e}")
+            # Fallback to using the raw diff_output if cache fails
+            final_diff_content = raw_diff_output or "No git-tracked changes detected."
+            logger.warning("Falling back to raw diff output due to cache error.")
+    else:
+        logger.info("Diff cache is disabled or not initialized.")
+        # Use the raw diff_output if cache is disabled
+        final_diff_content = raw_diff_output or "No git-tracked changes detected."
+    return final_diff_content, is_cached_diff
+
+
+def _update_summary_from_file_status(
+    changes_summary: Dict[str, Any], file_status: Dict[str, Any], success: bool
+) -> None:
+    """Updates changes_summary with information from file_status if needed."""
+    if (
+        success # Only update if overall operation is considered a success
+        and file_status.get("has_changes")
+        and (not changes_summary.get("summary") or "No git-tracked changes detected" in changes_summary["summary"])
+    ):
+        changes_summary["summary"] = "No git-tracked changes detected, but " + file_status.get("status_summary", "").lower()
+        
+        # Ensure 'files' in file_status is a list before iterating
+        fs_files = file_status.get("files")
+        if isinstance(fs_files, list) and not changes_summary.get("files"):
+            changes_summary["files"] = [
+                {"name": f["name"], "operation": f["operation"], "source": "filesystem"} for f in fs_files
+            ]
+
+        if "stats" not in changes_summary:
+            changes_summary["stats"] = {}
+        
+        current_stats = changes_summary["stats"] # Known to be a dict now
+        
+        fs_files_created = file_status.get("files_created", 0)
+        if fs_files_created > 0:
+            current_stats["files_created"] = fs_files_created
+        
+        fs_files_modified = file_status.get("files_modified", 0)
+        if fs_files_modified > 0:
+            current_stats["files_modified"] = fs_files_modified
+        
+        if current_stats: # Check if stats dict is not empty
+            total_changes = sum(
+                v for k, v in current_stats.items()
+                if k in ["files_created", "files_modified", "files_deleted"] and isinstance(v, int) and v > 0
+            )
+            if total_changes > 0:
+                current_stats["total_files_changed"] = total_changes
+                current_stats["source"] = "filesystem"
+
+
+def _finalize_response_diff_field(
+    response: ResponseDict, success: bool, changes_summary: Dict[str, Any], file_status: Dict[str, Any]
+) -> None:
+    """Sets the 'diff' field in the response for backward compatibility."""
+    # Ensure diff field is present, primarily for backward compatibility with tests.
+    # It should reflect the most relevant summary of changes or errors.
+    if success:
+        # If successful, the diff field should contain the summary of changes.
+        # Prioritize git changes summary, then filesystem changes summary.
+        if changes_summary.get("summary") and "No git-tracked changes detected" not in changes_summary["summary"]:
+            response["diff"] = changes_summary["summary"]
+        elif file_status.get("has_changes") and file_status.get("status_summary"):
+            response["diff"] = file_status["status_summary"]
+        else: # Fallback if somehow success is true but no summary is available
+            response["diff"] = changes_summary.get("summary", "Changes detected, summary unavailable.")
+    else:
+        # If not successful, diff field should contain an error message or indication of no changes.
+        # If a specific error message is in changes_summary, use that.
+        if changes_summary.get("summary") and "Error:" in changes_summary["summary"]:
+            response["diff"] = changes_summary["summary"]
+        elif "diff" in response and response["diff"]: # If a diff field with an error was already set
+             pass # Keep the existing error message in diff
+        else: # Default for unsuccessful with no specific error in summary
+            response["diff"] = changes_summary.get("summary", "No changes detected or operation failed.")
+
+
 async def _process_coder_results(
     relative_editable_files: List[str],
     working_dir: Optional[str] = None,
@@ -749,152 +879,43 @@ async def _process_coder_results(
         logger.info("Initializing diff_cache in _process_coder_results")
         await init_diff_cache()
 
-    # Get the raw diff output from git or file contents
-    diff_output = get_changes_diff_or_content(relative_editable_files, working_dir)
-    logger.info(f"Raw diff output obtained (length: {len(diff_output)}).")
+    raw_diff_output = get_changes_diff_or_content(relative_editable_files, working_dir)
+    logger.info(f"Raw diff output obtained (length: {len(raw_diff_output)}).")
 
-    # Check for meaningful content in the edited files
-    logger.info("Checking for meaningful changes in edited files...")
     has_meaningful_content = _check_for_meaningful_changes(relative_editable_files, working_dir)
     logger.info(f"Meaningful content detected: {has_meaningful_content}")
 
-    cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"  # Use sorted files for consistent key
-    changes_from_cache: Optional[Dict[str, Any]] = None
-    is_cached_diff = False
-    final_diff_content = diff_output or "No git-tracked changes detected."  # Default fallback
+    cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
+    final_diff_content, is_cached_diff = await _handle_diff_cache_processing(
+        cache_key, raw_diff_output, use_diff_cache, clear_cached_for_unchanged
+    )
 
-    if use_diff_cache and diff_cache is not None:
-        logger.info(f"Attempting to use diff cache for key: {cache_key}")
-        try:
-            # Pass the raw diff_output as the 'new_diff' data to compare_and_cache
-            # The cache will compare this against the old cached diff and return the changes.
-            changes_from_cache = await diff_cache.compare_and_cache(
-                cache_key,
-                {"diff": diff_output},  # Wrap the diff string in a dict as expected by cache
-                clear_cached_for_unchanged,
-            )
-            is_cached_diff = True
-            logger.info("Diff cache operation successful.")
-
-            # Log cache statistics
-            if diff_cache is not None:
-                stats = diff_cache.get_stats()  # This is a synchronous method, not async
-                logger.info(
-                    f"Diff cache stats: Hits={stats.get('hits')}, Misses={stats.get('misses')}, Total={stats.get('total_accesses')}, Size={stats.get('current_size')} bytes, Max Size={stats.get('max_size')} bytes, Hit Rate={stats.get('hit_rate'):.2f}"
-                )
-
-            # Safety check for cache result type
-            changes_is_none = changes_from_cache is None
-            # In reality, the cache implementation never returns None, so mypy sees this as unreachable.
-            # We're keeping this code for safety, but we need to silence the unreachable warning.
-
-            # Determine the final diff content based on cache result
-            if changes_is_none:
-                # This branch is for defensive programming only
-                logger.warning("Cache returned None - bypassing type check for safety")
-                final_diff_content = "Error retrieving changes from cache."
-            elif not changes_from_cache:  # Empty dict means no changes detected by cache
-                logger.info("Cache comparison detected no changes.")
-                final_diff_content = "No git-tracked changes detected by cache comparison."
-            else:  # Changes were detected by cache
-                logger.info("Cache comparison detected changes.")
-                # The changes_from_cache dict contains the diff of the diffs.
-                # We want to return the actual diff content that represents the changes.
-                # The 'diff' key in the changes_from_cache dict holds the diff string.
-                final_diff_content = changes_from_cache.get("diff", "Error retrieving changes from cache.")
-                if not final_diff_content:
-                    logger.warning(
-                        "Cache comparison returned empty diff string despite changes_from_cache not being empty."
-                    )
-                    final_diff_content = "No git-tracked changes detected by cache comparison."
-
-        except Exception as e:
-            logger.error(f"Error using diff cache for key {cache_key}: {e}")
-            is_cached_diff = False
-            # Fallback to using the raw diff_output if cache fails
-            final_diff_content = diff_output or "No git-tracked changes detected."
-            logger.warning("Falling back to raw diff output due to cache error.")
-    else:
-        logger.info("Diff cache is disabled.")
-        # Use the raw diff_output if cache is disabled
-        final_diff_content = diff_output or "No git-tracked changes detected."
-
-    # Generate a summary of the changes
     changes_summary = summarize_changes(final_diff_content)
     logger.info(f"Generated changes summary: {changes_summary['summary']}")
 
-    # Check file status as a fallback for detecting changes
     file_status = get_file_status_summary(relative_editable_files, working_dir)
     logger.info(f"File status check: {file_status['status_summary']}")
 
-    # Determine success based on meaningful content or file status
-    success = has_meaningful_content or file_status["has_changes"]
+    success = has_meaningful_content or file_status.get("has_changes", False)
 
-    # For git-tracked changes, add a source field
-    if has_meaningful_content and "git diff" in diff_output:
+    if has_meaningful_content and "git diff" in raw_diff_output: # Check raw_diff_output for git diff presence
         if "stats" not in changes_summary:
             changes_summary["stats"] = {}
-        changes_summary["stats"]["source"] = "git"
+        changes_summary["stats"]["source"] = "git" # type: ignore
 
-    # Create base response with only essential information
     response: ResponseDict = {
         "success": success,
         "changes_summary": changes_summary,
-        "file_status": file_status,  # Include for backward compatibility with tests
-        "is_cached_diff": is_cached_diff,  # Include for backward compatibility with tests
-        "diff": final_diff_content
-        or changes_summary.get("summary", "No changes detected."),  # Always include diff for backward compatibility
+        "file_status": file_status,
+        "is_cached_diff": is_cached_diff,
+        # diff field will be set by _finalize_response_diff_field
     }
-
-    # Use file_status to update changes_summary if it's empty or indicates no changes
-    if (
-        success
-        and file_status["has_changes"]
-        and (not changes_summary["summary"] or "No git-tracked changes detected" in changes_summary["summary"])
-    ):
-        # Update changes_summary with information from file_status, but clearly indicate source
-        changes_summary["summary"] = "No git-tracked changes detected, but " + file_status["status_summary"].lower()
-        # If files were created/modified, make sure they appear in the changes_summary files list
-        if "files" in file_status and not changes_summary.get("files"):
-            changes_summary["files"] = [
-                {"name": f["name"], "operation": f["operation"], "source": "filesystem"} for f in file_status["files"]
-            ]
-        # Update stats from file_status counts
-        if "files_created" in file_status and file_status["files_created"] > 0:
-            if "stats" not in changes_summary:
-                changes_summary["stats"] = {}
-            changes_summary["stats"]["files_created"] = file_status["files_created"]
-        if "files_modified" in file_status and file_status["files_modified"] > 0:
-            if "stats" not in changes_summary:
-                changes_summary["stats"] = {}
-            changes_summary["stats"]["files_modified"] = file_status["files_modified"]
-        if "stats" in changes_summary and changes_summary["stats"]:
-            total_changes = sum(
-                v
-                for k, v in changes_summary["stats"].items()
-                if k in ["files_created", "files_modified", "files_deleted"] and v > 0
-            )
-            if total_changes > 0:
-                changes_summary["stats"]["total_files_changed"] = total_changes
-                # Add source information for clarity
-                changes_summary["stats"]["source"] = "filesystem"
-
-    # For backward compatibility, include a human-readable summary in the diff field,
-    # but only if there are meaningful changes to report
+    
+    _update_summary_from_file_status(changes_summary, file_status, success)
+    _finalize_response_diff_field(response, success, changes_summary, file_status)
+    
     if success:
-        # Add clarity about the source of changes
-        if "No git-tracked changes detected" in changes_summary["summary"] and file_status["has_changes"]:
-            response["diff"] = changes_summary["summary"]
-        elif file_status["has_changes"]:
-            response["diff"] = changes_summary["summary"]
-        else:
-            response["diff"] = changes_summary["summary"]
-
-    if success:
-        if has_meaningful_content:
-            logger.info("Meaningful changes found. Processing successful.")
-        else:
-            logger.info("No meaningful content detected, but file status shows changes. Processing successful.")
+        logger.info("Meaningful changes found or file status shows changes. Processing successful.")
     else:
         logger.warning("No changes detected in git or filesystem. Processing marked as unsuccessful.")
 
@@ -926,82 +947,83 @@ async def _run_aider_session(
         Dictionary with success status and diff output
     """
     logger.info("Starting Aider coding session...")
-    try:
-        # Capture any stdout that might interfere with JSON response
-        import sys
-        from io import StringIO
 
-        # Redirect stdout and stderr temporarily
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        stdout_capture = StringIO()
-        stderr_capture = StringIO()
-        sys.stdout = stdout_capture
-        sys.stderr = stderr_capture
+    _log_file_states_before_after_run("before", relative_editable_files, working_dir)
+    
+    # Run the coder and capture output
+    # The result of coder.run is often None or not directly used for the final JSON output's content.
+    # The primary effect is file modification, which is then assessed.
+    _ = _capture_output_and_run_coder(coder, ai_coding_prompt) # Result of run is logged by helper
 
-        # Check files before running coder to see if they exist/have content
-        for file_path in relative_editable_files:
-            full_path = os.path.join(working_dir, file_path) if working_dir else file_path
-            if os.path.exists(full_path):
-                size = os.path.getsize(full_path)
-                logger.info(f"BEFORE RUN: File {full_path} exists, size: {size} bytes")
-                if size > 0:
-                    with open(full_path, "r") as f:
-                        content = f.read(100)  # Just read the first 100 chars to log
-                        logger.info(f"BEFORE RUN: File contains: {content}...")
-            else:
-                logger.info(f"BEFORE RUN: File {full_path} does not exist yet")
-
-        # Run the actual coder function
-        logger.info(f"Running coder.run with prompt: {ai_coding_prompt}")
-        result = coder.run(ai_coding_prompt)
-        logger.info(f"coder.run completed, result: {result}")
-
-        # Check files after running coder to see if they exist/have content
-        for file_path in relative_editable_files:
-            full_path = os.path.join(working_dir, file_path) if working_dir else file_path
-            if os.path.exists(full_path):
-                size = os.path.getsize(full_path)
-                logger.info(f"AFTER RUN: File {full_path} exists, size: {size} bytes")
-                if size > 0:
-                    with open(full_path, "r") as f:
-                        content = f.read(100)  # Just read the first 100 chars to log
-                        logger.info(f"AFTER RUN: File contains: {content}...")
-                else:
-                    logger.warning(f"AFTER RUN: File {full_path} exists but is EMPTY!")
-            else:
-                logger.warning(f"AFTER RUN: File {full_path} still does not exist after coder.run!")
-
-        # Capture any output that was written
-        captured_stdout = stdout_capture.getvalue()
-        captured_stderr = stderr_capture.getvalue()
-
-        # Restore stdout and stderr
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-
-        if captured_stdout:
-            logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
-        if captured_stderr:
-            logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
-
-        logger.info(f"Aider coding session result: {result}")
-    except Exception as e:
-        # Make sure to restore stdout and stderr even if there's an error
-        if "old_stdout" in locals():
-            sys.stdout = old_stdout
-        if "old_stderr" in locals():
-            sys.stderr = old_stderr
-        raise e
+    _log_file_states_before_after_run("after", relative_editable_files, working_dir)
 
     # Process the results after the coder has run
-    response: ResponseDict = await _process_coder_results(  # Await the async function
+    response: ResponseDict = await _process_coder_results(
         relative_editable_files,
         working_dir,
         use_diff_cache,
         clear_cached_for_unchanged,
     )
     return response
+
+
+def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Optional[str]:
+    """Captures stdout/stderr and runs coder.run. Returns the result of coder.run."""
+    import sys
+    from io import StringIO
+
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    stdout_capture = StringIO()
+    stderr_capture = StringIO()
+    
+    run_result = None
+    try:
+        sys.stdout = stdout_capture
+        sys.stderr = stderr_capture
+        # Assuming coder.run might return something, like a status or summary string
+        run_result = coder.run(ai_coding_prompt) 
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+    captured_stdout = stdout_capture.getvalue()
+    captured_stderr = stderr_capture.getvalue()
+
+    if captured_stdout:
+        logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
+    if captured_stderr:
+        logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
+    
+    logger.info(f"coder.run completed, result: {run_result}")
+    return run_result
+
+
+def _log_file_states_before_after_run(
+    stage: str, relative_editable_files: List[str], working_dir: str
+) -> None:
+    """Logs the state of editable files (exists, size, partial content)."""
+    logger.info(f"Logging file states {stage.upper()} coder run...")
+    for file_path in relative_editable_files:
+        # Ensure working_dir is used correctly to form full_path
+        full_path = os.path.join(working_dir, os.path.normpath(file_path))
+        
+        if os.path.exists(full_path):
+            try:
+                size = os.path.getsize(full_path)
+                logger.info(f"{stage.upper()} RUN: File {full_path} exists, size: {size} bytes")
+                if size > 0:
+                    with open(full_path, "r", errors="ignore") as f: # Add errors='ignore' for robustness
+                        content = f.read(100) 
+                        logger.info(f"{stage.upper()} RUN: File '{file_path}' (partial content): {content[:50].encode('unicode_escape').decode()}...")
+                elif stage.lower() == "after": # Only warn if empty *after* run
+                     logger.warning(f"AFTER RUN: File {full_path} exists but is EMPTY!")
+            except Exception as e:
+                logger.error(f"{stage.upper()} RUN: Error accessing file {full_path}: {e}")
+        else:
+            logger.info(f"{stage.upper()} RUN: File {full_path} does not exist.")
+            if stage.lower() == "after": # Only warn if not existing *after* run
+                logger.warning(f"AFTER RUN: File {full_path} still does not exist after coder.run!")
 
 
 async def _execute_with_retry(
@@ -1039,111 +1061,124 @@ async def _execute_with_retry(
     Returns:
         Response dictionary
     """
-    # Create empty summary objects
     empty_summary = summarize_changes("")
-    empty_status = {
-        "has_changes": False,
-        "status_summary": "No changes detected.",
-    }
-
+    empty_status = {"has_changes": False, "status_summary": "No changes detected."}
     response: ResponseDict = {
         "success": False,
         "changes_summary": empty_summary,
-        "file_status": empty_status,  # For backward compatibility
-        "is_cached_diff": False,  # For backward compatibility
+        "file_status": empty_status,
+        "is_cached_diff": False,
+        "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None}
     }
 
-    max_retries = fallback_config[provider]["max_retries"]
-    initial_delay = fallback_config[provider]["initial_delay"]
-    backoff_factor = fallback_config[provider]["backoff_factor"]
-
-    current_model = model  # Use a variable for the model that might change during retries
+    max_retries = fallback_config.get(provider, {}).get("max_retries", 3) # Default retries
+    initial_delay = fallback_config.get(provider, {}).get("initial_delay", 1)
+    backoff_factor = fallback_config.get(provider, {}).get("backoff_factor", 2)
+    current_model = model
 
     for attempt in range(max_retries + 1):
         try:
-            # Configure the model and create the coder
-            ai_model = _configure_model(current_model, editor_model, architect_mode)  # Use current_model
+            ai_model = _configure_model(current_model, editor_model, architect_mode)
             coder = _setup_aider_coder(
-                ai_model,
-                working_dir,
-                abs_editable_files,
-                abs_readonly_files,
-                architect_mode,
-                auto_accept_architect,
+                ai_model, working_dir, abs_editable_files, abs_readonly_files,
+                architect_mode, auto_accept_architect
             )
-
-            # Run the session and get results
-            session_response = await _run_aider_session(  # Await the async function
-                coder,
-                ai_coding_prompt,
-                relative_editable_files,
-                working_dir,
-                use_diff_cache,
-                clear_cached_for_unchanged,
+            session_response = await _run_aider_session(
+                coder, ai_coding_prompt, relative_editable_files, working_dir,
+                use_diff_cache, clear_cached_for_unchanged
             )
             response.update(session_response)
+            # If _run_aider_session was successful, it sets response["success"] = True
+            if response.get("success"):
+                 break # Successful execution, exit retry loop
 
-            # Success, exit the retry loop
-            break
+            # If not successful but no exception (e.g. no changes made), still break if it's the first attempt
+            # or if it's not a rate limit error (which would be caught by except block)
+            if attempt == 0 and not response.get("success"): # No changes on first try
+                logger.info("Aider session completed without errors but no changes were made.")
+                break
+
 
         except Exception as e:
-            logger.warning(f"Error during Aider execution (Attempt {attempt + 1}): {str(e)}")
-
-            if detect_rate_limit_error(e, provider):
-                logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
-                # Add or update rate_limit_info - only when actually encountered
-                if "rate_limit_info" not in response:
-                    response["rate_limit_info"] = {"encountered": True, "retries": 1, "fallback_model": None}
-                else:
-                    rate_limit_info = response.get("rate_limit_info")
-                    if isinstance(rate_limit_info, dict):
-                        rate_limit_info["encountered"] = True
-                        if "retries" in rate_limit_info and isinstance(rate_limit_info["retries"], int):
-                            rate_limit_info["retries"] += 1
-
-                if attempt < max_retries:
-                    delay = initial_delay * (backoff_factor**attempt)
-                    logger.info(f"Retrying after {delay} seconds...")
-                    await asyncio.sleep(delay)  # Use asyncio.sleep in async function
-                    current_model = get_fallback_model(current_model, provider)  # Update current_model
-                    if "rate_limit_info" not in response:
-                        response["rate_limit_info"] = {
-                            "encountered": True,
-                            "retries": 1,
-                            "fallback_model": current_model,
-                        }
-                    else:
-                        rate_limit_info = response.get("rate_limit_info")
-                        if isinstance(rate_limit_info, dict):
-                            rate_limit_info["fallback_model"] = current_model
-                    logger.info(f"Falling back to model: {current_model}")
-                else:
-                    logger.error("Max retries reached. Unable to complete the request.")
-                    # Update response with final error state before re-raising
-                    error_msg = f"Max retries reached due to rate limit or other error: {str(e)}"
-                    response["success"] = False
-                    if "diff" not in response:  # Only add diff if it doesn't exist
-                        response["diff"] = error_msg
-
-                    # Add error summary
-                    error_summary = summarize_changes("")
-                    error_summary["summary"] = "Error: " + error_msg
-                    response["changes_summary"] = error_summary
-                    raise
-            else:
-                # If it's not a rate limit error, update response with error and re-raise
-                error_msg = f"Error during Aider execution: {str(e)}"
-                response["success"] = False
-                if "diff" not in response:  # Only add diff if it doesn't exist
-                    response["diff"] = error_msg
-
-                # Add error summary
-                error_summary = summarize_changes("")
-                error_summary["summary"] = "Error: " + error_msg
-                response["changes_summary"] = error_summary
-                raise
+            should_retry, new_model_or_error = await _handle_rate_limit_or_error(
+                e, provider, attempt, max_retries, initial_delay, backoff_factor, current_model, response
+            )
+            if should_retry:
+                current_model = new_model_or_error # This is the new model name
+                # response['rate_limit_info'] is updated by the helper
+            else: # Not a retriable error or max retries reached for rate limit
+                  # Error details are set in response by the helper before raising
+                raise # Re-raise the exception that _handle_rate_limit_or_error decided not to retry
 
     return response
+
+
+async def _handle_rate_limit_or_error(
+    e: Exception,
+    provider: str,
+    attempt: int,
+    max_retries: int,
+    initial_delay: float,
+    backoff_factor: float,
+    current_model: str,
+    response: ResponseDict,
+) -> tuple[bool, str]:
+    """
+    Handles rate limits and other errors during Aider execution.
+    Returns: (should_retry, new_model_if_retry_else_error_message)
+    Updates response with error details.
+    """
+    logger.warning(f"Error during Aider execution (Attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+
+    # Ensure rate_limit_info exists and is a dict
+    rli = response.get("rate_limit_info")
+    if not isinstance(rli, dict):
+        rli = {"encountered": False, "retries": 0, "fallback_model": None}
+        response["rate_limit_info"] = rli
+    
+    # Ensure 'retries' key exists with an int value
+    if not isinstance(rli.get("retries"), int):
+        rli["retries"] = 0
+
+
+    if detect_rate_limit_error(e, provider):
+        logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
+        rli["encountered"] = True
+        rli["retries"] = rli.get("retries",0) + 1 # type: ignore
+
+        if attempt < max_retries:
+            delay = initial_delay * (backoff_factor**attempt)
+            logger.info(f"Retrying after {delay:.2f} seconds...")
+            await asyncio.sleep(delay)
+            new_model = get_fallback_model(current_model, provider, fallback_config) # Pass fallback_config
+            rli["fallback_model"] = new_model
+            logger.info(f"Falling back to model: {new_model}")
+            return True, new_model
+        else:
+            error_msg = f"Max retries ({max_retries}) reached for rate limit. Unable to complete request."
+            logger.error(f"{error_msg} Last error: {str(e)}")
+            response["success"] = False
+            response["diff"] = response.get("diff") or f"Error: {error_msg}"
+            cs = response.get("changes_summary")
+            if not isinstance(cs, dict) or not cs.get("summary"):
+                cs = summarize_changes("")
+                cs["summary"] = f"Error: {error_msg}"
+                response["changes_summary"] = cs
+            raise Exception(f"{error_msg} Last error: {str(e)}") from e
+    else:
+        # Non-rate-limit error
+        error_msg = f"Unhandled error during Aider execution: {str(e)}"
+        logger.error(error_msg, exc_info=True) # Log with traceback
+        response["success"] = False
+        response["diff"] = response.get("diff") or f"Error: {error_msg}"
+        cs = response.get("changes_summary")
+        if not isinstance(cs, dict) or not cs.get("summary"):
+            cs = summarize_changes("")
+            cs["summary"] = f"Error: {error_msg}"
+            response["changes_summary"] = cs
+        # For non-rate-limit errors, we don't retry through this helper.
+        # The original exception is re-raised to be handled by the caller.
+        raise # Re-raise the original exception
 
 
 async def code_with_aider(
@@ -1183,245 +1218,263 @@ async def code_with_aider(
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
-    global diff_cache
     if relative_readonly_files is None:
         relative_readonly_files = []
-    logger.info("Starting code_with_aider process.")
-    logger.info(f"Prompt: '{ai_coding_prompt}'")
 
-    # Initialize diff_cache if it's None and we're using it
-    if use_diff_cache and diff_cache is None:
-        logger.info("Initializing diff_cache for code_with_aider")
-        await init_diff_cache()
+    await _initial_setup_and_logging(
+        ai_coding_prompt, relative_editable_files, relative_readonly_files, model,
+        working_dir, use_diff_cache, clear_cached_for_unchanged, architect_mode,
+        editor_model, auto_accept_architect
+    )
 
-    # Check API keys at the beginning and store the result
-    key_status = check_api_keys(working_dir)
-
-    # Store original model for reference
     original_model = model
-
-    # Validate working directory
+    normalized_model_name = _normalize_model_name(model)
+    provider = _determine_provider(normalized_model_name)
+    
+    # This working_dir check is critical and should lead to an early exit if failed.
     if not working_dir:
         error_msg = "Error: working_dir is required for code_with_aider"
         logger.error(error_msg)
-        return json.dumps({"success": False, "changes_summary": {"summary": error_msg}})
+        # Ensure a valid JSON response for this critical error
+        return json.dumps({
+            "success": False, 
+            "changes_summary": {"summary": error_msg},
+            "error": error_msg, # Explicit error field
+            "api_key_status": check_api_keys(None) # Basic API key status
+        })
+
+    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider) # Initial check
+    if not key_status["any_keys_found"]:
+        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
+        logger.error(error_msg)
+        return json.dumps({
+            "success": False, "error": error_msg, "api_key_status": key_status,
+            "warnings": [error_msg], "changes_summary": {"summary": error_msg}
+        })
+
+    abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
+    abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
+
+    # Initialize response structure for error cases before try-except
+    response: ResponseDict = {
+        "success": False,
+        "changes_summary": {"summary": "Operation did not complete successfully."},
+        "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+        "is_cached_diff": False,
+        "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
+    }
+
+    # Capture stdout/stderr
+    import sys
+    from io import StringIO
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    stdout_capture, stderr_capture = StringIO(), StringIO()
+    sys.stdout, sys.stderr = stdout_capture, stderr_capture
+
+    actual_model_used = normalized_model_name # Will be updated by _execute_with_retry if fallback occurs
+
+    try:
+        session_response = await _execute_with_retry(
+            ai_coding_prompt, relative_editable_files, abs_editable_files, abs_readonly_files,
+            working_dir, normalized_model_name, provider, use_diff_cache, clear_cached_for_unchanged,
+            architect_mode, editor_model, auto_accept_architect
+        )
+        response.update(session_response)
+        # Update actual_model_used if fallback occurred
+        if response.get("rate_limit_info", {}).get("fallback_model"): # type: ignore
+            actual_model_used = response["rate_limit_info"]["fallback_model"] # type: ignore
+
+    except TypeError as te:
+        if "'bool' object is not callable" in str(te): # Specific known issue
+            logger.exception(f"Caught bool not callable error: {str(te)}")
+            error_msg = "Error: Aider's internal tool_error method issue (bool not callable). Functionality unaffected."
+            response["changes_summary"]["summary"] = error_msg
+            response["diff"] = error_msg # For backward compatibility
+            # This is not a failure of the coding task itself, so success might still be true if changes were made.
+            # However, to be safe, mark as unsuccessful if this specific error occurs.
+            response["success"] = False 
+        else: # Other TypeErrors
+            logger.exception(f"Unhandled TypeError in code_with_aider: {str(te)}")
+            response["changes_summary"]["summary"] = f"Unhandled TypeError: {str(te)}"
+            response["diff"] = f"Unhandled TypeError: {str(te)}"
+            response["success"] = False
+    except Exception as e:
+        logger.exception(f"Critical Error in code_with_aider: {str(e)}")
+        response["changes_summary"]["summary"] = f"Unhandled Error: {str(e)}"
+        response["diff"] = f"Unhandled Error: {str(e)}" # For backward compatibility
+        response["success"] = False
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+        captured_stdout, captured_stderr = stdout_capture.getvalue(), stderr_capture.getvalue()
+        if captured_stdout: logger.warning(f"Captured stdout: {captured_stdout[:500]}...")
+        if captured_stderr: logger.warning(f"Captured stderr: {captured_stderr[:500]}...")
+
+    _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
+    
+    formatted_response = json.dumps(response, indent=4)
+    logger.info(f"code_with_aider process completed. Success: {response.get('success', False)}")
+    return formatted_response
+
+
+async def _initial_setup_and_logging(
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: List[str],
+    model: str, # This is original_model
+    working_dir: Optional[str],
+    use_diff_cache: bool,
+    clear_cached_for_unchanged: bool,
+    architect_mode: bool,
+    editor_model: Optional[str],
+    auto_accept_architect: bool,
+) -> None:
+    """Performs initial setup and logging for code_with_aider."""
+    global diff_cache # Ensure diff_cache is accessible
+    logger.info("--- Starting code_with_aider ---")
+    logger.info(f"Prompt: '{ai_coding_prompt[:100]}...'") # Log truncated prompt
+
+    if use_diff_cache and diff_cache is None:
+        logger.info("Initializing DiffCache for code_with_aider...")
+        await init_diff_cache() # Ensure this is awaited
+
+    if not working_dir:
+        logger.error("CRITICAL: working_dir is None in _initial_setup_and_logging. This should not happen.")
+        # This state indicates a programming error, as working_dir should be validated before this call.
+        return
 
     logger.info(f"Working directory: {working_dir}")
-    logger.info(f"Editable files: {relative_editable_files}")
-    logger.info(f"Readonly files: {relative_readonly_files}")
+    logger.info(f"Editable files ({len(relative_editable_files)}): {relative_editable_files[:3]}...")
+    logger.info(f"Readonly files ({len(relative_readonly_files)}): {relative_readonly_files[:3]}...")
     logger.info(f"Initial model: {model}")
-    logger.info(f"Use diff cache: {use_diff_cache}")
-    logger.info(f"Clear cached for unchanged: {clear_cached_for_unchanged}")
+    logger.info(f"Use diff cache: {use_diff_cache}, Clear cached for unchanged: {clear_cached_for_unchanged}")
     logger.info(f"Architect mode: {architect_mode}")
     if architect_mode:
         logger.info(f"Editor model: {editor_model if editor_model else 'Same as main model'}")
         logger.info(f"Auto accept architect: {auto_accept_architect}")
 
-    # Normalize model name
-    model = _normalize_model_name(model)
-    logger.info(f"Normalized model name: {model}")
 
-    # Determine provider
-    provider = _determine_provider(model)
-    logger.info(f"Using provider: {provider}")
-
-    # Check if we have any API keys at all
+def _handle_api_key_checks_and_warnings( # This function is mostly for initial check
+    working_dir: Optional[str], provider_requested: str, # No response needed here
+) -> tuple[Dict[str, Any], bool]: 
+    """Checks API keys. Returns key_status and if requested provider has keys."""
+    key_status = check_api_keys(working_dir) # Loads .env files
+    
+    # Log general API key status
     if not key_status["any_keys_found"]:
-        # No API keys found at all - this is a critical error
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        no_keys_response = {
-            "success": False,
-            "error": error_msg,
-            "api_key_status": key_status,
-            "warnings": [error_msg],
-            "changes_summary": {"summary": error_msg},
-        }
-        return json.dumps(no_keys_response)
+        logger.error("CRITICAL: No API keys found for ANY provider.")
+    else:
+        logger.info(f"Available providers with keys: {key_status['available_providers']}")
+        if key_status['missing_providers']:
+             logger.warning(f"Providers missing keys: {key_status['missing_providers']}")
 
-    # Check if the requested provider has missing keys
-    provider_has_keys = provider in key_status["available_providers"]
-
-    # Warn about missing keys for the requested provider
-    if not provider_has_keys and key_status["available_providers"]:
-        available_provider = key_status["available_providers"][0]
-        warning_msg = f"Warning: No API keys found for {provider}. Using {available_provider} instead."
-        logger.warning(warning_msg)
-
-        # We will continue with the execution, but note that a different provider might be used
-        # This will be handled by the fallback mechanism in _execute_with_retry
-
-    # Convert to absolute paths
-    abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
-    abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
-
-    # Capture stdout/stderr at the earliest point to catch any output
-    import sys
-    from io import StringIO
-
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    stdout_capture = StringIO()
-    stderr_capture = StringIO()
-
-    # Redirect stdout and stderr
-    sys.stdout = stdout_capture
-    sys.stderr = stderr_capture
-
-    try:
-        # Execute with retry logic
-        response: ResponseDict = await _execute_with_retry(
-            ai_coding_prompt,
-            relative_editable_files,
-            abs_editable_files,
-            abs_readonly_files,
-            working_dir,
-            model,
-            provider,
-            use_diff_cache,
-            clear_cached_for_unchanged,
-            architect_mode,
-            editor_model,
-            auto_accept_architect,
+    # Check for the specifically requested provider
+    provider_has_keys = provider_requested in key_status["available_providers"]
+    if not provider_has_keys:
+        logger.warning(
+            f"API key for the initially requested provider '{provider_requested}' is missing or invalid."
+            " Fallback mechanisms will be attempted if other provider keys are available."
         )
-    except TypeError as te:
-        if "'bool' object is not callable" in str(te):
-            # Handle the specific bool not callable error
-            logger.exception(f"Caught bool not callable error: {str(te)}")
-            error_msg = "Error during Aider execution: Unable to call tool_error method due to being set to a boolean. This is a known issue with no impact on functionality."
-            empty_summary = summarize_changes("")
-            empty_summary["summary"] = "Error: " + error_msg
-            empty_status = {
-                "has_changes": False,
-                "status_summary": "No changes detected.",
-            }
+    return key_status, provider_has_keys
 
-            type_error_response: ResponseDict = {
-                "success": False,
-                "changes_summary": empty_summary,
-                "file_status": empty_status,
-                "rate_limit_info": {
-                    "encountered": False,
-                    "retries": 0,
-                    "fallback_model": None,
-                },
-                "is_cached_diff": False,
-                "diff": "Error: " + error_msg,
-            }
-            response = type_error_response
-        else:
-            # Re-raise other TypeError exceptions
-            raise
-    except Exception as e:
-        logger.exception(f"Critical Error in code_with_aider: {str(e)}")
-        # Create error response since the previous one failed
-        error_msg = f"Unhandled Error during Aider execution: {str(e)}"
-        empty_summary = summarize_changes("")
-        empty_summary["summary"] = "Error: " + error_msg
-        empty_status = {
-            "has_changes": False,
-            "status_summary": "No changes detected.",
-        }
 
-        # Use a properly typed definition
-        response = {
-            "success": False,
-            "changes_summary": empty_summary,
-            "file_status": empty_status,
-            "rate_limit_info": {
-                "encountered": False,
-                "retries": 0,
-                "fallback_model": None,
-            },
-            "is_cached_diff": False,
-            "diff": "Error: " + error_msg,
-        }
-    finally:
-        # Always restore stdout and stderr
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-
-        # Log any captured output
-        captured_stdout = stdout_capture.getvalue()
-        captured_stderr = stderr_capture.getvalue()
-
-        if captured_stdout:
-            logger.warning(f"Captured stdout: {captured_stdout}")
-        if captured_stderr:
-            logger.warning(f"Captured stderr: {captured_stderr}")
-
-    # Add API key status information to the response
+def _update_api_key_status_in_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any],
+    requested_provider: str,
+    actual_model_used: str,
+    original_model_requested: str,
+) -> None:
+    """Updates the API key status information in the response."""
+    actual_provider_used = _determine_provider(actual_model_used)
     response["api_key_status"] = {
-        "available_providers": key_status["available_providers"],
-        "missing_providers": key_status["missing_providers"],
-        "used_provider": provider,
-        "original_model": original_model,
-        "actual_model": model,  # This may be different if fallback was used in _execute_with_retry
+        "available_providers": key_status.get("available_providers", []),
+        "missing_providers": key_status.get("missing_providers", []),
+        "requested_provider": requested_provider,
+        "used_provider": actual_provider_used,
+        "original_model_requested": original_model_requested,
+        "actual_model_used": actual_model_used,
     }
 
-    # Add warnings if the provider is missing keys
-    available_providers = key_status["available_providers"]
-    if isinstance(available_providers, list) and provider not in available_providers:
-        warning_msg = f"Warning: No API keys found for provider {provider}. Some functionality may be limited."
+
+def _add_provider_warning_to_response(
+    response: ResponseDict, key_status: Dict[str, Any], requested_provider: str, actual_provider_used: str, actual_model_used: str
+) -> None:
+    """Adds a warning if the requested provider's key was missing."""
+    if requested_provider not in key_status.get("available_providers", []):
+        warning_msg = (
+            f"Warning: API key for the initially requested provider '{requested_provider}' was missing. "
+            f"The system attempted to use provider '{actual_provider_used}' with model '{actual_model_used}'."
+        )
         if "warnings" not in response:
             response["warnings"] = []
-        warnings_list = response.get("warnings")
-        if isinstance(warnings_list, list):
-            warnings_list.append(warning_msg)
+        # Ensure warnings is a list
+        if not isinstance(response.get("warnings"), list):
+            response["warnings"] = []
+            
+        if warning_msg not in response["warnings"]: # type: ignore
+            response["warnings"].append(warning_msg) # type: ignore
 
-    # Ensure diff field is present for tests (even though we may remove it later)
-    if "diff" not in response and "changes_summary" in response and response["changes_summary"].get("summary"):
-        response["diff"] = response["changes_summary"]["summary"]
 
-    # If not requested to include the raw diff, remove it from successful responses
-    # to keep the response more concise (we already have better info in changes_summary).
-    # But keep it for errors as it may contain important debugging info.
+def _handle_diff_field_in_response(response: ResponseDict, include_raw_diff: bool) -> None:
+    """Ensures 'diff' field is present or removed based on include_raw_diff and success."""
+    if "diff" not in response or not response["diff"]:
+        summary_text = response.get("changes_summary", {}).get("summary", "No changes or error information available.")
+        response["diff"] = summary_text
+
     if not include_raw_diff and response.get("success", False):
         if "diff" in response:
-            del response["diff"]
+            # Only delete if it's not an error message that might be in 'diff'
+            if not (response["diff"] and "Error:" in response["diff"]):
+                del response["diff"]
 
-    # Clean up the response by removing default/zero values
-    if "file_status" in response:
-        file_status = response["file_status"]
-        # Remove zero counts
+
+def _cleanup_file_status_in_response(response: ResponseDict) -> None:
+    """Cleans up the file_status field in the response."""
+    fs = response.get("file_status")
+    if isinstance(fs, dict):
         for key in ["files_created", "files_modified"]:
-            if key in file_status and (file_status[key] == 0 or not file_status[key]):
-                del file_status[key]
-        # If there are no changes in file_status, simplify it to just the essential info
-        if not file_status.get("has_changes", False) or (
-            "files" in file_status
-            and not file_status["files"]
-            and "files_created" not in file_status
-            and "files_modified" not in file_status
-        ):
-            file_status = {
-                "has_changes": file_status.get("has_changes", False),
-                "status_summary": file_status.get("status_summary", "No changes detected."),
+            if fs.get(key) == 0:
+                del fs[key]
+        if not fs.get("has_changes") and not fs.get("files_created") and not fs.get("files_modified") and not fs.get("files"):
+            response["file_status"] = {
+                "has_changes": False,
+                "status_summary": fs.get("status_summary", "No filesystem changes detected.")
             }
-            response["file_status"] = file_status
 
-    if "changes_summary" in response and "stats" in response["changes_summary"]:
-        stats = response["changes_summary"]["stats"]
-        # Remove zero counts
-        keys_to_check = [
-            "files_created",
-            "files_modified",
-            "files_deleted",
-            "lines_added",
-            "lines_removed",
-            "total_files_changed",
-        ]
-        for key in keys_to_check:
-            if key in stats and (stats[key] == 0 or not stats[key]):
-                del stats[key]
-        # If stats is empty after removing zeros, remove it
-        if not stats:
-            del response["changes_summary"]["stats"]
-        # If files list is empty, remove it to keep response clean
-        if "files" in response["changes_summary"] and not response["changes_summary"]["files"]:
-            del response["changes_summary"]["files"]
 
-    # Convert the response to a proper JSON string
-    formatted_response = json.dumps(response, indent=4)
-    logger.info(f"code_with_aider process completed. Success: {response['success']}")
-    return formatted_response
+def _cleanup_changes_summary_in_response(response: ResponseDict) -> None:
+    """Cleans up the changes_summary field in the response."""
+    cs = response.get("changes_summary")
+    if isinstance(cs, dict):
+        cs_stats = cs.get("stats")
+        if isinstance(cs_stats, dict):
+            keys_to_del = [k for k, v in cs_stats.items() if v == 0]
+            for k in keys_to_del:
+                del cs_stats[k]
+            if not cs_stats:
+                del cs["stats"]
+        if isinstance(cs.get("files"), list) and not cs["files"]:
+            del cs["files"]
+
+
+def _finalize_aider_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any], # Result from initial check_api_keys
+    original_model_requested: str,
+    actual_model_used: str,
+    requested_provider: str,
+    include_raw_diff: bool,
+) -> None:
+    """Finalizes the response dictionary with API key status, warnings, and cleanup."""
+    _update_api_key_status_in_response(
+        response, key_status, requested_provider, actual_model_used, original_model_requested
+    )
+    
+    actual_provider_used = _determine_provider(actual_model_used) # Recalculate for warning
+    _add_provider_warning_to_response(
+        response, key_status, requested_provider, actual_provider_used, actual_model_used
+    )
+
+    _handle_diff_field_in_response(response, include_raw_diff)
+    _cleanup_file_status_in_response(response)
+    _cleanup_changes_summary_in_response(response)
