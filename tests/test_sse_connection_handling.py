@@ -247,12 +247,12 @@ async def test_run_sse_server_initialization_and_shutdown():
     # Path ApplicationCoordinator.getInstance and SSETransportAdapter constructor
     with (
         patch(
-            "aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", new_callable=AsyncMock
+            "aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator.getInstance", new_callable=AsyncMock
         ) as mock_get_instance,
-        patch("aider_mcp_server.sse_server.SSETransportAdapter", return_value=mock_adapter),
-        patch("asyncio.Event", return_value=shutdown_event),
-        patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
-        patch("asyncio.get_event_loop") as mock_get_loop,
+        patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter", return_value=mock_adapter),
+        patch("asyncio.Event", return_value=shutdown_event), # Standard asyncio.Event
+        patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, "")),
+        patch("asyncio.get_event_loop") as mock_get_loop, # Standard asyncio.get_event_loop
     ):
         # Set up mock loop and signal handlers
         mock_loop = MagicMock()

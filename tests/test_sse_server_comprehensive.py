@@ -67,7 +67,7 @@ async def test_sse_transport_adapter_connection_handling():
     Test the connection handling of the SSETransportAdapter.
     """
     with patch("starlette.responses.Response") as mock_response:
-        with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+        with patch("aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter"):
             sse_adapter = SSETransportAdapter()
 
             # Mock the MCP transport
@@ -92,10 +92,10 @@ async def test_sse_transport_adapter_message_handling():
     """
     Test the message handling of the SSETransportAdapter.
     """
-    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+    with patch("aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter"):
         sse_adapter = SSETransportAdapter()
 
-        with patch("aider_mcp_server.sse_transport_adapter.json") as mock_json:
+        with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.json") as mock_json:
             mock_json.loads.return_value = {
                 "operation": "test_operation",
                 "parameters": {},
@@ -113,7 +113,7 @@ async def test_sse_transport_adapter_send_event_error_handling():
     """
     Test the error handling in send_event method of the SSETransportAdapter.
     """
-    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter"):
+    with patch("aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter"):
         sse_adapter = SSETransportAdapter()
 
         with patch.object(sse_adapter, "_active_connections", {}):

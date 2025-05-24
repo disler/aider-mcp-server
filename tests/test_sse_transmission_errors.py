@@ -244,14 +244,14 @@ async def test_run_sse_server_network_bind_error():
     mock_adapter.shutdown = AsyncMock()
 
     # Path ApplicationCoordinator.getInstance and SSETransportAdapter constructor
-    async def mock_get_instance_func(logger_factory):
+    async def mock_get_instance_func(logger_factory): # Keep logger_factory if getInstance expects it
         return mock_coordinator
 
     with (
-        patch("aider_mcp_server.sse_server.ApplicationCoordinator.getInstance", side_effect=mock_get_instance_func),
-        patch("aider_mcp_server.sse_server.SSETransportAdapter", return_value=mock_adapter),
-        patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
-        patch("aider_mcp_server.sse_server.get_logger") as mock_get_logger,
+        patch("aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator.getInstance", side_effect=mock_get_instance_func),
+        patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter", return_value=mock_adapter),
+        patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, "")),
+        patch("aider_mcp_server.templates.servers.sse_server.get_logger") as mock_get_logger,
     ):
         # Set up the mock logger
         mock_logger = MagicMock()
@@ -280,12 +280,12 @@ async def test_run_sse_server_async_error_during_setup():
     # Path ApplicationCoordinator.getInstance and other components
     with (
         patch(
-            "aider_mcp_server.sse_server.ApplicationCoordinator.getInstance",
+            "aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator.getInstance",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Test error during coordinator instantiation"),
         ),
-        patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, "")),
-        patch("aider_mcp_server.sse_server.get_logger") as mock_get_logger,
+        patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, "")),
+        patch("aider_mcp_server.templates.servers.sse_server.get_logger") as mock_get_logger,
     ):
         # Set up the mock logger
         mock_logger = MagicMock()
@@ -313,7 +313,7 @@ async def test_sse_server_partial_initialization_error():
 
     async def failing_create_app():
         # Call the first part of the original method
-        from mcp.server.sse import SseServerTransport
+        from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SseServerTransport
 
         adapter._mcp_transport = SseServerTransport("/messages/")
 

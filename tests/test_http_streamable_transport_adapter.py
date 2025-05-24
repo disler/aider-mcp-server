@@ -319,7 +319,7 @@ class TestHttpStreamableTransportAdapter:
         await asyncio.sleep(0.1)
         assert client_id not in adapter._active_connections
 
-    @mock.patch("aider_mcp_server.handlers.process_aider_ai_code_request")
+    @mock.patch("aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request")
     async def test_message_handler_aider_ai_code_success(
         self, mock_process_request, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
@@ -344,7 +344,7 @@ class TestHttpStreamableTransportAdapter:
             assert response_json["id"] == "req1"
             mock_process_request.assert_called_once()
 
-    @mock.patch("aider_mcp_server.handlers.process_list_models_request")
+    @mock.patch("aider_mcp_server.organisms.processors.handlers.process_list_models_request")
     async def test_message_handler_list_models_success(
         self, mock_process_request, adapter: HttpStreamableTransportAdapter, http_client: httpx.AsyncClient
     ):
@@ -403,7 +403,7 @@ class TestHttpStreamableTransportAdapter:
             assert "Method 'phantom_method' not found" in response.json()["error"]["message"]
 
     @mock.patch(
-        "aider_mcp_server.handlers.process_aider_ai_code_request",
+        "aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request",
         side_effect=PermissionError("Access denied"),
     )
     async def test_message_handler_permission_error_response(
@@ -418,7 +418,7 @@ class TestHttpStreamableTransportAdapter:
             assert "Access denied" in response.json()["error"]["message"]
 
     @mock.patch(
-        "aider_mcp_server.handlers.process_list_models_request",
+        "aider_mcp_server.organisms.processors.handlers.process_list_models_request",
         side_effect=ValueError("Invalid param"),
     )
     async def test_message_handler_value_error_response(
@@ -615,7 +615,7 @@ class TestHttpStreamableTransportAdapter:
         assert adapter.should_receive_event(EventTypes.HEARTBEAT, hb_data_self)
         mock_logger.debug.assert_any_call(f"HttpStream ({my_id}) will send self-generated HEARTBEAT.")
 
-    @mock.patch("aider_mcp_server.http_streamable_transport_adapter.FastMCP")
+    @mock.patch("aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter.FastMCP")
     async def test_fastmcp_initialization_and_tool_registration(
         self, MockFastMCP, mock_coordinator, mock_logger_factory
     ):
@@ -637,7 +637,7 @@ class TestHttpStreamableTransportAdapter:
         )
 
         # Test no FastMCP if no coordinator
-        adapter_no_coord = HttpStreamableTransportAdapter(coordinator=None, get_logger=logger_factory)
+        adapter_no_coord = HttpStreamableTransportAdapter(coordinator=None, get_logger=logger_factory, heartbeat_interval=30)
         await adapter_no_coord.initialize()
         assert adapter_no_coord._mcp_server is None
         assert adapter_no_coord._fastmcp_initialized is False

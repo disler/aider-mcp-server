@@ -37,8 +37,9 @@ class TestModernizedSSETransportAdapter(unittest.IsolatedAsyncioTestCase):
             # Re-import to trigger warning
             import sys
 
-            if "aider_mcp_server.sse_transport_adapter_modernized" in sys.modules:
-                del sys.modules["aider_mcp_server.sse_transport_adapter_modernized"]
+            module_name = "aider_mcp_server.organisms.transports.sse.sse_transport_adapter_modernized"
+            if module_name in sys.modules:
+                del sys.modules[module_name]
 
             # This import triggers the deprecation warning
             import aider_mcp_server.organisms.transports.sse.sse_transport_adapter_modernized  # noqa: F401

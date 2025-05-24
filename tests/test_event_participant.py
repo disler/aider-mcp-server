@@ -129,7 +129,7 @@ def test_participant_initialization(concrete_participant, mock_mediator, mock_lo
     assert concrete_participant.get_participant_name() == "test_participant"
     assert concrete_participant._mediator is mock_mediator
     mock_logger_factory.assert_called_once_with(
-        "aider_mcp_server.event_participant.ConcreteParticipant[test_participant]"
+        "aider_mcp_server.molecules.events.event_participant.ConcreteParticipant[test_participant]"
     )
     concrete_participant._logger.verbose.assert_called_with("Initializing EventParticipantBase: test_participant")
 

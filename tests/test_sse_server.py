@@ -14,11 +14,11 @@ from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSET
 async def test_run_sse_server_startup():
     # Create patch context for all mocks
     with (
-        patch("aider_mcp_server.sse_server.is_git_repository", return_value=(True, None)),
-        patch("aider_mcp_server.sse_server.asyncio.Event") as mock_event_cls,
-        patch("aider_mcp_server.sse_server.SSETransportAdapter") as mock_adapter_cls,
-        patch("aider_mcp_server.sse_server.ApplicationCoordinator") as mock_coordinator_cls,
-        patch("aider_mcp_server.transport_adapter.asyncio.create_task") as mock_create_task,
+        patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, None)),
+        patch("aider_mcp_server.templates.servers.sse_server.asyncio.Event") as mock_event_cls, # Assuming asyncio is used as sse_server.asyncio
+        patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter") as mock_adapter_cls,
+        patch("aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator") as mock_coordinator_cls,
+        patch("aider_mcp_server.molecules.transport.base_adapter.asyncio.create_task") as mock_create_task, # Assuming create_task is from base_adapter's asyncio
     ):
         # Set up mock event for graceful shutdown signalling
         mock_event = MagicMock()

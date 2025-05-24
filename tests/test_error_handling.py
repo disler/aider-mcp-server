@@ -144,8 +144,8 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
 
         mock_error_handler_class_logger.error.assert_called_once_with("Error: Connection lost", exc_info=True)
 
-    @patch("aider_mcp_server.error_handling.ErrorHandler.format_exception")
-    @patch("aider_mcp_server.error_handling.ErrorHandler.log_exception")
+    @patch("aider_mcp_server.organisms.processors.error_handling.ErrorHandler.format_exception")
+    @patch("aider_mcp_server.organisms.processors.error_handling.ErrorHandler.log_exception")
     def test_handle_exception(self, mock_log_exception, mock_format_exception):
         exception = HandlerError("Request handling failed")
         context = "processing user request"

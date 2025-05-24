@@ -50,7 +50,7 @@ async def test_adapter_initializes_fastmcp():
     mock_coordinator = AsyncMock()
 
     # Create the adapter with the mock coordinator
-    with patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
+    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
         mock_fastmcp = MagicMock()
         mock_fastmcp.tool = MagicMock(return_value=lambda func: func)
         mock_fastmcp_class.return_value = mock_fastmcp
@@ -70,7 +70,7 @@ async def test_adapter_initializes_fastmcp():
 async def test_adapter_skips_fastmcp_init_without_coordinator():
     """Test that the adapter skips FastMCP initialization when no coordinator is provided."""
     # Create the adapter without a coordinator
-    with patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
+    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
         adapter = SSETransportAdapter(coordinator=None)
 
         # Initialize the adapter
@@ -93,7 +93,7 @@ async def test_adapter_registers_tools_with_fastmcp():
     mock_coordinator = AsyncMock()
 
     # Create the adapter with the mock coordinator
-    with patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
+    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
         mock_fastmcp = MagicMock()
         # Create a list to capture the decorated functions
         registered_tools = []
@@ -126,8 +126,8 @@ async def test_adapter_integrates_with_mcp_transport(mock_mcp_transport, mock_fa
 
     # Create the adapter with the mock coordinator
     with (
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
     ):
         adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
@@ -153,8 +153,8 @@ async def test_adapter_handle_sse_request_with_fastmcp(mock_mcp_transport, mock_
 
     # Create the adapter with the mock coordinator
     with (
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()
@@ -228,8 +228,8 @@ async def test_adapter_handle_sse_request_with_exception(mock_mcp_transport, moc
 
     # Create the adapter with the mock coordinator
     with (
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()
@@ -272,8 +272,8 @@ async def test_adapter_handle_sse_request_with_cancellation(mock_mcp_transport, 
 
     # Create the adapter with the mock coordinator
     with (
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()
@@ -310,8 +310,8 @@ async def test_aider_ai_code_tool_integration():
 
     # Mock the process_aider_ai_code_request function
     with (
-        patch("aider_mcp_server.handlers.process_aider_ai_code_request") as mock_process_request,
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request") as mock_process_request,
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger"),
     ):
         # Configure the mock FastMCP to capture and execute the tool function
@@ -376,8 +376,8 @@ async def test_list_models_tool_integration():
 
     # Mock the process_list_models_request function
     with (
-        patch("aider_mcp_server.handlers.process_list_models_request") as mock_process_request,
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("aider_mcp_server.organisms.processors.handlers.process_list_models_request") as mock_process_request,
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger"),
     ):
         # Configure the mock FastMCP to capture and execute the tool function
@@ -429,10 +429,10 @@ async def test_tool_error_handling():
     # Mock the process_aider_ai_code_request function to raise an exception
     with (
         patch(
-            "aider_mcp_server.handlers.process_aider_ai_code_request",
+            "aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request",
             side_effect=Exception("Test exception"),
         ),
-        patch("aider_mcp_server.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger") as mock_logger,
     ):
         # Configure the mock FastMCP to capture and execute the tool function

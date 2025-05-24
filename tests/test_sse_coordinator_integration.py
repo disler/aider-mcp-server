@@ -80,7 +80,7 @@ async def test_run_sse_server_coordinator_integration():
 async def test_coordinator_event_propagation_to_adapter():
     """Test that events from the coordinator are propagated to the SSE adapter."""
     # Skip the parent initialization methods to avoid awaiting MagicMock
-    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter.initialize", new=AsyncMock()):
+    with patch("aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.initialize", new=AsyncMock()):
         # Create the adapter without a coordinator to avoid initialization issues
         adapter = SSETransportAdapter()
 
@@ -129,7 +129,7 @@ async def test_adapter_shutdown_unsubscribes_from_coordinator():
 async def test_adapter_handles_coordinator_exception_during_initialization():
     """Test that the adapter handles exceptions from the coordinator during init."""
     # Skip calling the parent initialize method which throws the exception
-    with patch("aider_mcp_server.transport_adapter.AbstractTransportAdapter.initialize", new=AsyncMock()):
+    with patch("aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.initialize", new=AsyncMock()):
         # Create a mock coordinator that raises an exception during register
         mock_coordinator = MagicMock()
         mock_coordinator.register_transport = AsyncMock(side_effect=Exception("Test exception"))
@@ -150,7 +150,7 @@ async def test_run_sse_server_with_invalid_working_dir():
     """Test that run_sse_server checks for a valid git repository."""
     # Mock is_git_repository to return False
     with patch(
-        "aider_mcp_server.sse_server.is_git_repository", return_value=(False, "Not a git repository")
+        "aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(False, "Not a git repository")
     ) as mock_git_check:
         # Call run_sse_server with an invalid working directory
         with pytest.raises(ValueError) as excinfo:
