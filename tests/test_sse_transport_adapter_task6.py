@@ -7,7 +7,7 @@ from aiohttp.test_utils import AioHTTPTestCase
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.sse_transport_adapter_task6 import SSETransportAdapter
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter_task6 import SSETransportAdapter
 
 
 # Helper function to process a complete SSE event's data

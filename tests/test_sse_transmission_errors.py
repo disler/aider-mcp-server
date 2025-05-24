@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.sse_server import run_sse_server
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 
 
 @pytest.fixture

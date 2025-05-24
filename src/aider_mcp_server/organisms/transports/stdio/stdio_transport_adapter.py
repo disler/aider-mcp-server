@@ -24,7 +24,7 @@ from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, 
 from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 
 if TYPE_CHECKING:
-    from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 
 # Logger is inherited from AbstractTransportAdapter
@@ -127,7 +127,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Returns:
             A connected StdioTransportAdapter or None if no coordinator found
         """
-        from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+        from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
         # Convert string path to Path if provided
         discovery_path = Path(discovery_file) if discovery_file else None
@@ -167,7 +167,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             True if connection successful, False otherwise
         """
         try:
-            from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+            from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
             self.logger.info(
                 f"Connecting to coordinator {coordinator_info.coordinator_id} "

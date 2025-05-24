@@ -1,7 +1,7 @@
 import unittest
 from typing import Any, Callable, Dict, Type
 
-from aider_mcp_server.handler_registry import HandlerRegistry
+from aider_mcp_server.organisms.registries.handler_registry import HandlerRegistry
 
 
 # --- Mock Handlers and Classes ---

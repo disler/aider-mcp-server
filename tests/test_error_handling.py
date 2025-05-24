@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
-from aider_mcp_server.error_handling import (
+from aider_mcp_server.organisms.processors.error_handling import (
     AiderMCPError,
     ConfigurationError,
     ErrorHandler,

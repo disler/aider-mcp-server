@@ -63,8 +63,8 @@ class TransportAdapterRegistry:
 
     def _discover_built_in_adapters(self) -> None:
         """Discover built-in transport adapters."""
-        from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-        from aider_mcp_server.stdio_transport_adapter import StdioTransportAdapter
+        from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+        from aider_mcp_server.organisms.transports.stdio.stdio_transport_adapter import StdioTransportAdapter
 
         # Register known adapter implementations
         # We use cast to handle the type compatibility with Protocol

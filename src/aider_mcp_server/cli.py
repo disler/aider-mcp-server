@@ -20,7 +20,7 @@ from aider_mcp_server.server import (  # stdio mode and validation
     serve,
 )
 from aider_mcp_server.sse_server import serve_sse  # sse mode
-from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Configure logging early
 log_dir_path: Optional[Path] = None

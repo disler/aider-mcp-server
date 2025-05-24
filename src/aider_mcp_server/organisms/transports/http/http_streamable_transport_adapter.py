@@ -43,7 +43,7 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 )
 
 if TYPE_CHECKING:
-    from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
     # LoggerFactory and LoggerProtocol are now imported directly from mcp_types
 
@@ -147,7 +147,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
         self._mcp_server = FastMCP(f"aider-http-stream-{self.get_transport_id()}")
 
         # Import handlers for registration
-        from aider_mcp_server.handlers import (
+        from aider_mcp_server.organisms.processors.handlers import (
             process_aider_ai_code_request,
             process_list_models_request,
         )
@@ -424,7 +424,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
     ) -> Any:
         """Dispatches the request to the appropriate handler based on method_name."""
         if method_name == "aider_ai_code":
-            from aider_mcp_server.handlers import process_aider_ai_code_request
+            from aider_mcp_server.organisms.processors.handlers import process_aider_ai_code_request
 
             result_obj = await process_aider_ai_code_request(
                 request_id=internal_request_id,
@@ -436,7 +436,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             )
             return result_obj.result if hasattr(result_obj, "result") else result_obj
         elif method_name == "list_models":
-            from aider_mcp_server.handlers import process_list_models_request
+            from aider_mcp_server.organisms.processors.handlers import process_list_models_request
 
             return await process_list_models_request(
                 request_id=internal_request_id,

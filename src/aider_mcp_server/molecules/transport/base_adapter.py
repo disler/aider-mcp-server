@@ -31,7 +31,7 @@ from aider_mcp_server.atoms.security.context import SecurityContext
 
 # Import ApplicationCoordinator from transport_coordinator only during type checking
 if TYPE_CHECKING:
-    from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 
 # Initialize the logger factory

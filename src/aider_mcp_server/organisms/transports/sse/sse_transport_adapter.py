@@ -30,7 +30,7 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 )
 
 if TYPE_CHECKING:
-    from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Add imports for official MCP SDK
 from mcp.server.fastmcp import FastMCP
@@ -120,7 +120,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         self._mcp_server = FastMCP("aider-sse")
 
         # Import handlers for registration
-        from aider_mcp_server.handlers import (
+        from aider_mcp_server.organisms.processors.handlers import (
             process_aider_ai_code_request,
             process_list_models_request,
         )

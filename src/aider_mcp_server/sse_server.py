@@ -7,8 +7,8 @@ from typing import Any, Callable, Coroutine, Optional
 from aider_mcp_server.atoms.logging.logger import Logger, get_logger
 from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.server import is_git_repository
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 logger: Logger = get_logger(__name__)
 

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 from tests.conftest import create_awaitable_mock
 
 

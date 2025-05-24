@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.request_processor import RequestProcessor
+from aider_mcp_server.organisms.processors.request_processor import RequestProcessor
 
 
 @pytest.fixture

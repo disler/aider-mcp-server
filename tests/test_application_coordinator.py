@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aider_mcp_server.application_coordinator import ApplicationCoordinator
-from aider_mcp_server.handler_registry import RequestHandler
+from aider_mcp_server.organisms.registries.handler_registry import RequestHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 # Mock get_logger before it's used by the module

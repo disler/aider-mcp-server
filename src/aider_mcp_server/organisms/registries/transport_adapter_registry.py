@@ -11,7 +11,7 @@ from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 
 if typing.TYPE_CHECKING:
-    from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 
 # Initialize the logger factory (copied from event_system.py)

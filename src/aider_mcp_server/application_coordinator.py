@@ -2,12 +2,12 @@ import asyncio
 from typing import Any, Dict, Optional, Type
 
 from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.event_coordinator import EventCoordinator
+from aider_mcp_server.organisms.coordinators.event_coordinator import EventCoordinator
 from aider_mcp_server.molecules.events.event_system import EventSystem
-from aider_mcp_server.handler_registry import HandlerRegistry, RequestHandler
+from aider_mcp_server.organisms.registries.handler_registry import HandlerRegistry, RequestHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.request_processor import RequestProcessor
-from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
+from aider_mcp_server.organisms.processors.request_processor import RequestProcessor
+from aider_mcp_server.organisms.registries.transport_adapter_registry import TransportAdapterRegistry
 
 
 class ApplicationCoordinator:
