@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.event_mediator import EventMediator
-from aider_mcp_server.event_participant import (
+from aider_mcp_server.molecules.events.event_mediator import EventMediator
+from aider_mcp_server.molecules.events.event_participant import (
     EventParticipantBase,
     IEventParticipant,
 )

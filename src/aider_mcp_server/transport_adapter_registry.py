@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
+from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 
 if typing.TYPE_CHECKING:
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator

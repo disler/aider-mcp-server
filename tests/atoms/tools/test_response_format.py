@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import (
+from aider_mcp_server.molecules.tools.aider_ai_code import (
     _process_coder_results,
     init_diff_cache,
     shutdown_diff_cache,

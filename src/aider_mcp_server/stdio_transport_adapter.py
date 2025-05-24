@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING, Any, Optional, Set, TextIO, Union
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
+from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery, CoordinatorInfo
 from aider_mcp_server.atoms.types.mcp_types import (
     AsyncTask,
     EventData,
     RequestParameters,
 )
 from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
+from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 
 if TYPE_CHECKING:
     from aider_mcp_server.transport_coordinator import ApplicationCoordinator

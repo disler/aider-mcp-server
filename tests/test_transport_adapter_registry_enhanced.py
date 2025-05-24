@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from aider_mcp_server.atoms.types.mcp_types import RequestParameters
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
+from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 from aider_mcp_server.transport_adapter_registry_enhanced import (
     EnhancedTransportAdapterRegistry,
     TransportCapabilities,

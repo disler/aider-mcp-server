@@ -5,7 +5,7 @@ Test for verifying the simple content detection works properly.
 import os
 import tempfile
 
-from aider_mcp_server.atoms.tools.aider_ai_code import _check_for_meaningful_changes
+from aider_mcp_server.molecules.tools.aider_ai_code import _check_for_meaningful_changes
 
 
 def test_check_for_simple_content_detection():

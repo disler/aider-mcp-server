@@ -1,4 +1,4 @@
-from aider_mcp_server.atoms.tools.aider_list_models import list_models
+from aider_mcp_server.molecules.tools.aider_list_models import list_models
 
 
 def test_list_models_openai() -> None:

@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import (
+from aider_mcp_server.molecules.tools.aider_ai_code import (
     code_with_aider,
 )
-from aider_mcp_server.atoms.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )

@@ -8,7 +8,7 @@ import pytest
 
 from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
-from aider_mcp_server.response_formatter import ResponseFormatter
+from aider_mcp_server.molecules.handlers.response_formatter import ResponseFormatter
 
 
 @pytest.fixture

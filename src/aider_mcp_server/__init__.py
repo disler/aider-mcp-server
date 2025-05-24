@@ -16,7 +16,7 @@ from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definiti
 from .sse_server import serve_sse
 from .sse_transport_adapter import SSETransportAdapter
 from .stdio_transport_adapter import StdioTransportAdapter
-from .transport_adapter import AbstractTransportAdapter
+from .molecules.transport.base_adapter import AbstractTransportAdapter
 from .transport_coordinator import ApplicationCoordinator
 
 # Get the package version dynamically from installed package metadata

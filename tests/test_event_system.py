@@ -5,20 +5,20 @@ from unittest.mock import AsyncMock, patch
 # Assuming EventSystem is in a file named event_system.py in the parent directory's src folder
 # Adjust the import path if necessary based on the actual project structure
 try:
-    from aider_mcp_server.event_system import EventSystem
+    from aider_mcp_server.molecules.events.event_system import EventSystem
 except ImportError:
     # Fallback import for different project structures
     import os
     import sys
 
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-    from aider_mcp_server.event_system import EventSystem
+    from aider_mcp_server.molecules.events.event_system import EventSystem
 
     sys.path.pop(0)
 
 
 # Mock the logger used by EventSystem
-@patch("aider_mcp_server.event_system.logger")
+@patch("aider_mcp_server.molecules.events.event_system.logger")
 class TestEventSystemBasics(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up a new EventSystem instance before each test."""
@@ -79,7 +79,7 @@ class TestEventSystemBasics(unittest.IsolatedAsyncioTestCase):
         mock_logger.debug.assert_called_with(f"Broadcasting event '{event_type}' to 2 subscribers. Data: {event_data}")
 
 
-@patch("aider_mcp_server.event_system.logger")
+@patch("aider_mcp_server.molecules.events.event_system.logger")
 class TestEventSystemErrorHandling(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up a new EventSystem instance before each test."""
@@ -130,7 +130,7 @@ class TestEventSystemErrorHandling(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(call_kwargs.get("exc_info"))
 
 
-@patch("aider_mcp_server.event_system.logger")
+@patch("aider_mcp_server.molecules.events.event_system.logger")
 class TestEventSystemConcurrency(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up a new EventSystem instance before each test."""
@@ -218,7 +218,7 @@ class TestEventSystemConcurrency(unittest.IsolatedAsyncioTestCase):
         )  # Second broadcast
 
 
-@patch("aider_mcp_server.event_system.logger")
+@patch("aider_mcp_server.molecules.events.event_system.logger")
 class TestEventSystemEdgeCases(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up a new EventSystem instance before each test."""

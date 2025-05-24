@@ -1,19 +1,19 @@
-from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
+from aider_mcp_server.molecules.security.auth_provider import DefaultAuthenticationProvider
 from aider_mcp_server.error_formatter import ErrorResponseFormatter
 from aider_mcp_server.event_coordinator import EventCoordinator
-from aider_mcp_server.event_mediator import EventMediator
+from aider_mcp_server.molecules.events.event_mediator import EventMediator
 
 # MODIFIED: Import EventSystem from event_system.py
-from aider_mcp_server.event_system import EventSystem
+from aider_mcp_server.molecules.events.event_system import EventSystem
 from aider_mcp_server.handler_registry import HandlerRegistry
 from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
 from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
 from aider_mcp_server.request_processor import RequestProcessor
-from aider_mcp_server.response_formatter import ResponseFormatter
-from aider_mcp_server.security_service import SecurityService
+from aider_mcp_server.molecules.handlers.response_formatter import ResponseFormatter
+from aider_mcp_server.molecules.security.security_service import SecurityService
 from aider_mcp_server.session_manager import SessionManager
-from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
+from aider_mcp_server.molecules.transport.base_adapter_registry import TransportAdapterRegistry
 
 
 class Components:

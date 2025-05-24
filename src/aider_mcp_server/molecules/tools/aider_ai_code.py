@@ -15,13 +15,13 @@ from aider.models import Model
 # Internal imports
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.atoms.tools.aider_compatibility import (
+from aider_mcp_server.molecules.tools.aider_compatibility import (
     filter_supported_params,
     get_aider_version,
     get_supported_coder_create_params,
     get_supported_coder_params,
 )
-from aider_mcp_server.atoms.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )

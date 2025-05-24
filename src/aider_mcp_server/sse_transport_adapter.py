@@ -25,7 +25,7 @@ from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
 )
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.transport_adapter import (
+from aider_mcp_server.molecules.transport.base_adapter import (
     AbstractTransportAdapter,
 )
 

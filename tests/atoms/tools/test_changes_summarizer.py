@@ -6,7 +6,7 @@ import os
 import tempfile
 from unittest import mock
 
-from aider_mcp_server.atoms.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )

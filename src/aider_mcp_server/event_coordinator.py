@@ -12,8 +12,8 @@ from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.internal_types import InternalEvent
 
 # TODO: Remove EventMediator import and Union type hint after refactoring is complete
-from aider_mcp_server.event_mediator import EventMediator
-from aider_mcp_server.event_system import EventSystem
+from aider_mcp_server.molecules.events.event_mediator import EventMediator
+from aider_mcp_server.molecules.events.event_system import EventSystem
 from aider_mcp_server.interfaces.event_coordinator import IEventCoordinator
 from aider_mcp_server.interfaces.event_handler import IEventHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter

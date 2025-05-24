@@ -5,7 +5,7 @@ from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 if TYPE_CHECKING:
-    from aider_mcp_server.event_mediator import EventMediator
+    from aider_mcp_server.molecules.events.event_mediator import EventMediator
 
 
 class IEventParticipant(ABC):

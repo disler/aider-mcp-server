@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
+from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 
 # No TYPE_CHECKING imports needed
 

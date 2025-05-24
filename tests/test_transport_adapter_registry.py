@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter  # For type hinting
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.transport_adapter import AbstractTransportAdapter
+from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 from aider_mcp_server.transport_adapter_registry import TransportAdapterRegistry
 
 

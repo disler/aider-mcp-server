@@ -16,7 +16,7 @@ import pytest
 # Ensure the source directory is in the Python path
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent.parent / "src"))
 
-from aider_mcp_server.atoms.tools.aider_compatibility import (
+from aider_mcp_server.molecules.tools.aider_compatibility import (
     check_aider_compatibility,
     filter_supported_params,
     get_aider_version,

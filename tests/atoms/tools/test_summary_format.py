@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
-from aider_mcp_server.atoms.tools.changes_summarizer import summarize_changes
+from aider_mcp_server.molecules.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.molecules.tools.changes_summarizer import summarize_changes
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@ import pytest
 from aider_mcp_server.atoms.security.errors import (
     InvalidCredentialsError,
 )
-from aider_mcp_server.default_authentication_provider import DefaultAuthenticationProvider
+from aider_mcp_server.molecules.security.auth_provider import DefaultAuthenticationProvider
 from aider_mcp_server.interfaces.authentication_provider import (
     AuthToken,
     IAuthenticationProvider,

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from aider_mcp_server.coordinator_discovery import (
+from aider_mcp_server.molecules.transport.discovery import (
     CoordinatorDiscovery,
     CoordinatorInfo,
 )

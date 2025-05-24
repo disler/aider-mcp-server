@@ -20,7 +20,7 @@ from typing import (
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.coordinator_discovery import CoordinatorDiscovery, CoordinatorInfo
+from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery, CoordinatorInfo
 
 # Import the interface directly for runtime
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface

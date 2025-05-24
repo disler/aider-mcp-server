@@ -2,8 +2,8 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
-from aider_mcp_server.atoms.tools.aider_list_models import list_models
+from aider_mcp_server.molecules.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.molecules.tools.aider_list_models import list_models
 from aider_mcp_server.atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
