@@ -191,7 +191,7 @@ def mock_logger_factory():
 @pytest.fixture
 def mock_coordinator():
     coordinator = mock.AsyncMock(spec=ApplicationCoordinator)
-    coordinator.register_transport = mock.AsyncMock()
+    coordinator.register_transport_adapter = mock.AsyncMock() # Added
     coordinator.unregister_transport = mock.AsyncMock()
     coordinator.broadcast_event = mock.AsyncMock()
     return coordinator
@@ -245,7 +245,8 @@ class TestHttpStreamableTransportAdapter:
         assert adapter._editor_model == "test_model"
         assert adapter._current_working_dir == "/test/cwd"
 
-        mock_coordinator.register_transport.assert_called_once_with(adapter.get_transport_id(), adapter)
+        # Check that the adapter registered itself with the coordinator
+        mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
         assert adapter._mcp_server is not None
         assert adapter._fastmcp_initialized is True
 

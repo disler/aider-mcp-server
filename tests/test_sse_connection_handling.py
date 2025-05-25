@@ -33,7 +33,7 @@ async def test_adapter_initialization():
     """Test that the adapter initializes properly."""
     # Create a mock coordinator
     mock_coordinator = AsyncMock()
-    mock_coordinator.register_transport = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
 
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
@@ -46,7 +46,7 @@ async def test_adapter_initialization():
     assert isinstance(adapter._app, Starlette)
 
     # Verify that the coordinator was called
-    mock_coordinator.register_transport.assert_called_once_with(adapter.get_transport_id(), adapter)
+    mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
 
 
 @pytest.mark.asyncio

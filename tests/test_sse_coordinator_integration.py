@@ -21,6 +21,7 @@ async def test_adapter_registration_with_coordinator():
     # Create a mock coordinator
     mock_coordinator = MagicMock()
     mock_coordinator.register_transport = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
 
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
@@ -29,7 +30,7 @@ async def test_adapter_registration_with_coordinator():
     await adapter.initialize()
 
     # Verify the adapter registered itself with the coordinator
-    mock_coordinator.register_transport.assert_called_once_with(adapter.get_transport_id(), adapter)
+    mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
 
 
 @pytest.mark.asyncio
@@ -38,6 +39,7 @@ async def test_adapter_event_subscription():
     # Create a mock coordinator
     mock_coordinator = MagicMock()
     mock_coordinator.register_transport = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
     mock_coordinator.subscribe_to_event_type = AsyncMock()
 
     # Create the adapter with the mock coordinator
@@ -112,6 +114,7 @@ async def test_adapter_shutdown_unsubscribes_from_coordinator():
     # Create a mock coordinator
     mock_coordinator = MagicMock()
     mock_coordinator.register_transport = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
     mock_coordinator.unregister_transport = AsyncMock()
 
     # Create the adapter with the mock coordinator
@@ -137,6 +140,7 @@ async def test_adapter_handles_coordinator_exception_during_initialization():
         # Create a mock coordinator that raises an exception during register
         mock_coordinator = MagicMock()
         mock_coordinator.register_transport = AsyncMock(side_effect=Exception("Test exception"))
+        mock_coordinator.register_transport_adapter = AsyncMock()
 
         # Create the adapter with the mock coordinator
         adapter = SSETransportAdapter(coordinator=mock_coordinator)

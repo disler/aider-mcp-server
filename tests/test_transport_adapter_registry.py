@@ -22,6 +22,7 @@ from aider_mcp_server.organisms.registries.transport_adapter_registry import Tra
 class MockApplicationCoordinator:
     def __init__(self):
         self.register_transport = AsyncMock()
+        self.register_transport_adapter = AsyncMock()  # Add this line
         self.unregister_transport = AsyncMock()
         self.subscribe_to_event_type = AsyncMock()
         self.broadcast_event = AsyncMock()
@@ -357,7 +358,7 @@ class TestInitializeAdapter:
         )
 
         # Check AbstractTransportAdapter interactions with coordinator
-        mock_coordinator.register_transport.assert_called_once_with("test_adapter_001", adapter)
+        mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
         expected_capabilities = {EventTypes.STATUS, EventTypes.HEARTBEAT}
         calls = [call("test_adapter_001", cap) for cap in expected_capabilities]
         mock_coordinator.subscribe_to_event_type.assert_has_calls(calls, any_order=True)
@@ -534,7 +535,7 @@ class TestAsyncLocking:
 
         assert len(registry._adapters) == 3
         # Check coordinator calls (sum over all initializations)
-        assert mock_coordinator.register_transport.call_count == 3
+        assert mock_coordinator.register_transport_adapter.call_count == 3
 
         # Each adapter subscribes to 2 capabilities (STATUS, HEARTBEAT)
         assert mock_coordinator.subscribe_to_event_type.call_count == 3 * 2
