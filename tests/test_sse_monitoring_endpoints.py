@@ -68,8 +68,7 @@ async def test_app(mock_coordinator):
         mock_registry.create_adapter = AsyncMock(return_value=mock_adapter)
 
         # Patch _start_coordinator_event_listener to prevent it from creating a real task
-        # We will verify its call separately if needed
-        with patch("aider_mcp_server.pages.application.app._start_coordinator_event_listener", new_callable=AsyncMock) as mock_start_listener:
+        with patch("aider_mcp_server.pages.application.app._start_coordinator_event_listener", new_callable=AsyncMock):
              # Call the actual create_app function
              app = await create_app(
                  coordinator=mock_coordinator,
@@ -284,11 +283,6 @@ class TestSSEEndpointIntegration:
         
         async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
             endpoints = ["/events/aider", "/events/errors", "/events/progress"]
-            expected_headers = {
-                "content-type": "text/event-stream",
-                "cache-control": "no-cache", 
-                "connection": "keep-alive",
-            }
 
             for endpoint in endpoints:
                 async with client.stream("GET", endpoint) as response:
