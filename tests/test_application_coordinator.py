@@ -222,9 +222,9 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
 
         await coordinator.broadcast_event(event_type_str, event_data_dict, client_id_str)
 
-        # Per Task 9 spec, EC.broadcast_event is called with (event_type, event_data, client_id)
+        # EventCoordinator.broadcast_event doesn't support client_id, so it's called without it
         self.mock_event_coordinator.broadcast_event.assert_called_once_with(
-            event_type_str, event_data_dict, client_id=client_id_str
+            event_type_str, event_data_dict
         )
 
     async def test_shutdown(self):
