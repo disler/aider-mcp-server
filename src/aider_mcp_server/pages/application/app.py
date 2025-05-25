@@ -8,18 +8,18 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
-from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
+from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 
 # Define global adapter variable for use in route handlers
 _adapter: Optional[SSETransportAdapter] = None
 
 # Active SSE connections for event streaming
 _event_connections: Dict[str, Dict[str, asyncio.Queue]] = {
-    "aider": {},     # General AIDER events
-    "errors": {},    # Error-specific events
+    "aider": {},  # General AIDER events
+    "errors": {},  # Error-specific events
     "progress": {},  # Progress update events
 }
 
@@ -134,25 +134,21 @@ async def _broadcast_to_sse_clients(event_type_str: str, event_data: Dict) -> No
             "aider.session_progress": ["aider", "progress"],
             "aider.session_completed": ["aider", "progress"],
             "aider.throttling_detected": ["aider", "errors"],
-            "aider.error_occurred": ["aider", "errors"]
+            "aider.error_occurred": ["aider", "errors"],
         }
-        
+
         target_endpoints = event_routing.get(event_type_str, [])
         if not target_endpoints:
             logger.debug(f"No SSE endpoints configured for event type: {event_type_str}")
             return
-        
+
         # Create SSE event payload
         sse_event = {
             "type": event_type_str,
-            "data": {
-                **event_data,
-                "sse_timestamp": time.time(),
-                "correlation_id": str(uuid.uuid4())
-            },
-            "id": str(uuid.uuid4())
+            "data": {**event_data, "sse_timestamp": time.time(), "correlation_id": str(uuid.uuid4())},
+            "id": str(uuid.uuid4()),
         }
-        
+
         # Send to all relevant client queues
         delivered_count = 0
         for endpoint_type in target_endpoints:
@@ -163,13 +159,15 @@ async def _broadcast_to_sse_clients(event_type_str: str, event_data: Dict) -> No
                         client_queue.put_nowait(sse_event)
                         delivered_count += 1
                     except asyncio.QueueFull:
-                        logger.warning(f"Queue full for client {client_id} on {endpoint_type}, dropping event {event_type_str}")
+                        logger.warning(
+                            f"Queue full for client {client_id} on {endpoint_type}, dropping event {event_type_str}"
+                        )
                     except Exception as e:
                         logger.error(f"Error delivering event to client {client_id}: {e}")
-        
+
         if delivered_count > 0:
             logger.debug(f"Delivered event {event_type_str} to {delivered_count} SSE clients")
-            
+
     except Exception as e:
         logger.error(f"Error broadcasting event {event_type_str} to SSE clients: {e}")
 
@@ -177,36 +175,36 @@ async def _broadcast_to_sse_clients(event_type_str: str, event_data: Dict) -> No
 async def _start_coordinator_event_listener() -> None:
     """Start listening for coordinator events and relay them to SSE clients."""
     global _coordinator_event_listener
-    
+
     if _coordinator_event_listener is not None:
         logger.warning("Coordinator event listener already running")
         return
-    
+
     if not _adapter or not _adapter._coordinator:
         logger.error("Cannot start event listener: no coordinator available")
         return
-    
+
     async def event_listener_task():
         """Background task to listen for coordinator events."""
         logger.info("Starting coordinator event listener for SSE broadcasting")
-        
+
         # This is a simplified polling approach for demonstration
         # In a production system, this should use proper event subscription
         # when coordinator.subscribe_to_event() is available
-        
+
         try:
             while True:
                 await asyncio.sleep(0.1)  # Prevent busy waiting
-                
+
                 # For now, this is a placeholder that demonstrates the integration point
                 # Real implementation will connect to coordinator's event bus
                 # when Phase 1 coordinator.broadcast_event() is extended with subscription support
-                
+
         except asyncio.CancelledError:
             logger.info("Coordinator event listener cancelled")
         except Exception as e:
             logger.error(f"Error in coordinator event listener: {e}")
-    
+
     _coordinator_event_listener = asyncio.create_task(event_listener_task())
     logger.info("Coordinator event listener started")
 
@@ -214,7 +212,7 @@ async def _start_coordinator_event_listener() -> None:
 async def _stop_coordinator_event_listener() -> None:
     """Stop the coordinator event listener."""
     global _coordinator_event_listener
-    
+
     if _coordinator_event_listener is not None:
         _coordinator_event_listener.cancel()
         try:
@@ -229,49 +227,41 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
     """Create event stream generator for SSE monitoring endpoints."""
     if _check_adapter_availability():
         return
-    
+
     if not _adapter or not _adapter._coordinator:
         logger.error(f"No coordinator available for {event_type} event stream")
         return
-    
+
     # Create client queue for events
     client_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _event_connections[event_type][client_id] = client_queue
-    
+
     # Define event types to subscribe to based on endpoint
     event_filters = {
         "aider": [
             "aider.rate_limit_detected",
-            "aider.session_started", 
+            "aider.session_started",
             "aider.session_progress",
             "aider.session_completed",
             "aider.throttling_detected",
-            "aider.error_occurred"
-        ],
-        "errors": [
-            "aider.rate_limit_detected",
             "aider.error_occurred",
-            "aider.throttling_detected"
         ],
-        "progress": [
-            "aider.session_started",
-            "aider.session_progress", 
-            "aider.session_completed"
-        ]
+        "errors": ["aider.rate_limit_detected", "aider.error_occurred", "aider.throttling_detected"],
+        "progress": ["aider.session_started", "aider.session_progress", "aider.session_completed"],
     }
-    
+
     target_events = event_filters.get(event_type, [])
     logger.info(f"Client {client_id} subscribing to {event_type} events: {target_events}")
-    
+
     # Store subscription info for the client
     try:
-        setattr(client_queue, '_subscribed_events', target_events)
-        setattr(client_queue, '_event_type', event_type)
+        client_queue._subscribed_events = target_events
+        client_queue._event_type = event_type
         logger.debug(f"Event stream setup complete for client {client_id} on {event_type}")
-        
+
         # Ensure coordinator event listener is running
         await _start_coordinator_event_listener()
-        
+
     except Exception as e:
         logger.error(f"Error setting up event stream for {event_type}: {e}")
         if client_id in _event_connections[event_type]:
@@ -285,62 +275,58 @@ async def _generate_sse_events(event_type: str, client_id: str):
         if client_id not in _event_connections[event_type]:
             logger.warning(f"Client {client_id} not found in {event_type} connections")
             return
-            
+
         client_queue = _event_connections[event_type][client_id]
-        
+
         # Send initial connection event
         connection_event = {
             "type": f"{event_type}.connection_established",
             "data": {
                 "client_id": client_id,
                 "timestamp": time.time(),
-                "event_types": getattr(client_queue, '_subscribed_events', []),
-                "status": "connected"
+                "event_types": getattr(client_queue, "_subscribed_events", []),
+                "status": "connected",
             },
-            "id": str(uuid.uuid4())
+            "id": str(uuid.uuid4()),
         }
-        
+
         yield f"event: {connection_event['type']}\n"
         yield f"data: {json.dumps(connection_event['data'])}\n"
         yield f"id: {connection_event['id']}\n\n"
-        
+
         # Keep connection alive and send heartbeat events
         heartbeat_interval = 30.0  # seconds
         last_heartbeat = time.time()
-        
+
         while True:
             try:
                 # Check for new events with timeout for heartbeat
                 current_time = time.time()
                 timeout = max(0.1, heartbeat_interval - (current_time - last_heartbeat))
-                
+
                 try:
                     event = await asyncio.wait_for(client_queue.get(), timeout=timeout)
-                    
+
                     # Send the actual event
                     yield f"event: {event['type']}\n"
                     yield f"data: {json.dumps(event['data'])}\n"
                     yield f"id: {event['id']}\n\n"
-                    
+
                 except asyncio.TimeoutError:
                     # Send heartbeat
                     if time.time() - last_heartbeat >= heartbeat_interval:
                         heartbeat_event = {
                             "type": f"{event_type}.heartbeat",
-                            "data": {
-                                "timestamp": time.time(),
-                                "client_id": client_id,
-                                "status": "alive"
-                            },
-                            "id": str(uuid.uuid4())
+                            "data": {"timestamp": time.time(), "client_id": client_id, "status": "alive"},
+                            "id": str(uuid.uuid4()),
                         }
-                        
+
                         yield f"event: {heartbeat_event['type']}\n"
                         yield f"data: {json.dumps(heartbeat_event['data'])}\n"
                         yield f"id: {heartbeat_event['id']}\n\n"
-                        
+
                         last_heartbeat = time.time()
-                        
+
             except asyncio.CancelledError:
                 logger.info(f"SSE connection cancelled for client {client_id} on {event_type}")
                 break
@@ -348,19 +334,15 @@ async def _generate_sse_events(event_type: str, client_id: str):
                 logger.error(f"Error in SSE event stream for client {client_id}: {e}")
                 error_event = {
                     "type": f"{event_type}.error",
-                    "data": {
-                        "error": str(e),
-                        "timestamp": time.time(),
-                        "client_id": client_id
-                    },
-                    "id": str(uuid.uuid4())
+                    "data": {"error": str(e), "timestamp": time.time(), "client_id": client_id},
+                    "id": str(uuid.uuid4()),
                 }
-                
+
                 yield f"event: {error_event['type']}\n"
                 yield f"data: {json.dumps(error_event['data'])}\n"
                 yield f"id: {error_event['id']}\n\n"
                 break
-                
+
     except Exception as e:
         logger.error(f"Fatal error in SSE event generator for {event_type}: {e}")
     finally:
@@ -384,94 +366,81 @@ def _setup_routes(app: FastAPI) -> None:
     async def message_endpoint(request: Request) -> Response:
         """Endpoint to handle incoming message requests (like tool calls)."""
         return await _handle_message_request(request)
-    
+
     # New SSE monitoring endpoints for Phase 2
     @app.get("/events/aider")
     async def aider_events_stream(request: Request) -> EventSourceResponse:
         """Stream general AIDER events (rate limits, progress, errors) to clients."""
         if _check_adapter_availability():
             raise HTTPException(status_code=503, detail="Server not ready")
-            
+
         client_id = str(uuid.uuid4())
         logger.info(f"New client {client_id} connecting to /events/aider")
-        
+
         # Set up event stream
         await _create_event_stream("aider", client_id)
-        
+
         return EventSourceResponse(
             _generate_sse_events("aider", client_id),
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Client-ID": client_id
-            }
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
         )
-    
+
     @app.get("/events/errors")
     async def error_events_stream(request: Request) -> EventSourceResponse:
         """Stream error-specific AIDER events to clients."""
         if _check_adapter_availability():
             raise HTTPException(status_code=503, detail="Server not ready")
-            
+
         client_id = str(uuid.uuid4())
         logger.info(f"New client {client_id} connecting to /events/errors")
-        
+
         # Set up event stream
         await _create_event_stream("errors", client_id)
-        
+
         return EventSourceResponse(
             _generate_sse_events("errors", client_id),
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Client-ID": client_id
-            }
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
         )
-    
+
     @app.get("/events/progress")
     async def progress_events_stream(request: Request) -> EventSourceResponse:
         """Stream progress update AIDER events to clients."""
         if _check_adapter_availability():
             raise HTTPException(status_code=503, detail="Server not ready")
-            
+
         client_id = str(uuid.uuid4())
         logger.info(f"New client {client_id} connecting to /events/progress")
-        
+
         # Set up event stream
         await _create_event_stream("progress", client_id)
-        
+
         return EventSourceResponse(
             _generate_sse_events("progress", client_id),
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Client-ID": client_id
-            }
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
         )
-    
+
     @app.get("/health")
     async def health_check() -> JSONResponse:
         """Health check endpoint with streaming status information."""
         if _check_adapter_availability():
-            return JSONResponse(
-                content={"status": "unhealthy", "reason": "Server not ready"},
-                status_code=503
-            )
-        
+            return JSONResponse(content={"status": "unhealthy", "reason": "Server not ready"}, status_code=503)
+
         # Count active connections
         total_connections = sum(len(conns) for conns in _event_connections.values())
-        
-        return JSONResponse(content={
-            "status": "healthy",
-            "timestamp": time.time(),
-            "active_sse_connections": {
-                "total": total_connections,
-                "aider_events": len(_event_connections["aider"]),
-                "error_events": len(_event_connections["errors"]),
-                "progress_events": len(_event_connections["progress"])
-            },
-            "coordinator_status": "active" if _adapter and _adapter._coordinator else "unavailable"
-        })
+
+        return JSONResponse(
+            content={
+                "status": "healthy",
+                "timestamp": time.time(),
+                "active_sse_connections": {
+                    "total": total_connections,
+                    "aider_events": len(_event_connections["aider"]),
+                    "error_events": len(_event_connections["errors"]),
+                    "progress_events": len(_event_connections["progress"]),
+                },
+                "coordinator_status": "active" if _adapter and _adapter._coordinator else "unavailable",
+            }
+        )
 
 
 async def create_app(
@@ -502,17 +471,17 @@ async def create_app(
 
     _adapter = adapter  # We know this is an SSETransportAdapter
     logger.info(f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)")
-    
+
     # Initialize event broadcasting integration
-    if hasattr(adapter, '_coordinator') and adapter._coordinator:
+    if hasattr(adapter, "_coordinator") and adapter._coordinator:
         # Start coordinator event listener for SSE broadcasting
         await _start_coordinator_event_listener()
-        
+
         # Register SSE broadcast function with coordinator for Phase 1 integration
-        if hasattr(adapter._coordinator, '_sse_event_broadcaster'):
+        if hasattr(adapter._coordinator, "_sse_event_broadcaster"):
             adapter._coordinator._sse_event_broadcaster = broadcast_event_to_sse_clients
             logger.debug("SSE event broadcaster registered with coordinator")
-        
+
         logger.info("SSE monitoring endpoints ready - Phase 2.1 Event Broadcasting Integration complete")
 
     # Set up the routes
@@ -534,5 +503,5 @@ def get_sse_connection_stats() -> Dict[str, int]:
         "total": sum(len(conns) for conns in _event_connections.values()),
         "aider_events": len(_event_connections["aider"]),
         "error_events": len(_event_connections["errors"]),
-        "progress_events": len(_event_connections["progress"])
+        "progress_events": len(_event_connections["progress"]),
     }
