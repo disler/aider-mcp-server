@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ...atoms.logging.logger import get_logger
 
@@ -11,6 +11,9 @@ from ...atoms.types.mcp_types import (
 )
 from ...molecules.tools.aider_ai_code import code_with_aider
 from ...molecules.tools.aider_list_models import list_models
+
+if TYPE_CHECKING:
+    from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Configure logging for this module
 logger = get_logger(__name__)
@@ -93,6 +96,7 @@ async def _execute_aider_code(
     model_to_use: str,
     current_working_dir: str,
     params: RequestParameters,
+    coordinator: Optional["ApplicationCoordinator"] = None,
 ) -> OperationResult:
     """Execute the Aider code generation and process the results."""
     try:
@@ -118,6 +122,7 @@ async def _execute_aider_code(
             editor_model=editor_model,
             auto_accept_architect=auto_accept_architect,
             include_raw_diff=include_raw_diff,
+            coordinator=coordinator,
         )
 
         result = _parse_aider_result(request_id, result_json_str)
@@ -185,6 +190,7 @@ async def process_aider_ai_code_request(
     clear_cached_for_unchanged: bool = True,
     editor_model: str = "",  # Passed by coordinator/server based on config
     current_working_dir: str = "",  # Passed by coordinator/server based on config
+    coordinator: Optional["ApplicationCoordinator"] = None,  # For event broadcasting
 ) -> Dict[str, Any]:
     """
     Process an aider_ai_code request.
@@ -246,6 +252,7 @@ async def process_aider_ai_code_request(
         model_to_use,
         current_working_dir,
         params,
+        coordinator,
     )
 
 

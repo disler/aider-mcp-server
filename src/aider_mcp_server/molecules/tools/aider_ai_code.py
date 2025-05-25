@@ -20,6 +20,7 @@ from aider.models import Model
 from aider_mcp_server.atoms.logging.logger import get_logger
 
 # Internal imports
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
@@ -1164,7 +1165,7 @@ async def _handle_rate_limit_or_error(
                 delay = initial_delay * (backoff_factor**attempt)
                 new_model = get_fallback_model(current_model, provider)
                 await coordinator.broadcast_event(
-                    "aider.rate_limit_detected",
+                    EventTypes.AIDER_RATE_LIMIT_DETECTED,
                     {
                         "provider": provider,
                         "current_model": current_model,
@@ -1244,7 +1245,7 @@ async def _broadcast_session_start(
     """Helper function to broadcast session start event."""
     try:
         await coordinator.broadcast_event(
-            "aider.session_started",
+            EventTypes.AIDER_SESSION_STARTED,
             {
                 "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
                 "editable_files": relative_editable_files,
@@ -1266,7 +1267,7 @@ async def _broadcast_session_completed(
     """Helper function to broadcast session completed event."""
     try:
         await coordinator.broadcast_event(
-            "aider.session_completed",
+            EventTypes.AIDER_SESSION_COMPLETED,
             {
                 "success": response.get("success", False),
                 "changes_detected": response.get("success", False),

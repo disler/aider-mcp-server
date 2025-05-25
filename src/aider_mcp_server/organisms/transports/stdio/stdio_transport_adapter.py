@@ -157,6 +157,85 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             print(f"Error finding and connecting to coordinator: {e}", file=sys.stderr)
             return None
 
+    async def _auto_discover_coordinator(self) -> None:
+        """
+        Automatically discover and connect to available coordinators.
+        Creates a new coordinator if none found.
+        """
+        try:
+            from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+            from aider_mcp_server.atoms.logging.logger import get_logger
+
+            self.logger.info(f"Auto-discovering coordinator for STDIO transport {self.transport_id}...")
+
+            # Try to find existing coordinator using discovery
+            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(discovery_file=self._discovery_file)
+            
+            if coordinator_info:
+                self.logger.info(
+                    f"Found existing coordinator {coordinator_info.coordinator_id} "
+                    f"at {coordinator_info.host}:{coordinator_info.port}"
+                )
+                success = await self.connect_to_coordinator(coordinator_info)
+                if success:
+                    self.logger.info(f"Successfully connected to existing coordinator")
+                    return
+                else:
+                    self.logger.warning(f"Failed to connect to existing coordinator, will create new one")
+
+            # No existing coordinator found or connection failed, create/get singleton
+            self.logger.info(f"Creating new coordinator instance for STDIO transport {self.transport_id}")
+            self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
+            self.logger.info(f"Successfully created/connected to coordinator instance")
+
+        except Exception as e:
+            self.logger.error(f"Error during coordinator auto-discovery: {e}")
+            # Continue without coordinator - degraded functionality but non-fatal
+            self.logger.warning(f"STDIO transport {self.transport_id} will continue without coordinator (degraded functionality)")
+
+    async def _subscribe_to_aider_events(self) -> None:
+        """
+        Subscribe to AIDER events for cross-transport communication.
+        This enables the STDIO transport to relay events to other transports.
+        """
+        if not self._coordinator:
+            self.logger.warning(f"No coordinator available for event subscription")
+            return
+
+        try:
+            # Define AIDER event types to subscribe to
+            aider_events = [
+                EventTypes.AIDER_SESSION_STARTED,
+                EventTypes.AIDER_SESSION_PROGRESS,
+                EventTypes.AIDER_SESSION_COMPLETED,
+                EventTypes.AIDER_RATE_LIMIT_DETECTED,
+                EventTypes.AIDER_THROTTLING_DETECTED,
+                EventTypes.AIDER_ERROR_OCCURRED
+            ]
+
+            self.logger.info(f"Subscribing STDIO transport {self.transport_id} to AIDER events: {aider_events}")
+
+            # Subscribe to each AIDER event type
+            for event_type in aider_events:
+                try:
+                    # Check if subscribe_to_event_type method is awaitable
+                    subscribe_method = getattr(self._coordinator, "subscribe_to_event_type", None)
+                    if subscribe_method:
+                        result = subscribe_method(self.transport_id, event_type)
+                        if asyncio.iscoroutine(result):
+                            await result
+                        self.logger.debug(f"Subscribed to event type: {event_type}")
+                    else:
+                        self.logger.warning(f"Coordinator does not support event subscription")
+                        break
+                except Exception as e:
+                    self.logger.warning(f"Failed to subscribe to event {event_type}: {e}")
+
+            self.logger.info(f"STDIO transport {self.transport_id} event subscription completed")
+
+        except Exception as e:
+            self.logger.error(f"Error subscribing to AIDER events: {e}")
+
     async def connect_to_coordinator(self, coordinator_info: CoordinatorInfo) -> bool:
         """
         Connect to a specific coordinator using the provided information.
@@ -193,10 +272,21 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     async def initialize(self) -> None:
         """
         Initialize the stdio transport and register with coordinator.
+        Automatically discovers and connects to coordinators if none provided.
         Does NOT start the read task automatically. Call start_listening() separately.
         """
         self.logger.info(f"Initializing stdio transport {self.transport_id}...")
+        
+        # If no coordinator provided, attempt auto-discovery
+        if not self._coordinator:
+            await self._auto_discover_coordinator()
+        
         await super().initialize()
+        
+        # Subscribe to AIDER events for cross-transport communication
+        if self._coordinator:
+            await self._subscribe_to_aider_events()
+        
         self.logger.info(f"Stdio transport {self.transport_id} initialized.")
 
     async def shutdown(self) -> None:
