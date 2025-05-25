@@ -12,7 +12,7 @@ This is an Aider MCP Server that provides comprehensive AI coding task offloadin
 
 ### Review Objectives
 - **API Compatibility**: Verify all AIDER v0.83.1 features are properly supported
-- **Interface Compliance**: Ensure MCP tools match AIDER's programmatic interfaces  
+- **Interface Compliance**: Ensure MCP tools match AIDER's programmatic interfaces
 - **Feature Parity**: Confirm architectural patterns align with AIDER's capabilities
 - **Evolution Tracking**: Establish framework for future AIDER version compatibility
 
@@ -59,7 +59,7 @@ This dedicated tracking document contains:
 
 4. **Quality Validation** (Applied to any implementations)
    - Run `hatch -e dev run pytest` → ALL tests must pass
-   - Run `hatch -e dev run ruff check --select=F,E9` → ZERO critical errors  
+   - Run `hatch -e dev run ruff check --select=F,E9` → ZERO critical errors
    - Run `hatch -e dev run pre-commit run --all-files` → Clean validation
    - **Compatibility regression testing** against existing AIDER integrations
 

@@ -7,7 +7,7 @@ import subprocess
 import time
 
 # External imports - no stubs available
-from typing import Any, Dict, List, Optional, TypedDict, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 # Add TYPE_CHECKING import for coordinator
 if TYPE_CHECKING:
@@ -1174,8 +1174,8 @@ async def _handle_rate_limit_or_error(
                         "estimated_delay": delay,
                         "error_message": str(e),
                         "timestamp": time.time(),
-                        "will_retry": attempt < max_retries
-                    }
+                        "will_retry": attempt < max_retries,
+                    },
                 )
                 logger.info("Broadcasted aider.rate_limit_detected event")
             except Exception as broadcast_error:
@@ -1214,6 +1214,164 @@ async def _handle_rate_limit_or_error(
         # For non-rate-limit errors, we don't retry through this helper.
         # The original exception is re-raised to be handled by the caller.
         raise  # Re-raise the original exception
+
+
+def _get_rate_limit_encountered(response: Union[Dict[str, Any], ResponseDict]) -> bool:
+    """Helper function to safely extract rate limit encountered status."""
+    rate_limit_info = response.get("rate_limit_info")
+    if rate_limit_info is None or not isinstance(rate_limit_info, dict):
+        return False
+    return bool(rate_limit_info.get("encountered", False))
+
+
+def _get_fallback_used(response: Union[Dict[str, Any], ResponseDict]) -> bool:
+    """Helper function to safely extract fallback used status."""
+    rate_limit_info = response.get("rate_limit_info")
+    if rate_limit_info is None or not isinstance(rate_limit_info, dict):
+        return False
+    return bool(rate_limit_info.get("fallback_model"))
+
+
+async def _broadcast_session_start(
+    coordinator: "ApplicationCoordinator",
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: Optional[List[str]],
+    original_model: str,
+    working_dir: str,
+    architect_mode: bool,
+) -> None:
+    """Helper function to broadcast session start event."""
+    try:
+        await coordinator.broadcast_event(
+            "aider.session_started",
+            {
+                "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
+                "editable_files": relative_editable_files,
+                "readonly_files": relative_readonly_files,
+                "model": original_model,
+                "working_dir": working_dir,
+                "architect_mode": architect_mode,
+                "timestamp": time.time(),
+            },
+        )
+        logger.info("Broadcasted aider.session_started event")
+    except Exception as e:
+        logger.warning(f"Failed to broadcast session_started event: {e}")
+
+
+async def _broadcast_session_completed(
+    coordinator: "ApplicationCoordinator", response: ResponseDict, actual_model_used: str, original_model: str
+) -> None:
+    """Helper function to broadcast session completed event."""
+    try:
+        await coordinator.broadcast_event(
+            "aider.session_completed",
+            {
+                "success": response.get("success", False),
+                "changes_detected": response.get("success", False),
+                "changes_summary": response.get("changes_summary", {}),
+                "model_used": actual_model_used,
+                "original_model": original_model,
+                "rate_limit_encountered": _get_rate_limit_encountered(response),
+                "fallback_used": _get_fallback_used(response),
+                "timestamp": time.time(),
+            },
+        )
+        logger.info("Broadcasted aider.session_completed event")
+    except Exception as e:
+        logger.warning(f"Failed to broadcast session_completed event: {e}")
+
+
+def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
+    """Validate working directory and API keys. Returns error JSON string if validation fails."""
+    if not working_dir:
+        error_msg = "Error: working_dir is required for code_with_aider"
+        logger.error(error_msg)
+        return json.dumps(
+            {
+                "success": False,
+                "changes_summary": {"summary": error_msg},
+                "error": error_msg,
+                "api_key_status": check_api_keys(None),
+            }
+        )
+
+    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
+    if not key_status["any_keys_found"]:
+        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
+        logger.error(error_msg)
+        return json.dumps(
+            {
+                "success": False,
+                "error": error_msg,
+                "api_key_status": key_status,
+                "warnings": [error_msg],
+                "changes_summary": {"summary": error_msg},
+            }
+        )
+
+    return None  # No error
+
+
+async def _execute_aider_with_coordination(
+    ai_coding_prompt: str,
+    abs_editable_files: List[str],
+    abs_readonly_files: List[str],
+    normalized_model_name: str,
+    working_dir: str,
+    use_diff_cache: bool,
+    clear_cached_for_unchanged: bool,
+    architect_mode: bool,
+    editor_model: Optional[str],
+    auto_accept_architect: bool,
+    coordinator: Optional["ApplicationCoordinator"],
+) -> ResponseDict:
+    """Execute AIDER with coordination support. This is the main execution logic."""
+    # For now, delegate to existing _execute_with_retry function with stdout/stderr capture
+    import sys
+    from io import StringIO
+
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    stdout_capture, stderr_capture = StringIO(), StringIO()
+    sys.stdout, sys.stderr = stdout_capture, stderr_capture
+
+    try:
+        # Convert absolute paths back to relative for _execute_with_retry
+        relative_editable_files = [os.path.relpath(f, working_dir) for f in abs_editable_files]
+
+        session_response = await _execute_with_retry(
+            ai_coding_prompt,
+            relative_editable_files,
+            abs_editable_files,
+            abs_readonly_files,
+            working_dir,
+            normalized_model_name,
+            _determine_provider(normalized_model_name),
+            use_diff_cache,
+            clear_cached_for_unchanged,
+            architect_mode,
+            editor_model,
+            auto_accept_architect,
+            coordinator,
+        )
+        return session_response
+    except Exception as e:
+        logger.error(f"Error in AIDER execution: {e}", exc_info=True)
+        return {
+            "success": False,
+            "changes_summary": {"summary": f"Error: {str(e)}"},
+            "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+            "is_cached_diff": False,
+            "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
+        }
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+        captured_stdout, captured_stderr = stdout_capture.getvalue(), stderr_capture.getvalue()
+        if captured_stdout:
+            logger.warning(f"Captured stdout: {captured_stdout[:500]}...")
+        if captured_stderr:
+            logger.warning(f"Captured stderr: {captured_stderr[:500]}...")
 
 
 async def code_with_aider(
@@ -1278,142 +1436,58 @@ async def code_with_aider(
     normalized_model_name = _normalize_model_name(model)
     provider = _determine_provider(normalized_model_name)
 
-    # This working_dir check is critical and should lead to an early exit if failed.
-    if not working_dir:
-        error_msg = "Error: working_dir is required for code_with_aider"
-        logger.error(error_msg)
-        # Ensure a valid JSON response for this critical error
-        return json.dumps(
-            {
-                "success": False,
-                "changes_summary": {"summary": error_msg},
-                "error": error_msg,  # Explicit error field
-                "api_key_status": check_api_keys(None),  # Basic API key status
-            }
-        )
+    # Validate working directory and API keys
+    validation_error = _validate_working_dir_and_api_keys(working_dir, provider)
+    if validation_error:
+        return validation_error
 
-    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)  # Initial check
-    if not key_status["any_keys_found"]:
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "error": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-                "changes_summary": {"summary": error_msg},
-            }
-        )
+    # At this point working_dir is guaranteed to be non-None due to validation
+    if working_dir is None:
+        raise ValueError("working_dir should not be None after validation")
 
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
     # Broadcast session start event
     if coordinator:
-        try:
-            await coordinator.broadcast_event(
-                "aider.session_started",
-                {
-                    "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
-                    "editable_files": relative_editable_files,
-                    "readonly_files": relative_readonly_files,
-                    "model": original_model,
-                    "working_dir": working_dir,
-                    "architect_mode": architect_mode,
-                    "timestamp": time.time()
-                }
-            )
-            logger.info("Broadcasted aider.session_started event")
-        except Exception as e:
-            logger.warning(f"Failed to broadcast session_started event: {e}")
-
-    # Initialize response structure for error cases before try-except
-    response: ResponseDict = {
-        "success": False,
-        "changes_summary": {"summary": "Operation did not complete successfully."},
-        "file_status": {"has_changes": False, "status_summary": "No changes detected."},
-        "is_cached_diff": False,
-        "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
-    }
-
-    # Capture stdout/stderr
-    import sys
-    from io import StringIO
-
-    old_stdout, old_stderr = sys.stdout, sys.stderr
-    stdout_capture, stderr_capture = StringIO(), StringIO()
-    sys.stdout, sys.stderr = stdout_capture, stderr_capture
-
-    actual_model_used = normalized_model_name  # Will be updated by _execute_with_retry if fallback occurs
-
-    try:
-        session_response = await _execute_with_retry(
+        await _broadcast_session_start(
+            coordinator,
             ai_coding_prompt,
             relative_editable_files,
-            abs_editable_files,
-            abs_readonly_files,
+            relative_readonly_files,
+            original_model,
             working_dir,
-            normalized_model_name,
-            provider,
-            use_diff_cache,
-            clear_cached_for_unchanged,
             architect_mode,
-            editor_model,
-            auto_accept_architect,
-            coordinator,
         )
-        response.update(session_response)
-        # Update actual_model_used if fallback occurred
-        if response.get("rate_limit_info", {}).get("fallback_model"):  # type: ignore
-            actual_model_used = response["rate_limit_info"]["fallback_model"]  # type: ignore
 
-    except TypeError as te:
-        if "'bool' object is not callable" in str(te):  # Specific known issue
-            logger.exception(f"Caught bool not callable error: {str(te)}")
-            error_msg = "Error: Aider's internal tool_error method issue (bool not callable). Functionality unaffected."
-            response["changes_summary"]["summary"] = error_msg
-            response["diff"] = error_msg  # For backward compatibility
-            # This is not a failure of the coding task itself, so success might still be true if changes were made.
-            # However, to be safe, mark as unsuccessful if this specific error occurs.
-            response["success"] = False
-        else:  # Other TypeErrors
-            logger.exception(f"Unhandled TypeError in code_with_aider: {str(te)}")
-            response["changes_summary"]["summary"] = f"Unhandled TypeError: {str(te)}"
-            response["diff"] = f"Unhandled TypeError: {str(te)}"
-            response["success"] = False
-    except Exception as e:
-        logger.exception(f"Critical Error in code_with_aider: {str(e)}")
-        response["changes_summary"]["summary"] = f"Unhandled Error: {str(e)}"
-        response["diff"] = f"Unhandled Error: {str(e)}"  # For backward compatibility
-        response["success"] = False
-    finally:
-        sys.stdout, sys.stderr = old_stdout, old_stderr
-        captured_stdout, captured_stderr = stdout_capture.getvalue(), stderr_capture.getvalue()
-        if captured_stdout:
-            logger.warning(f"Captured stdout: {captured_stdout[:500]}...")
-        if captured_stderr:
-            logger.warning(f"Captured stderr: {captured_stderr[:500]}...")
+    # Execute AIDER with coordination support
+    response = await _execute_aider_with_coordination(
+        ai_coding_prompt,
+        abs_editable_files,
+        abs_readonly_files,
+        normalized_model_name,
+        working_dir,
+        use_diff_cache,
+        clear_cached_for_unchanged,
+        architect_mode,
+        editor_model,
+        auto_accept_architect,
+        coordinator,
+    )
+
+    # Determine actual model used
+    rate_limit_info = response.get("rate_limit_info")
+    fallback_model = None
+    if isinstance(rate_limit_info, dict):
+        fallback_model = rate_limit_info.get("fallback_model")
+    actual_model_used = str(fallback_model) if fallback_model else normalized_model_name
 
     # Broadcast session completion event
     if coordinator:
-        try:
-            await coordinator.broadcast_event(
-                "aider.session_completed",
-                {
-                    "success": response.get("success", False),
-                    "changes_detected": response.get("success", False),
-                    "changes_summary": response.get("changes_summary", {}),
-                    "model_used": actual_model_used,
-                    "original_model": original_model,
-                    "rate_limit_encountered": response.get("rate_limit_info", {}).get("encountered", False),
-                    "fallback_used": bool(response.get("rate_limit_info", {}).get("fallback_model")),
-                    "timestamp": time.time()
-                }
-            )
-            logger.info("Broadcasted aider.session_completed event")
-        except Exception as e:
-            logger.warning(f"Failed to broadcast session_completed event: {e}")
+        await _broadcast_session_completed(coordinator, response, actual_model_used, original_model)
+
+    # Get API key status for final response
+    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
 
     _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
 

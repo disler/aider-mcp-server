@@ -1,14 +1,14 @@
 # Coordinator Framework Architecture Audit
 
-**Audit Date**: December 2024  
-**Focus**: Multi-transport coordination, error streaming, and throttling monitoring  
+**Audit Date**: December 2024
+**Focus**: Multi-transport coordination, error streaming, and throttling monitoring
 **Status**: ✅ COMPLETE
 
 ## Executive Summary
 
 The current Aider MCP Server implements a **sophisticated coordinator framework** that provides excellent foundations for multi-transport communication, error monitoring, and long-running request management. However, there are **key gaps** in the intended monitoring and error streaming architecture that limit its effectiveness for handling long-running AIDER sessions.
 
-**Current Strengths**: Discovery system, event coordination, rate limiting  
+**Current Strengths**: Discovery system, event coordination, rate limiting
 **Key Gaps**: Real-time error streaming, throttling detection, cross-transport notifications
 
 ## Architectural Vision vs. Current Implementation
@@ -60,7 +60,7 @@ if existing_coordinator:
 
 **Problem**: While STDIO runs AIDER tasks, LLM clients have no visibility into:
 - Rate limiting events
-- Long-running session progress  
+- Long-running session progress
 - Error conditions
 - Model fallback switches
 
@@ -141,7 +141,7 @@ Rate Limits, Progress, Errors --------+
 - No error monitoring from other transports
 - No throttling status streaming
 
-### STDIO Transport Implementation  
+### STDIO Transport Implementation
 
 **File**: `src/aider_mcp_server/organisms/transports/stdio/stdio_transport_adapter.py`
 
@@ -165,7 +165,7 @@ Rate Limits, Progress, Errors --------+
 async def _handle_rate_limit_or_error(...):
     # Current error handling
     should_retry, new_model = handle_error(...)
-    
+
     # NEW: Broadcast to coordinator
     if coordinator:
         await coordinator.broadcast_event(
@@ -183,17 +183,17 @@ async def _handle_rate_limit_or_error(...):
 
 #### 1.2 Progress Streaming for Long Sessions
 ```python
-# In aider_ai_code.py  
+# In aider_ai_code.py
 async def _run_aider_session(...):
     # NEW: Progress broadcasting
     await coordinator.broadcast_event(
-        "aider.session_started", 
+        "aider.session_started",
         {"files": relative_editable_files, "prompt": ai_coding_prompt[:100]}
     )
-    
+
     # During execution
     coder_result = coder.run(ai_coding_prompt)
-    
+
     await coordinator.broadcast_event(
         "aider.session_completed",
         {"success": True, "changes_detected": has_changes}
@@ -206,22 +206,22 @@ async def _run_aider_session(...):
 @app.route("/events/aider")
 async def aider_events_stream(request):
     """Stream AIDER events to web clients"""
-    
+
     async def event_generator():
         queue = asyncio.Queue()
-        
+
         # Subscribe to AIDER events
         coordinator.subscribe_to_events([
             "aider.rate_limit_detected",
-            "aider.session_started", 
+            "aider.session_started",
             "aider.session_completed",
             "aider.throttling_detected"
         ], queue.put)
-        
+
         while True:
             event = await queue.get()
             yield f"data: {json.dumps(event)}\n\n"
-    
+
     return EventSourceResponse(event_generator())
 ```
 
@@ -233,17 +233,17 @@ class RequestMonitor:
     def __init__(self):
         self.active_requests = {}
         self.throttling_threshold = 60.0  # seconds
-    
+
     async def track_request(self, request_id: str):
         start_time = time.time()
         self.active_requests[request_id] = start_time
-        
+
         # Monitor for throttling
         asyncio.create_task(self._monitor_throttling(request_id))
-    
+
     async def _monitor_throttling(self, request_id: str):
         await asyncio.sleep(self.throttling_threshold)
-        
+
         if request_id in self.active_requests:
             await coordinator.broadcast_event(
                 "aider.throttling_detected",
@@ -265,7 +265,7 @@ async def health_check(self):
         "longest_running": self.request_monitor.get_longest_duration(),
         "rate_limit_status": self.get_rate_limit_status(),
         "transport_status": {
-            transport_id: adapter.is_healthy() 
+            transport_id: adapter.is_healthy()
             for transport_id, adapter in self.transports.items()
         }
     }
@@ -283,7 +283,7 @@ coordinator_info = {
     "transport_type": "sse",
     "capabilities": [
         "error_streaming",
-        "progress_monitoring", 
+        "progress_monitoring",
         "throttling_detection"
     ],
     "active_transports": ["sse", "stdio"],
@@ -298,7 +298,7 @@ coordinator_info = {
 async def initialize_stdio_with_monitoring():
     discovery = CoordinatorDiscovery()
     sse_coordinator = await discovery.find_best_coordinator()
-    
+
     if sse_coordinator:
         # Register for event broadcasting
         await self.register_with_coordinator(sse_coordinator)
@@ -359,7 +359,7 @@ The Aider MCP Server has **excellent architectural foundations** for implementin
 **Key Recommendations**:
 
 1. **Immediate**: Implement event broadcasting in AIDER tool execution paths
-2. **Short-term**: Add SSE endpoint for real-time error/progress streaming  
+2. **Short-term**: Add SSE endpoint for real-time error/progress streaming
 3. **Medium-term**: Enhance discovery system for automatic cross-transport coordination
 4. **Long-term**: Add comprehensive throttling detection and health monitoring
 
