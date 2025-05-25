@@ -255,8 +255,8 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
 
     # Store subscription info for the client
     try:
-        setattr(client_queue, '_subscribed_events', target_events)
-        setattr(client_queue, '_event_type', event_type)
+        client_queue._subscribed_events = target_events
+        client_queue._event_type = event_type
         logger.debug(f"Event stream setup complete for client {client_id} on {event_type}")
 
         # Ensure coordinator event listener is running
@@ -352,72 +352,54 @@ async def _generate_sse_events(event_type: str, client_id: str) -> Any:
             logger.info(f"Cleaned up SSE connection for client {client_id} on {event_type}")
 
 
-def _setup_routes(app: FastAPI) -> None:
-    """Set up the FastAPI routes for SSE and message endpoints."""
+async def _create_sse_monitoring_endpoint(event_type: str) -> EventSourceResponse:
+    """Helper to create SSE monitoring endpoints."""
+    if _check_adapter_availability():
+        raise HTTPException(status_code=503, detail="Server not ready")
 
-    # FastAPI typing without type: ignore
+    client_id = str(uuid.uuid4())
+    logger.info(f"New client {client_id} connecting to /events/{event_type}")
+
+    # Set up event stream
+    await _create_event_stream(event_type, client_id)
+
+    return EventSourceResponse(
+        _generate_sse_events(event_type, client_id),
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
+    )
+
+
+def _setup_core_routes(app: FastAPI) -> None:
+    """Set up core SSE and message endpoints."""
+
     @app.get("/sse")
     async def sse_endpoint(request: Request) -> Response:
         """Endpoint for clients to establish an SSE connection and receive events."""
         return await _handle_sse_request(request)
 
-    # FastAPI typing without type: ignore
-    @app.post("/message", status_code=202)  # Use 202 Accepted status code
+    @app.post("/message", status_code=202)
     async def message_endpoint(request: Request) -> Response:
         """Endpoint to handle incoming message requests (like tool calls)."""
         return await _handle_message_request(request)
 
-    # New SSE monitoring endpoints for Phase 2
+
+def _setup_monitoring_routes(app: FastAPI) -> None:
+    """Set up SSE monitoring endpoints for Phase 2.1."""
+
     @app.get("/events/aider")
     async def aider_events_stream(request: Request) -> EventSourceResponse:
         """Stream general AIDER events (rate limits, progress, errors) to clients."""
-        if _check_adapter_availability():
-            raise HTTPException(status_code=503, detail="Server not ready")
-
-        client_id = str(uuid.uuid4())
-        logger.info(f"New client {client_id} connecting to /events/aider")
-
-        # Set up event stream
-        await _create_event_stream("aider", client_id)
-
-        return EventSourceResponse(
-            _generate_sse_events("aider", client_id),
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
-        )
+        return await _create_sse_monitoring_endpoint("aider")
 
     @app.get("/events/errors")
     async def error_events_stream(request: Request) -> EventSourceResponse:
         """Stream error-specific AIDER events to clients."""
-        if _check_adapter_availability():
-            raise HTTPException(status_code=503, detail="Server not ready")
-
-        client_id = str(uuid.uuid4())
-        logger.info(f"New client {client_id} connecting to /events/errors")
-
-        # Set up event stream
-        await _create_event_stream("errors", client_id)
-
-        return EventSourceResponse(
-            _generate_sse_events("errors", client_id),
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
-        )
+        return await _create_sse_monitoring_endpoint("errors")
 
     @app.get("/events/progress")
     async def progress_events_stream(request: Request) -> EventSourceResponse:
         """Stream progress update AIDER events to clients."""
-        if _check_adapter_availability():
-            raise HTTPException(status_code=503, detail="Server not ready")
-
-        client_id = str(uuid.uuid4())
-        logger.info(f"New client {client_id} connecting to /events/progress")
-
-        # Set up event stream
-        await _create_event_stream("progress", client_id)
-
-        return EventSourceResponse(
-            _generate_sse_events("progress", client_id),
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Client-ID": client_id},
-        )
+        return await _create_sse_monitoring_endpoint("progress")
 
     @app.get("/health")
     async def health_check() -> JSONResponse:
@@ -441,6 +423,12 @@ def _setup_routes(app: FastAPI) -> None:
                 "coordinator_status": "active" if _adapter and _adapter._coordinator else "unavailable",
             }
         )
+
+
+def _setup_routes(app: FastAPI) -> None:
+    """Set up the FastAPI routes for SSE and message endpoints."""
+    _setup_core_routes(app)
+    _setup_monitoring_routes(app)
 
 
 async def create_app(
