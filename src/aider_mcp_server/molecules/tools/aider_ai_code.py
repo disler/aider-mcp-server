@@ -4,9 +4,14 @@ import os
 import os.path
 import pathlib
 import subprocess
+import time
 
 # External imports - no stubs available
-from typing import Any, Dict, List, Optional, TypedDict, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union, TYPE_CHECKING
+
+# Add TYPE_CHECKING import for coordinator
+if TYPE_CHECKING:
+    from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 from aider.coders import Coder
 from aider.io import InputOutput
@@ -1042,6 +1047,7 @@ async def _execute_with_retry(
     architect_mode: bool = False,
     editor_model: Optional[str] = None,
     auto_accept_architect: bool = True,
+    coordinator: Optional["ApplicationCoordinator"] = None,
 ) -> ResponseDict:
     """
     Execute Aider with retry logic for rate limit handling.
@@ -1060,6 +1066,7 @@ async def _execute_with_retry(
         architect_mode: Whether to use two-phase architecture mode
         editor_model: Optional secondary model for implementation when architect_mode is enabled
         auto_accept_architect: Whether to automatically accept architect suggestions
+        coordinator: Optional coordinator for event broadcasting
 
     Returns:
         Response dictionary
@@ -1106,7 +1113,7 @@ async def _execute_with_retry(
 
         except Exception as e:
             should_retry, new_model_or_error = await _handle_rate_limit_or_error(
-                e, provider, attempt, max_retries, initial_delay, backoff_factor, current_model, response
+                e, provider, attempt, max_retries, initial_delay, backoff_factor, current_model, response, coordinator
             )
             if should_retry:
                 current_model = new_model_or_error  # This is the new model name
@@ -1127,6 +1134,7 @@ async def _handle_rate_limit_or_error(
     backoff_factor: float,
     current_model: str,
     response: ResponseDict,
+    coordinator: Optional["ApplicationCoordinator"] = None,
 ) -> tuple[bool, str]:
     """
     Handles rate limits and other errors during Aider execution.
@@ -1149,6 +1157,29 @@ async def _handle_rate_limit_or_error(
         logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
         rli["encountered"] = True
         rli["retries"] = rli.get("retries", 0) + 1  # type: ignore
+
+        # Broadcast rate limit event
+        if coordinator:
+            try:
+                delay = initial_delay * (backoff_factor**attempt)
+                new_model = get_fallback_model(current_model, provider)
+                await coordinator.broadcast_event(
+                    "aider.rate_limit_detected",
+                    {
+                        "provider": provider,
+                        "current_model": current_model,
+                        "fallback_model": new_model,
+                        "attempt": attempt + 1,
+                        "max_retries": max_retries,
+                        "estimated_delay": delay,
+                        "error_message": str(e),
+                        "timestamp": time.time(),
+                        "will_retry": attempt < max_retries
+                    }
+                )
+                logger.info("Broadcasted aider.rate_limit_detected event")
+            except Exception as broadcast_error:
+                logger.warning(f"Failed to broadcast rate_limit_detected event: {broadcast_error}")
 
         if attempt < max_retries:
             delay = initial_delay * (backoff_factor**attempt)
@@ -1197,6 +1228,7 @@ async def code_with_aider(
     editor_model: Optional[str] = None,
     auto_accept_architect: bool = True,
     include_raw_diff: bool = False,
+    coordinator: Optional["ApplicationCoordinator"] = None,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -1218,6 +1250,9 @@ async def code_with_aider(
                                               confirmation. Defaults to True.
         include_raw_diff (bool, optional): Whether to include raw diff in the response (not recommended).
                                         Defaults to False.
+        coordinator (ApplicationCoordinator, optional): Coordinator instance for event broadcasting.
+                                                     Enables real-time streaming of rate limits, progress,
+                                                     and errors. Defaults to None.
 
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
@@ -1236,6 +1271,7 @@ async def code_with_aider(
         architect_mode,
         editor_model,
         auto_accept_architect,
+        coordinator,
     )
 
     original_model = model
@@ -1273,6 +1309,25 @@ async def code_with_aider(
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
+    # Broadcast session start event
+    if coordinator:
+        try:
+            await coordinator.broadcast_event(
+                "aider.session_started",
+                {
+                    "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
+                    "editable_files": relative_editable_files,
+                    "readonly_files": relative_readonly_files,
+                    "model": original_model,
+                    "working_dir": working_dir,
+                    "architect_mode": architect_mode,
+                    "timestamp": time.time()
+                }
+            )
+            logger.info("Broadcasted aider.session_started event")
+        except Exception as e:
+            logger.warning(f"Failed to broadcast session_started event: {e}")
+
     # Initialize response structure for error cases before try-except
     response: ResponseDict = {
         "success": False,
@@ -1306,6 +1361,7 @@ async def code_with_aider(
             architect_mode,
             editor_model,
             auto_accept_architect,
+            coordinator,
         )
         response.update(session_response)
         # Update actual_model_used if fallback occurred
@@ -1339,6 +1395,26 @@ async def code_with_aider(
         if captured_stderr:
             logger.warning(f"Captured stderr: {captured_stderr[:500]}...")
 
+    # Broadcast session completion event
+    if coordinator:
+        try:
+            await coordinator.broadcast_event(
+                "aider.session_completed",
+                {
+                    "success": response.get("success", False),
+                    "changes_detected": response.get("success", False),
+                    "changes_summary": response.get("changes_summary", {}),
+                    "model_used": actual_model_used,
+                    "original_model": original_model,
+                    "rate_limit_encountered": response.get("rate_limit_info", {}).get("encountered", False),
+                    "fallback_used": bool(response.get("rate_limit_info", {}).get("fallback_model")),
+                    "timestamp": time.time()
+                }
+            )
+            logger.info("Broadcasted aider.session_completed event")
+        except Exception as e:
+            logger.warning(f"Failed to broadcast session_completed event: {e}")
+
     _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
 
     formatted_response = json.dumps(response, indent=4)
@@ -1357,6 +1433,7 @@ async def _initial_setup_and_logging(
     architect_mode: bool,
     editor_model: Optional[str],
     auto_accept_architect: bool,
+    coordinator: Optional["ApplicationCoordinator"] = None,
 ) -> None:
     """Performs initial setup and logging for code_with_aider."""
     global diff_cache  # Ensure diff_cache is accessible
