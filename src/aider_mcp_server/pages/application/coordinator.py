@@ -93,6 +93,14 @@ class ApplicationCoordinator:
             self._logger.error(f"Failed to initialize transport '{transport_name}'.")
             return None
 
+    async def register_transport_adapter(self, transport_adapter: ITransportAdapter) -> None:
+        """Register an already-instantiated transport adapter with the EventCoordinator."""
+        transport_id = transport_adapter.get_transport_id()
+        transport_type = transport_adapter.get_transport_type()
+        self._logger.info(f"Registering instantiated transport adapter: {transport_id} ({transport_type})")
+        await self._event_coordinator.register_transport_adapter(transport_adapter)
+        self._logger.info(f"Transport adapter '{transport_id}' registered with EventCoordinator.")
+
     def register_handler(self, request_type: str, handler: RequestHandler) -> None:
         """Register a request handler."""
         self._logger.debug(f"Registering handler for request type: {request_type}")

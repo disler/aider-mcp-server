@@ -303,6 +303,11 @@ class ApplicationCoordinator:
         # Update capabilities and default subscriptions (outside transports_lock)
         await self.update_transport_capabilities(transport_id, transport.get_capabilities())
 
+    async def register_transport_adapter(self, transport_adapter: "TransportInterface") -> None:
+        """Register an already-instantiated transport adapter with the coordinator."""
+        transport_id = transport_adapter.get_transport_id()
+        await self.register_transport(transport_id, transport_adapter)
+
     async def unregister_transport(self, transport_id: str) -> None:
         """Unregisters a transport adapter."""
         transport_exists = False

@@ -119,8 +119,8 @@ class AbstractTransportAdapter(TransportAdapterBase):
         """
         self.logger.debug(f"Initializing transport {self.get_transport_id()} ({self.get_transport_type()})...")
         if self._coordinator:
-            # Pass self, which conforms to TransportInterface
-            await self._coordinator.register_transport(self.get_transport_id(), self)
+            # Register the instantiated adapter directly with the coordinator
+            await self._coordinator.register_transport_adapter(self)
             self.logger.debug(f"Transport {self.get_transport_id()} registered with coordinator.")
 
             capabilities = self.get_capabilities()
