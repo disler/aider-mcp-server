@@ -178,15 +178,15 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 )
                 success = await self.connect_to_coordinator(coordinator_info)
                 if success:
-                    self.logger.info(f"Successfully connected to existing coordinator")
+                    self.logger.info("Successfully connected to existing coordinator")
                     return
                 else:
-                    self.logger.warning(f"Failed to connect to existing coordinator, will create new one")
+                    self.logger.warning("Failed to connect to existing coordinator, will create new one")
 
             # No existing coordinator found or connection failed, create/get singleton
             self.logger.info(f"Creating new coordinator instance for STDIO transport {self.transport_id}")
             self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
-            self.logger.info(f"Successfully created/connected to coordinator instance")
+            self.logger.info("Successfully created/connected to coordinator instance")
 
         except Exception as e:
             self.logger.error(f"Error during coordinator auto-discovery: {e}")
@@ -199,7 +199,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         This enables the STDIO transport to relay events to other transports.
         """
         if not self._coordinator:
-            self.logger.warning(f"No coordinator available for event subscription")
+            self.logger.warning("No coordinator available for event subscription")
             return
 
         try:
@@ -226,7 +226,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                             await result
                         self.logger.debug(f"Subscribed to event type: {event_type}")
                     else:
-                        self.logger.warning(f"Coordinator does not support event subscription")
+                        self.logger.warning("Coordinator does not support event subscription")
                         break
                 except Exception as e:
                     self.logger.warning(f"Failed to subscribe to event {event_type}: {e}")
