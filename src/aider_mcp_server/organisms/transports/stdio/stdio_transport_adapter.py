@@ -163,8 +163,8 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Creates a new coordinator if none found.
         """
         try:
-            from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
             from aider_mcp_server.atoms.logging.logger import get_logger
+            from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
             self.logger.info(f"Auto-discovering coordinator for STDIO transport {self.transport_id}...")
 
