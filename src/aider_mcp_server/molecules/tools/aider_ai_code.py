@@ -22,6 +22,7 @@ from aider_mcp_server.atoms.logging.logger import get_logger
 # Internal imports
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
+from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
@@ -1565,57 +1566,105 @@ async def code_with_aider(
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
-    # Broadcast session start event
+    # Initialize request monitor for throttling detection
+    request_monitor = None
+    request_id = None
     if coordinator:
-        await _broadcast_session_start(
-            coordinator,
+        request_monitor = RequestMonitor(coordinator)
+        request_context = {
+            "model": original_model,
+            "provider": provider, 
+            "editable_files": len(relative_editable_files),
+            "readonly_files": len(relative_readonly_files),
+            "architect_mode": architect_mode,
+            "working_dir": working_dir,
+        }
+        request_id = await request_monitor.track_request(context=request_context)
+
+    try:
+        # Broadcast session start event
+        if coordinator:
+            await _broadcast_session_start(
+                coordinator,
+                ai_coding_prompt,
+                relative_editable_files,
+                relative_readonly_files,
+                original_model,
+                working_dir,
+                architect_mode,
+            )
+
+        # Update progress before AIDER execution  
+        if request_monitor and request_id:
+            await request_monitor.update_request_progress(request_id, {
+                "stage": "executing_aider",
+                "model": normalized_model_name,
+                "files_count": len(abs_editable_files),
+            })
+
+        # Execute AIDER with coordination support
+        response = await _execute_aider_with_coordination(
             ai_coding_prompt,
-            relative_editable_files,
-            relative_readonly_files,
-            original_model,
+            abs_editable_files,
+            abs_readonly_files,
+            normalized_model_name,
             working_dir,
+            use_diff_cache,
+            clear_cached_for_unchanged,
             architect_mode,
+            editor_model,
+            auto_accept_architect,
+            coordinator,
         )
 
-    # Execute AIDER with coordination support
-    response = await _execute_aider_with_coordination(
-        ai_coding_prompt,
-        abs_editable_files,
-        abs_readonly_files,
-        normalized_model_name,
-        working_dir,
-        use_diff_cache,
-        clear_cached_for_unchanged,
-        architect_mode,
-        editor_model,
-        auto_accept_architect,
-        coordinator,
-    )
+        # Determine actual model used
+        rate_limit_info = response.get("rate_limit_info")
+        fallback_model = None
+        if isinstance(rate_limit_info, dict):
+            fallback_model = rate_limit_info.get("fallback_model")
+        actual_model_used = str(fallback_model) if fallback_model else normalized_model_name
 
-    # Determine actual model used
-    rate_limit_info = response.get("rate_limit_info")
-    fallback_model = None
-    if isinstance(rate_limit_info, dict):
-        fallback_model = rate_limit_info.get("fallback_model")
-    actual_model_used = str(fallback_model) if fallback_model else normalized_model_name
+        # Broadcast session completion event
+        if coordinator:
+            await _broadcast_session_completed(coordinator, response, actual_model_used, original_model)
 
-    # Broadcast session completion event
-    if coordinator:
-        await _broadcast_session_completed(coordinator, response, actual_model_used, original_model)
+            # Phase 1.3: Broadcast lightweight changes summary if successful
+            if response.get("success", False):
+                session_id = f"aider_{int(time.time() * 1000)}"
+                await _broadcast_changes_summary(coordinator, response, session_id, relative_editable_files)
 
-        # Phase 1.3: Broadcast lightweight changes summary if successful
-        if response.get("success", False):
-            session_id = f"aider_{int(time.time() * 1000)}"
-            await _broadcast_changes_summary(coordinator, response, session_id, relative_editable_files)
+        # Get API key status for final response
+        key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
 
-    # Get API key status for final response
-    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
+        _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
 
-    _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
+        # Complete request monitoring
+        if request_monitor and request_id:
+            success = response.get("success", False)
+            result_data = {
+                "success": success,
+                "actual_model": actual_model_used,
+                "files_changed": len(response.get("changes_summary", {}).get("files", [])),
+                "rate_limit_encountered": bool(response.get("rate_limit_info")),
+            }
+            await request_monitor.complete_request(request_id, success=success, result=result_data)
 
-    formatted_response = json.dumps(response, indent=4)
-    logger.info(f"code_with_aider process completed. Success: {response.get('success', False)}")
-    return formatted_response
+        formatted_response = json.dumps(response, indent=4)
+        logger.info(f"code_with_aider process completed. Success: {response.get('success', False)}")
+        return formatted_response
+
+    except Exception as e:
+        # Ensure request monitoring is completed even on errors
+        if request_monitor and request_id:
+            error_result = {
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
+            await request_monitor.complete_request(request_id, success=False, result=error_result)
+        
+        # Re-raise the exception to maintain original error handling
+        raise
 
 
 async def _initial_setup_and_logging(
