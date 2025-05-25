@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 # Add TYPE_CHECKING import for coordinator
 if TYPE_CHECKING:
-    from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
+    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 from aider.coders import Coder
 from aider.io import InputOutput

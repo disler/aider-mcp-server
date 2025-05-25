@@ -169,8 +169,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             self.logger.info(f"Auto-discovering coordinator for STDIO transport {self.transport_id}...")
 
             # Try to find existing coordinator using discovery
-            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(discovery_file=self._discovery_file)
-            
+            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(
+                discovery_file=self._discovery_file
+            )
+
             if coordinator_info:
                 self.logger.info(
                     f"Found existing coordinator {coordinator_info.coordinator_id} "
@@ -191,7 +193,9 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         except Exception as e:
             self.logger.error(f"Error during coordinator auto-discovery: {e}")
             # Continue without coordinator - degraded functionality but non-fatal
-            self.logger.warning(f"STDIO transport {self.transport_id} will continue without coordinator (degraded functionality)")
+            self.logger.warning(
+                f"STDIO transport {self.transport_id} will continue without coordinator (degraded functionality)"
+            )
 
     async def _subscribe_to_aider_events(self) -> None:
         """
@@ -210,7 +214,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 EventTypes.AIDER_SESSION_COMPLETED,
                 EventTypes.AIDER_RATE_LIMIT_DETECTED,
                 EventTypes.AIDER_THROTTLING_DETECTED,
-                EventTypes.AIDER_ERROR_OCCURRED
+                EventTypes.AIDER_ERROR_OCCURRED,
             ]
 
             self.logger.info(f"Subscribing STDIO transport {self.transport_id} to AIDER events: {aider_events}")
@@ -276,17 +280,17 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Does NOT start the read task automatically. Call start_listening() separately.
         """
         self.logger.info(f"Initializing stdio transport {self.transport_id}...")
-        
+
         # If no coordinator provided, attempt auto-discovery
         if not self._coordinator:
             await self._auto_discover_coordinator()
-        
+
         await super().initialize()
-        
+
         # Subscribe to AIDER events for cross-transport communication
         if self._coordinator:
             await self._subscribe_to_aider_events()
-        
+
         self.logger.info(f"Stdio transport {self.transport_id} initialized.")
 
     async def shutdown(self) -> None:
