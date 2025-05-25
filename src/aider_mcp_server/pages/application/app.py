@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Dict, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -17,7 +17,7 @@ from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSET
 _adapter: Optional[SSETransportAdapter] = None
 
 # Active SSE connections for event streaming
-_event_connections: Dict[str, Dict[str, asyncio.Queue]] = {
+_event_connections: Dict[str, Dict[str, asyncio.Queue[Any]]] = {
     "aider": {},  # General AIDER events
     "errors": {},  # Error-specific events
     "progress": {},  # Progress update events
@@ -27,7 +27,7 @@ _event_connections: Dict[str, Dict[str, asyncio.Queue]] = {
 logger = get_logger("app")
 
 # Global event listener for coordinator broadcasts
-_coordinator_event_listener: Optional[asyncio.Task] = None
+_coordinator_event_listener: Optional[asyncio.Task[None]] = None
 
 
 def _check_adapter_availability() -> Optional[Response]:
@@ -124,7 +124,7 @@ async def _handle_message_request(request: Request) -> Response:
         )
 
 
-async def _broadcast_to_sse_clients(event_type_str: str, event_data: Dict) -> None:
+async def _broadcast_to_sse_clients(event_type_str: str, event_data: Dict[str, Any]) -> None:
     """Broadcast coordinator events to relevant SSE clients."""
     try:
         # Determine which SSE endpoint types should receive this event
@@ -184,7 +184,7 @@ async def _start_coordinator_event_listener() -> None:
         logger.error("Cannot start event listener: no coordinator available")
         return
 
-    async def event_listener_task():
+    async def event_listener_task() -> None:
         """Background task to listen for coordinator events."""
         logger.info("Starting coordinator event listener for SSE broadcasting")
 
@@ -233,7 +233,7 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
         return
 
     # Create client queue for events
-    client_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    client_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=100)
     _event_connections[event_type][client_id] = client_queue
 
     # Define event types to subscribe to based on endpoint
@@ -255,8 +255,8 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
 
     # Store subscription info for the client
     try:
-        client_queue._subscribed_events = target_events
-        client_queue._event_type = event_type
+        setattr(client_queue, '_subscribed_events', target_events)
+        setattr(client_queue, '_event_type', event_type)
         logger.debug(f"Event stream setup complete for client {client_id} on {event_type}")
 
         # Ensure coordinator event listener is running
@@ -268,7 +268,7 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
             del _event_connections[event_type][client_id]
 
 
-async def _generate_sse_events(event_type: str, client_id: str):
+async def _generate_sse_events(event_type: str, client_id: str) -> Any:
     """Generate SSE events for monitoring endpoints."""
     try:
         # Get client queue
@@ -469,7 +469,7 @@ async def create_app(
         logger.error("Failed to create SSE transport adapter via registry")
         raise RuntimeError("Failed to create SSE transport adapter")
 
-    _adapter = adapter  # We know this is an SSETransportAdapter
+    _adapter = cast(SSETransportAdapter, adapter)
     logger.info(f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)")
 
     # Initialize event broadcasting integration
@@ -492,7 +492,7 @@ async def create_app(
 
 
 # Public API for coordinator integration
-async def broadcast_event_to_sse_clients(event_type: str, event_data: Dict) -> None:
+async def broadcast_event_to_sse_clients(event_type: str, event_data: Dict[str, Any]) -> None:
     """Public function for coordinator to broadcast events to SSE clients."""
     await _broadcast_to_sse_clients(event_type, event_data)
 
