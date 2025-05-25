@@ -10,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
+from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery  # Import CoordinatorDiscovery
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 
@@ -436,6 +437,8 @@ async def create_app(
     editor_model: str,  # Parameter kept for signature consistency, may be used elsewhere
     current_working_dir: str,  # Parameter kept for signature consistency
     heartbeat_interval: float = 15.0,
+    host: str = "127.0.0.1",  # Add host parameter for discovery registration
+    port: int = 8000,  # Add port parameter for discovery registration
 ) -> FastAPI:
     """Create and configure the FastAPI application with SSE routes."""
     global _adapter  # Indicate modification of the global variable
@@ -460,17 +463,55 @@ async def create_app(
     _adapter = cast(SSETransportAdapter, adapter)
     logger.info(f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)")
 
+    # Define streaming capabilities metadata
+    streaming_caps = {
+        "sse_endpoints": {
+            "aider_events": "/events/aider",
+            "error_events": "/events/errors",
+            "progress_events": "/events/progress",
+            "health_check": "/health",
+        },
+        # Add other streaming-related metadata here if needed
+        "supported_event_types": list(_event_connections.keys()),  # Example: list endpoint types
+    }
+
+    # Register coordinator in discovery with streaming metadata
+    try:
+        # Instantiate CoordinatorDiscovery directly
+        discovery_instance = CoordinatorDiscovery()
+        coordinator_id = await discovery_instance.register_coordinator(
+            host=host,
+            port=port,
+            transport_type="sse",
+            metadata={"version": "1.0.0"},  # Include existing metadata
+            streaming_capabilities=streaming_caps,  # Add streaming capabilities
+        )
+        logger.info(f"Registered coordinator {coordinator_id} in discovery with streaming capabilities.")
+        logger.info("Phase 2.2 Transport Discovery Integration complete (Streaming metadata added)")
+    except Exception as e:
+        logger.error(f"Failed to register coordinator in discovery: {e}")
+        # Continue without discovery registration if it fails
+
     # Initialize event broadcasting integration
-    if hasattr(adapter, "_coordinator") and adapter._coordinator:
+    # Ensure adapter and its coordinator are available before setting up broadcasting
+    if _adapter and _adapter._coordinator:
         # Start coordinator event listener for SSE broadcasting
         await _start_coordinator_event_listener()
 
         # Register SSE broadcast function with coordinator for Phase 1 integration
-        if hasattr(adapter._coordinator, "_sse_event_broadcaster"):
-            adapter._coordinator._sse_event_broadcaster = broadcast_event_to_sse_clients
+        # This is a temporary integration point until the coordinator has a proper subscribe method
+        if hasattr(_adapter._coordinator, "_sse_event_broadcaster"):
+            # Check if the attribute exists before assigning
+            _adapter._coordinator._sse_event_broadcaster = broadcast_event_to_sse_clients
             logger.debug("SSE event broadcaster registered with coordinator")
+        else:
+            logger.warning(
+                "Coordinator instance does not have _sse_event_broadcaster attribute. SSE broadcasting from coordinator to app will not work."
+            )
 
         logger.info("SSE monitoring endpoints ready - Phase 2.1 Event Broadcasting Integration complete")
+    else:
+        logger.warning("Adapter or Coordinator not available, skipping event broadcasting setup.")
 
     # Set up the routes
     _setup_routes(app)

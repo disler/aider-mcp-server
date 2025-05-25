@@ -40,6 +40,7 @@ class CoordinatorInfo:
         transport_type: str = "sse",
         start_time: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        streaming_capabilities: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize coordinator information.
@@ -51,6 +52,7 @@ class CoordinatorInfo:
             transport_type: Type of transport (e.g., "sse", "websocket")
             start_time: Time when the coordinator was started (defaults to now)
             metadata: Additional metadata about the coordinator
+            streaming_capabilities: Dictionary describing streaming endpoints and capabilities
         """
         self.coordinator_id = coordinator_id
         self.host = host
@@ -59,6 +61,7 @@ class CoordinatorInfo:
         self.start_time = start_time or time.time()
         self.metadata = metadata or {}
         self.last_heartbeat = self.start_time
+        self.streaming_capabilities = streaming_capabilities or {}
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -70,6 +73,7 @@ class CoordinatorInfo:
             "start_time": self.start_time,
             "last_heartbeat": self.last_heartbeat,
             "metadata": self.metadata,
+            "streaming_capabilities": self.streaming_capabilities,
         }
 
     @classmethod
@@ -82,6 +86,7 @@ class CoordinatorInfo:
             transport_type=data["transport_type"],
             start_time=data["start_time"],
             metadata=data.get("metadata", {}),
+            streaming_capabilities=data.get("streaming_capabilities", {}),  # Add default for backward compatibility
         )
         info.last_heartbeat = data.get("last_heartbeat", info.start_time)
         return info
@@ -101,6 +106,18 @@ class CoordinatorInfo:
             True if the coordinator is likely still active
         """
         return (time.time() - self.last_heartbeat) < max_age_seconds
+
+    def has_streaming_capability(self, endpoint_key: str) -> bool:
+        """
+        Check if the coordinator reports a specific streaming endpoint.
+
+        Args:
+            endpoint_key: The key for the streaming endpoint (e.g., "aider_events", "health")
+
+        Returns:
+            True if the streaming_capabilities includes the specified endpoint key.
+        """
+        return endpoint_key in self.streaming_capabilities
 
 
 class CoordinatorDiscovery:
@@ -149,6 +166,7 @@ class CoordinatorDiscovery:
         port: int,
         transport_type: str = "sse",
         metadata: Optional[Dict[str, Any]] = None,
+        streaming_capabilities: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Register a coordinator in the discovery file.
@@ -158,7 +176,7 @@ class CoordinatorDiscovery:
             port: Port where the coordinator is listening
             transport_type: Type of transport (e.g., "sse", "websocket")
             metadata: Additional metadata about the coordinator
-
+            streaming_capabilities: Dictionary describing streaming endpoints and capabilities
         Returns:
             The coordinator ID
         """
@@ -169,6 +187,7 @@ class CoordinatorDiscovery:
             port=port,
             transport_type=transport_type,
             metadata=metadata,
+            streaming_capabilities=streaming_capabilities,
         )
 
         # Store the registered coordinator
@@ -230,6 +249,21 @@ class CoordinatorDiscovery:
         # Sort by start time (newest first)
         coordinators.sort(key=lambda c: c.start_time, reverse=True)
         return coordinators[0]
+
+    async def find_streaming_coordinators(self, max_age_seconds: float = 30.0) -> List[CoordinatorInfo]:
+        """
+        Discover active coordinators that report streaming capabilities.
+
+        Args:
+            max_age_seconds: Maximum age in seconds for a coordinator to be considered active
+
+        Returns:
+            List of active coordinator information with streaming capabilities
+        """
+        all_coordinators = await self.discover_coordinators(max_age_seconds)
+        streaming_coordinators = [coord for coord in all_coordinators if coord.streaming_capabilities]
+        logger.debug(f"Found {len(streaming_coordinators)} active coordinators with streaming capabilities")
+        return streaming_coordinators
 
     async def _update_registry(self, info: Optional[CoordinatorInfo] = None) -> None:
         """
