@@ -142,12 +142,20 @@ class ApplicationCoordinator:
     ) -> None:
         """Broadcast an event to all registered transports."""
         self._logger.debug(f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{event_data}'")
-        # Task 9 spec implies EventCoordinator has:
-        # broadcast_event(event_type: str, event_data: Dict[str, Any], client_id: Optional[str])
-        # Task 4 spec for EventCoordinator is compatible if priority defaults.
-        # Provided EventCoordinator has a deprecated broadcast_event with different signature.
-        # Sticking to Task 9 spec for the call:
-        await self._event_coordinator.broadcast_event(event_type, event_data, client_id=client_id)  # type: ignore
+        # Convert string event_type to EventTypes enum if needed
+        from aider_mcp_server.atoms.types.event_types import EventTypes
+        if isinstance(event_type, str):
+            # Try to convert string to EventTypes enum
+            try:
+                event_type_enum = EventTypes(event_type)
+            except ValueError:
+                self._logger.warning(f"Unknown event type: {event_type}, using as-is")
+                event_type_enum = event_type  # type: ignore
+        else:
+            event_type_enum = event_type
+        
+        # Use the EventCoordinator's broadcast_event method (without client_id)
+        await self._event_coordinator.broadcast_event(event_type_enum, event_data)
 
     async def shutdown(self) -> None:
         """Shut down the application coordinator and all components."""
