@@ -314,7 +314,7 @@ class TestStdioTransportAdapterInitialization:
         """Test adapter initialization with discovery file."""
         discovery_file = tmp_path / "test_discovery.json"
         
-        with patch("aider_mcp_server.organisms.transports.stdio.stdio_transport_adapter.ApplicationCoordinator.getInstance") as mock_get_instance:
+        with patch("aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance") as mock_get_instance:
             mock_coordinator = AsyncMock()
             mock_get_instance.return_value = mock_coordinator
 
@@ -337,7 +337,7 @@ class TestStdioTransportAdapterInitialization:
     @pytest.mark.asyncio
     async def test_initialization_without_discovery_file(self):
         """Test adapter initialization without discovery file."""
-        with patch("aider_mcp_server.organisms.transports.stdio.stdio_transport_adapter.ApplicationCoordinator.getInstance") as mock_get_instance:
+        with patch("aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance") as mock_get_instance:
             mock_coordinator = AsyncMock()
             mock_get_instance.return_value = mock_coordinator
 
