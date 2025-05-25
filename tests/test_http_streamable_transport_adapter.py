@@ -191,7 +191,7 @@ def mock_logger_factory():
 @pytest.fixture
 def mock_coordinator():
     coordinator = mock.AsyncMock(spec=ApplicationCoordinator)
-    coordinator.register_transport_adapter = mock.AsyncMock() # Added
+    coordinator.register_transport_adapter = mock.AsyncMock()  # Added
     coordinator.unregister_transport = mock.AsyncMock()
     coordinator.broadcast_event = mock.AsyncMock()
     return coordinator
