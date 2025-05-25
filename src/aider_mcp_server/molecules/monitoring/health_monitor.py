@@ -6,11 +6,12 @@ and resource usage monitoring for the Aider MCP Server real-time streaming syste
 """
 
 import asyncio
-import psutil
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+
+import psutil
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator
@@ -19,7 +20,7 @@ from aider_mcp_server.interfaces.application_coordinator import IApplicationCoor
 @dataclass
 class SystemMetrics:
     """System resource metrics snapshot."""
-    
+
     timestamp: float
     cpu_percent: float
     memory_percent: float
@@ -32,7 +33,7 @@ class SystemMetrics:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for requests and operations."""
-    
+
     total_requests: int
     successful_requests: int
     failed_requests: int
@@ -45,7 +46,7 @@ class PerformanceMetrics:
 @dataclass
 class HealthStatus:
     """Overall health status of the system."""
-    
+
     status: str  # "healthy", "warning", "critical"
     timestamp: float
     system_metrics: SystemMetrics
@@ -76,18 +77,18 @@ class HealthMonitor:
         self.coordinator = coordinator
         self.metrics_retention_minutes = metrics_retention_minutes
         self.health_check_interval = health_check_interval
-        
+
         # Metrics storage with time-based retention
         self.system_metrics_history: deque[SystemMetrics] = deque()
         self.request_durations: deque[Tuple[float, float]] = deque()  # (timestamp, duration)
         self.request_results: deque[Tuple[float, bool]] = deque()  # (timestamp, success)
         self.throttling_events: deque[float] = deque()  # timestamps
-        
+
         # Current state tracking
         self.active_requests: Dict[str, Dict[str, Any]] = {}
         self.streaming_clients: Dict[str, Dict[str, Any]] = {}
         self.error_counts: Dict[str, int] = defaultdict(int)
-        
+
         # Background tasks
         self._health_check_task: Optional["asyncio.Task[None]"] = None
         self._metrics_cleanup_task: Optional["asyncio.Task[None]"] = None
@@ -97,15 +98,15 @@ class HealthMonitor:
         """Start background health monitoring tasks."""
         if self._is_running:
             return
-            
+
         self._is_running = True
-        
+
         # Start health check task
         self._health_check_task = asyncio.create_task(self._health_check_loop())
-        
+
         # Start metrics cleanup task
         self._metrics_cleanup_task = asyncio.create_task(self._metrics_cleanup_loop())
-        
+
         await self.coordinator.broadcast_event(
             EventTypes.AIDER_SESSION_STARTED,
             {
@@ -113,13 +114,13 @@ class HealthMonitor:
                 "status": "monitoring_started",
                 "check_interval": self.health_check_interval,
                 "retention_minutes": self.metrics_retention_minutes,
-            }
+            },
         )
 
     async def stop_monitoring(self) -> None:
         """Stop background health monitoring tasks."""
         self._is_running = False
-        
+
         if self._health_check_task:
             self._health_check_task.cancel()
             try:
@@ -127,7 +128,7 @@ class HealthMonitor:
             except asyncio.CancelledError:
                 pass
             self._health_check_task = None
-            
+
         if self._metrics_cleanup_task:
             self._metrics_cleanup_task.cancel()
             try:
@@ -139,31 +140,31 @@ class HealthMonitor:
         await self.coordinator.broadcast_event(
             EventTypes.AIDER_SESSION_COMPLETED,
             {
-                "component": "health_monitor", 
+                "component": "health_monitor",
                 "status": "monitoring_stopped",
-            }
+            },
         )
 
     async def get_health_status(self) -> HealthStatus:
         """Get comprehensive current health status."""
         current_time = time.time()
-        
+
         # Collect system metrics
         system_metrics = await self._collect_system_metrics()
-        
+
         # Calculate performance metrics
         performance_metrics = self._calculate_performance_metrics(current_time)
-        
+
         # Determine overall health status
         status = self._determine_health_status(system_metrics, performance_metrics)
-        
+
         # Get coordinator and client counts
         active_coordinators = await self._get_active_coordinator_count()
         streaming_clients_count = len(self.streaming_clients)
-        
+
         # Calculate error rate
         error_rate = self._calculate_error_rate(current_time)
-        
+
         health_status = HealthStatus(
             status=status,
             timestamp=current_time,
@@ -174,12 +175,14 @@ class HealthMonitor:
             error_rate=error_rate,
             details={
                 "active_requests": len(self.active_requests),
-                "recent_throttling_events": len([t for t in self.throttling_events if current_time - t < 300]),  # Last 5 minutes
+                "recent_throttling_events": len(
+                    [t for t in self.throttling_events if current_time - t < 300]
+                ),  # Last 5 minutes
                 "error_breakdown": dict(self.error_counts),
                 "monitoring_uptime": current_time if self._is_running else 0,
-            }
+            },
         )
-        
+
         return health_status
 
     async def record_request_start(self, request_id: str, context: Optional[Dict[str, Any]] = None) -> None:
@@ -189,27 +192,22 @@ class HealthMonitor:
             "context": context or {},
         }
 
-    async def record_request_completion(
-        self, 
-        request_id: str, 
-        success: bool, 
-        error_type: Optional[str] = None
-    ) -> None:
+    async def record_request_completion(self, request_id: str, success: bool, error_type: Optional[str] = None) -> None:
         """Record the completion of a request."""
         current_time = time.time()
-        
+
         if request_id in self.active_requests:
             start_time = self.active_requests[request_id]["start_time"]
             duration = current_time - start_time
-            
+
             # Store metrics
             self.request_durations.append((current_time, duration))
             self.request_results.append((current_time, success))
-            
+
             # Track errors
             if not success and error_type:
                 self.error_counts[error_type] += 1
-            
+
             # Remove from active requests
             del self.active_requests[request_id]
 
@@ -217,7 +215,7 @@ class HealthMonitor:
         """Record a throttling event for metrics tracking."""
         current_time = time.time()
         self.throttling_events.append(current_time)
-        
+
         await self.coordinator.broadcast_event(
             EventTypes.AIDER_THROTTLING_DETECTED,
             {
@@ -225,7 +223,7 @@ class HealthMonitor:
                 "timestamp": current_time,
                 "context": context or {},
                 "recent_throttling_count": len([t for t in self.throttling_events if current_time - t < 300]),
-            }
+            },
         )
 
     async def register_streaming_client(self, client_id: str, client_info: Dict[str, Any]) -> None:
@@ -244,24 +242,24 @@ class HealthMonitor:
         """Get a summary of metrics for the specified time period."""
         current_time = time.time()
         cutoff_time = current_time - (minutes_back * 60)
-        
+
         # Filter recent data
         recent_durations = [(t, d) for t, d in self.request_durations if t >= cutoff_time]
         recent_results = [(t, s) for t, s in self.request_results if t >= cutoff_time]
         recent_throttling = [t for t in self.throttling_events if t >= cutoff_time]
         recent_system_metrics = [m for m in self.system_metrics_history if m.timestamp >= cutoff_time]
-        
+
         # Calculate summary stats
         total_requests = len(recent_results)
         successful_requests = sum(1 for _, success in recent_results if success)
         failed_requests = total_requests - successful_requests
-        
+
         durations = [d for _, d in recent_durations]
         avg_duration = sum(durations) / len(durations) if durations else 0
         p95_duration = sorted(durations)[int(len(durations) * 0.95)] if durations else 0
-        
+
         requests_per_minute = total_requests / max(minutes_back, 1)
-        
+
         return {
             "time_period_minutes": minutes_back,
             "total_requests": total_requests,
@@ -281,19 +279,19 @@ class HealthMonitor:
         """Collect current system resource metrics."""
         # Get CPU usage
         cpu_percent = psutil.cpu_percent(interval=0.1)
-        
+
         # Get memory usage
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         memory_used_mb = memory.used / (1024 * 1024)
         memory_available_mb = memory.available / (1024 * 1024)
-        
+
         # Get connection count (approximate)
         try:
             connections = len(psutil.net_connections())
         except (psutil.AccessDenied, OSError):
             connections = 0
-        
+
         return SystemMetrics(
             timestamp=time.time(),
             cpu_percent=cpu_percent,
@@ -308,20 +306,20 @@ class HealthMonitor:
         """Calculate performance metrics from collected data."""
         # Use last 10 minutes for performance calculation
         cutoff_time = current_time - 600
-        
+
         recent_durations = [d for t, d in self.request_durations if t >= cutoff_time]
         recent_results = [(t, s) for t, s in self.request_results if t >= cutoff_time]
         recent_throttling = [t for t in self.throttling_events if t >= cutoff_time]
-        
+
         total_requests = len(recent_results)
         successful_requests = sum(1 for _, success in recent_results if success)
         failed_requests = total_requests - successful_requests
-        
+
         avg_duration = sum(recent_durations) / len(recent_durations) if recent_durations else 0
         p95_duration = sorted(recent_durations)[int(len(recent_durations) * 0.95)] if recent_durations else 0
-        
+
         requests_per_minute = total_requests / 10.0  # 10 minute window
-        
+
         return PerformanceMetrics(
             total_requests=total_requests,
             successful_requests=successful_requests,
@@ -332,25 +330,25 @@ class HealthMonitor:
             requests_per_minute=requests_per_minute,
         )
 
-    def _determine_health_status(
-        self, 
-        system_metrics: SystemMetrics, 
-        performance_metrics: PerformanceMetrics
-    ) -> str:
+    def _determine_health_status(self, system_metrics: SystemMetrics, performance_metrics: PerformanceMetrics) -> str:
         """Determine overall health status based on metrics."""
         # Define thresholds
-        if (system_metrics.memory_percent > 90 or 
-            system_metrics.cpu_percent > 90 or
-            performance_metrics.failed_requests > performance_metrics.successful_requests or
-            performance_metrics.throttled_requests > 10):
+        if (
+            system_metrics.memory_percent > 90
+            or system_metrics.cpu_percent > 90
+            or performance_metrics.failed_requests > performance_metrics.successful_requests
+            or performance_metrics.throttled_requests > 10
+        ):
             return "critical"
-        
-        if (system_metrics.memory_percent > 75 or 
-            system_metrics.cpu_percent > 75 or
-            performance_metrics.failed_requests > performance_metrics.successful_requests * 0.1 or
-            performance_metrics.throttled_requests > 3):
+
+        if (
+            system_metrics.memory_percent > 75
+            or system_metrics.cpu_percent > 75
+            or performance_metrics.failed_requests > performance_metrics.successful_requests * 0.1
+            or performance_metrics.throttled_requests > 3
+        ):
             return "warning"
-        
+
         return "healthy"
 
     async def _get_active_coordinator_count(self) -> int:
@@ -363,10 +361,10 @@ class HealthMonitor:
         """Calculate current error rate over the last 10 minutes."""
         cutoff_time = current_time - 600  # 10 minutes
         recent_results = [(t, s) for t, s in self.request_results if t >= cutoff_time]
-        
+
         if not recent_results:
             return 0.0
-        
+
         failed_requests = sum(1 for _, success in recent_results if not success)
         return failed_requests / len(recent_results)
 
@@ -377,10 +375,10 @@ class HealthMonitor:
                 # Collect and store system metrics
                 system_metrics = await self._collect_system_metrics()
                 self.system_metrics_history.append(system_metrics)
-                
+
                 # Get full health status
                 health_status = await self.get_health_status()
-                
+
                 # Broadcast health update if status is not healthy
                 if health_status.status != "healthy":
                     await self.coordinator.broadcast_event(
@@ -397,11 +395,11 @@ class HealthMonitor:
                                 "error_rate": health_status.error_rate,
                                 "throttled_requests": health_status.performance_metrics.throttled_requests,
                             },
-                        }
+                        },
                     )
-                
+
                 await asyncio.sleep(self.health_check_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -412,7 +410,7 @@ class HealthMonitor:
                         "component": "health_monitor",
                         "error": "health_check_error",
                         "message": str(e),
-                    }
+                    },
                 )
                 await asyncio.sleep(self.health_check_interval)
 
@@ -422,23 +420,23 @@ class HealthMonitor:
             try:
                 current_time = time.time()
                 cutoff_time = current_time - (self.metrics_retention_minutes * 60)
-                
+
                 # Clean up old data
                 while self.system_metrics_history and self.system_metrics_history[0].timestamp < cutoff_time:
                     self.system_metrics_history.popleft()
-                
+
                 while self.request_durations and self.request_durations[0][0] < cutoff_time:
                     self.request_durations.popleft()
-                
+
                 while self.request_results and self.request_results[0][0] < cutoff_time:
                     self.request_results.popleft()
-                
+
                 while self.throttling_events and self.throttling_events[0] < cutoff_time:
                     self.throttling_events.popleft()
-                
+
                 # Run cleanup every 5 minutes
                 await asyncio.sleep(300)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception:
