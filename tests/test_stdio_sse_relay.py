@@ -6,9 +6,7 @@ and relay AIDER events to SSE endpoints.
 """
 
 import asyncio
-import sys
 from io import StringIO
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp

@@ -202,7 +202,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
 
                 # If the adapter successfully initialized and has a coordinator, return it.
                 if adapter._coordinator:
-                     cls.logger.info(f"Successfully initialized adapter connected to local coordinator for request processing.")
+                     cls.logger.info("Successfully initialized adapter connected to local coordinator for request processing.")
                      return adapter
                 else:
                      cls.logger.warning("Adapter initialized but failed to connect to a local coordinator.")
@@ -329,7 +329,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
 
             # Access the local singleton instance
             self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
-            self.logger.info(f"Successfully accessed local coordinator singleton.")
+            self.logger.info("Successfully accessed local coordinator singleton.")
 
             # Note: This does NOT establish a network connection to the specified host/port.
             # It merely ensures the adapter has a reference to the local coordinator.
