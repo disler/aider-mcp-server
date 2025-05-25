@@ -255,8 +255,8 @@ async def _create_event_stream(event_type: str, client_id: str) -> None:
 
     # Store subscription info for the client
     try:
-        client_queue._subscribed_events = target_events
-        client_queue._event_type = event_type
+        client_queue._subscribed_events = target_events  # type: ignore[attr-defined]
+        client_queue._event_type = event_type  # type: ignore[attr-defined]
         logger.debug(f"Event stream setup complete for client {client_id} on {event_type}")
 
         # Ensure coordinator event listener is running
