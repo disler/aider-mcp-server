@@ -4,56 +4,89 @@ Tests for SSE monitoring endpoints - Phase 2.1 implementation.
 Tests the real-time event streaming endpoints for AIDER coordinator events.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
 
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 from aider_mcp_server.pages.application.app import (
     _broadcast_to_sse_clients,
     broadcast_event_to_sse_clients,
+    create_app,
     get_sse_connection_stats,
 )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_coordinator():
     """Create a mock ApplicationCoordinator for testing."""
     coordinator = AsyncMock(spec=ApplicationCoordinator)
     coordinator.is_shutting_down.return_value = False
     coordinator.broadcast_event = AsyncMock()
-    coordinator.register_transport_adapter = AsyncMock()
-    return coordinator
+    coordinator.register_transport = AsyncMock() # Use register_transport as in app.py
+    coordinator.subscribe_to_event_type = AsyncMock() # Use subscribe_to_event_type as in app.py
+    coordinator._initialize_coordinator = AsyncMock()
+    coordinator.__aenter__ = AsyncMock(return_value=coordinator)
+    coordinator.__aexit__ = AsyncMock()
+    # Mock the getInstance method if it's used to get the coordinator
+    with patch("aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance", new_callable=AsyncMock) as mock_get_instance:
+         mock_get_instance.return_value = coordinator
+         yield coordinator
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_app(mock_coordinator):
-    """Create a test FastAPI app with SSE monitoring endpoints."""
-    # Create a minimal app for testing
-    app = FastAPI()
+    """Create a test FastAPI app with SSE monitoring endpoints using create_app."""
+    # Use dummy values for parameters required by create_app
+    editor_model = "test_model"
+    current_working_dir = "/tmp/test_cwd"
+    heartbeat_interval = 1.0 # Use a short interval for testing
 
-    # Import and set up routes manually for testing
-    from aider_mcp_server.pages.application.app import _setup_routes
-
-    # Mock the global adapter for testing
-    mock_adapter = MagicMock()
-    mock_adapter._coordinator = mock_coordinator
-    mock_adapter.get_transport_id.return_value = "test_sse"
-
-    # Set the global adapter
+    # Patch the global adapter variable to control its state during the test
     import aider_mcp_server.pages.application.app as app_module
+    original_adapter = app_module._adapter
+    original_event_listener = app_module._coordinator_event_listener
+    original_event_connections = app_module._event_connections
 
-    app_module._adapter = mock_adapter
+    # Patch the TransportAdapterRegistry to return a mock adapter
+    with patch("aider_mcp_server.pages.application.app.TransportAdapterRegistry.get_instance", new_callable=AsyncMock) as mock_registry_get_instance:
+        mock_registry = AsyncMock()
+        mock_registry_get_instance.return_value = mock_registry
 
-    # Setup routes
-    _setup_routes(app)
+        # Create a mock adapter that mimics the behavior expected by create_app
+        mock_adapter = MagicMock()
+        mock_adapter.get_transport_id.return_value = "test_sse"
+        mock_adapter._coordinator = mock_coordinator # Ensure the mock coordinator is linked
+        mock_adapter._heartbeat_interval = heartbeat_interval # Match the interval passed
+        mock_adapter._heartbeat_task = None # Simulate initial state
+        mock_adapter.logger = MagicMock() # Mock logger
+        mock_adapter.initialize = AsyncMock() # Mock the initialize method
 
-    yield app
+        # Configure the mock registry to return our mock adapter
+        mock_registry.create_adapter = AsyncMock(return_value=mock_adapter)
 
-    # Cleanup
-    app_module._adapter = None
+        # Patch _start_coordinator_event_listener to prevent it from creating a real task
+        # We will verify its call separately if needed
+        with patch("aider_mcp_server.pages.application.app._start_coordinator_event_listener", new_callable=AsyncMock) as mock_start_listener:
+             # Call the actual create_app function
+             app = await create_app(
+                 coordinator=mock_coordinator,
+                 editor_model=editor_model,
+                 current_working_dir=current_working_dir,
+                 heartbeat_interval=heartbeat_interval,
+             )
+
+             # The create_app function sets the global _adapter
+             assert app_module._adapter is mock_adapter
+
+             yield app
+
+    # Cleanup: Restore original global state
+    app_module._adapter = original_adapter
+    app_module._coordinator_event_listener = original_event_listener
+    app_module._event_connections = original_event_connections
 
 
 class TestSSEMonitoringEndpoints:
@@ -62,7 +95,7 @@ class TestSSEMonitoringEndpoints:
     @pytest.mark.asyncio
     async def test_health_endpoint(self, test_app):
         """Test the health endpoint returns correct status."""
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == 200
@@ -81,23 +114,29 @@ class TestSSEMonitoringEndpoints:
         assert "progress_events" in connections
 
     @pytest.mark.asyncio
-    async def test_sse_endpoints_exist(self, test_app):
+    @patch("aider_mcp_server.pages.application.app._generate_sse_events")
+    async def test_sse_endpoints_exist(self, mock_generate_sse_events, test_app):
         """Test that all SSE monitoring endpoints are accessible."""
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+
+        # Mock the generator to yield a minimal event and then stop, preventing the test from hanging
+        async def mock_generator(*args, **kwargs):
+            # Yield a minimal valid SSE event format
+            yield "data: {}\n\n"
+            # The generator stops after yielding one event, allowing the stream to close
+
+        mock_generate_sse_events.side_effect = mock_generator
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
             # Test all SSE endpoints return successful responses (not 404)
             endpoints = ["/events/aider", "/events/errors", "/events/progress"]
 
             for endpoint in endpoints:
-                # SSE endpoints should start streaming immediately
-                # We'll just check they don't return 404
-                try:
-                    response = await client.get(endpoint, timeout=1.0)
-                    # SSE endpoints will timeout but shouldn't be 404
-                    assert response.status_code != 404
-                except Exception as e:
-                    # Timeout is expected for SSE endpoints in this test
-                    # Log for debugging but don't fail the test
-                    print(f"Expected timeout/error for {endpoint}: {e}")
+                # Use client.stream to establish the connection and check status
+                # The mocked generator will ensure this completes quickly
+                async with client.stream("GET", endpoint) as response:
+                    assert response.status_code == 200
+                    # The stream should close automatically after the mocked generator finishes
+                    # No need for explicit aclose() here as the generator is short-lived
 
     @pytest.mark.asyncio
     async def test_broadcast_to_sse_clients(self):
@@ -233,21 +272,41 @@ class TestSSEEndpointIntegration:
     """Integration tests for SSE endpoint behavior."""
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_headers(self, test_app):
+    @patch("aider_mcp_server.pages.application.app._generate_sse_events")
+    async def test_sse_endpoint_headers(self, mock_generate_sse_events, test_app):
         """Test that SSE endpoints return correct headers."""
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
-            try:
-                # Start SSE connection with short timeout
-                await client.get("/events/aider", timeout=0.5)
-            except Exception as e:
-                # Timeout expected, but we can check if response started
-                print(f"Expected timeout for SSE endpoint: {e}")
+        
+        # Mock the generator to yield a minimal event and then stop
+        async def mock_generator(*args, **kwargs):
+            yield "data: {}\n\n"
+        
+        mock_generate_sse_events.side_effect = mock_generator
+        
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
+            endpoints = ["/events/aider", "/events/errors", "/events/progress"]
+            expected_headers = {
+                "content-type": "text/event-stream",
+                "cache-control": "no-cache", 
+                "connection": "keep-alive",
+            }
 
-            # In a real test environment, we would check:
-            # - Content-Type: text/event-stream
-            # - Cache-Control: no-cache
-            # - Connection: keep-alive
-            # But this requires more complex SSE client testing
+            for endpoint in endpoints:
+                async with client.stream("GET", endpoint) as response:
+                    assert response.status_code == 200
+                    headers = {k.lower(): v.lower() for k, v in response.headers.items()}
+                    
+                    # Check content-type starts with expected value (may have charset)
+                    assert "content-type" in headers
+                    assert headers["content-type"].startswith("text/event-stream")
+                    
+                    # Check other headers exactly
+                    assert "cache-control" in headers
+                    assert headers["cache-control"] == "no-cache"
+                    assert "connection" in headers
+                    assert headers["connection"] == "keep-alive"
+                    # Check for X-Client-ID header presence
+                    assert "x-client-id" in headers
+                    assert len(headers["x-client-id"]) > 0 # Ensure it's not empty
 
     @pytest.mark.asyncio
     async def test_coordinator_integration_setup(self, test_app, mock_coordinator):
