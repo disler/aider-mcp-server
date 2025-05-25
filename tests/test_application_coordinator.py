@@ -223,9 +223,7 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
         await coordinator.broadcast_event(event_type_str, event_data_dict, client_id_str)
 
         # EventCoordinator.broadcast_event doesn't support client_id, so it's called without it
-        self.mock_event_coordinator.broadcast_event.assert_called_once_with(
-            event_type_str, event_data_dict
-        )
+        self.mock_event_coordinator.broadcast_event.assert_called_once_with(event_type_str, event_data_dict)
 
     async def test_shutdown(self):
         # Ensure __init__ runs to set _initialized = True
