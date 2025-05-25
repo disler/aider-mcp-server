@@ -21,6 +21,7 @@ from aider_mcp_server.atoms.logging.logger import get_logger
 
 # Internal imports
 from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
@@ -1284,6 +1285,121 @@ async def _broadcast_session_completed(
         logger.warning(f"Failed to broadcast session_completed event: {e}")
 
 
+def _extract_file_summaries(changes_summary: Dict[str, Any]) -> List[FileChangesSummary]:
+    """Extract file summaries from changes_summary data."""
+    file_summaries: List[FileChangesSummary] = []
+    changes_files = changes_summary.get("files", [])
+
+    if isinstance(changes_files, list):
+        for file_info in changes_files:
+            if isinstance(file_info, dict):
+                file_path = file_info.get("name", "unknown")
+                operation = file_info.get("operation", "modified")
+
+                # Map operation to ChangeType
+                change_type = ChangeType.MODIFIED.value
+                if operation in ["created", "added"]:
+                    change_type = ChangeType.CREATED.value
+                elif operation in ["deleted", "removed"]:
+                    change_type = ChangeType.DELETED.value
+                elif operation in ["renamed", "moved"]:
+                    change_type = ChangeType.RENAMED.value
+
+                file_summary: FileChangesSummary = {
+                    "file_path": file_path,
+                    "change_type": change_type,
+                    "lines_added": 0,
+                    "lines_removed": 0,
+                    "lines_modified": 0,
+                    "change_description": f"{operation.title()} {file_path}",
+                    "estimated_impact": "medium",
+                }
+                file_summaries.append(file_summary)
+
+    return file_summaries
+
+
+def _determine_change_categories(summary_text: str) -> List[str]:
+    """Determine change categories based on summary text content."""
+    change_categories = []
+    summary_lower = summary_text.lower()
+
+    if any(word in summary_lower for word in ["fix", "bug", "error"]):
+        change_categories.append("bug_fix")
+    if any(word in summary_lower for word in ["add", "new", "feature"]):
+        change_categories.append("feature_addition")
+    if any(word in summary_lower for word in ["refactor", "cleanup", "reorganize"]):
+        change_categories.append("refactoring")
+    if any(word in summary_lower for word in ["test", "spec"]):
+        change_categories.append("testing")
+
+    return change_categories if change_categories else ["general_update"]
+
+
+def _estimate_complexity(total_files_changed: int, total_lines_added: int, total_lines_removed: int) -> str:
+    """Estimate complexity based on files and lines changed."""
+    total_lines_changed = total_lines_added + total_lines_removed
+
+    if total_files_changed > 10 or total_lines_changed > 300:
+        return "complex"
+    elif total_files_changed > 5 or total_lines_changed > 100:
+        return "moderate"
+    else:
+        return "simple"
+
+
+async def _broadcast_changes_summary(
+    coordinator: "ApplicationCoordinator", response: ResponseDict, session_id: str, relative_editable_files: List[str]
+) -> None:
+    """
+    Phase 1.3: Broadcast lightweight changes summary without full diffs.
+    Converts existing changes_summary to structured streaming format.
+    """
+    try:
+        changes_summary = response.get("changes_summary", {})
+
+        # Generate session ID if not provided
+        if not session_id:
+            session_id = f"aider_{int(time.time() * 1000)}"
+
+        # Extract file summaries and statistics
+        file_summaries = _extract_file_summaries(changes_summary)
+        stats = changes_summary.get("stats", {})
+        total_lines_added = stats.get("lines_added", 0) if isinstance(stats, dict) else 0
+        total_lines_removed = stats.get("lines_removed", 0) if isinstance(stats, dict) else 0
+        total_files_changed = len(file_summaries)
+
+        # Count file operation types
+        files_created = sum(1 for f in file_summaries if f["change_type"] == ChangeType.CREATED.value)
+        files_modified = sum(1 for f in file_summaries if f["change_type"] == ChangeType.MODIFIED.value)
+        files_deleted = sum(1 for f in file_summaries if f["change_type"] == ChangeType.DELETED.value)
+
+        # Analyze change characteristics
+        change_categories = _determine_change_categories(changes_summary.get("summary", ""))
+        estimated_complexity = _estimate_complexity(total_files_changed, total_lines_added, total_lines_removed)
+
+        # Create and broadcast Phase 1.3 changes summary
+        aider_changes_summary: AiderChangesSummary = {
+            "session_id": session_id,
+            "timestamp": time.time(),
+            "total_files_changed": total_files_changed,
+            "files_created": files_created,
+            "files_modified": files_modified,
+            "files_deleted": files_deleted,
+            "total_lines_added": total_lines_added,
+            "total_lines_removed": total_lines_removed,
+            "file_summaries": file_summaries,
+            "change_categories": change_categories,
+            "estimated_complexity": estimated_complexity,
+        }
+
+        await coordinator.broadcast_event(EventTypes.AIDER_CHANGES_SUMMARY, dict(aider_changes_summary))
+        logger.info(f"Broadcasted aider.changes_summary event for {total_files_changed} files")
+
+    except Exception as e:
+        logger.warning(f"Failed to broadcast changes_summary event: {e}")
+
+
 def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
     """Validate working directory and API keys. Returns error JSON string if validation fails."""
     if not working_dir:
@@ -1486,6 +1602,11 @@ async def code_with_aider(
     # Broadcast session completion event
     if coordinator:
         await _broadcast_session_completed(coordinator, response, actual_model_used, original_model)
+
+        # Phase 1.3: Broadcast lightweight changes summary if successful
+        if response.get("success", False):
+            session_id = f"aider_{int(time.time() * 1000)}"
+            await _broadcast_changes_summary(coordinator, response, session_id, relative_editable_files)
 
     # Get API key status for final response
     key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)

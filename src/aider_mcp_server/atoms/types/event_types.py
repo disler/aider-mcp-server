@@ -20,6 +20,11 @@ class EventTypes(enum.Enum):
     AIDER_THROTTLING_DETECTED = "aider.throttling_detected"  # Long-running request detected
     AIDER_ERROR_OCCURRED = "aider.error_occurred"  # AIDER error events
 
+    # Phase 1.3: Enhanced progress monitoring with lightweight payloads
+    AIDER_CHANGES_SUMMARY = "aider.changes_summary"  # Summary of changes made (no full diffs)
+    AIDER_FILE_PROGRESS = "aider.file_progress"  # Per-file processing progress
+    AIDER_OPERATION_STATUS = "aider.operation_status"  # Current operation status updates
+
     # Add other event types here as needed
     # For example:
     # LOG = "log"               # Server-side log messages

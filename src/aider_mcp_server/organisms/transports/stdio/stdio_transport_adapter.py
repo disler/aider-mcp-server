@@ -215,6 +215,10 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 EventTypes.AIDER_RATE_LIMIT_DETECTED,
                 EventTypes.AIDER_THROTTLING_DETECTED,
                 EventTypes.AIDER_ERROR_OCCURRED,
+                # Phase 1.3: Enhanced progress monitoring
+                EventTypes.AIDER_CHANGES_SUMMARY,
+                EventTypes.AIDER_FILE_PROGRESS,
+                EventTypes.AIDER_OPERATION_STATUS,
             ]
 
             self.logger.info(f"Subscribing STDIO transport {self.transport_id} to AIDER events: {aider_events}")
