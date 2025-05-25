@@ -503,11 +503,15 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 self.logger.debug(f"Relaying AIDER event {event.value} to {len(self._streaming_coordinators)} streaming coordinators.")
                 for coord in self._streaming_coordinators:
                     # Find the specific streaming endpoint for AIDER events
-                    aider_endpoint = coord.get_streaming_endpoint("aider_events") # Assuming "aider_events" is the key
-                    if aider_endpoint:
-                        # Create a task to relay the event to this coordinator
+                    # Look in sse_endpoints for aider_events
+                    sse_endpoints = coord.streaming_capabilities.get("sse_endpoints", {})
+                    aider_endpoint_path = sse_endpoints.get("aider_events")
+                    if aider_endpoint_path:
+                        # Create a task to relay the event to this coordinator  
+                        # Create endpoint dict with path
+                        endpoint_config = {"path": aider_endpoint_path}
                         asyncio.create_task(
-                            self._relay_event_to_remote(coord, aider_endpoint, event, data)
+                            self._relay_event_to_remote(coord, endpoint_config, event, data)
                         )
                     else:
                         self.logger.warning(

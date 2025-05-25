@@ -96,7 +96,7 @@ class TestCrossTransportEventRelay:
             mock_discovery.find_streaming_coordinators.assert_called_once()
 
             # Check that streaming coordinators were stored
-            assert len(stdio_adapter._streaming_coordinators) == 0  # No discovery file was actually set up
+            assert len(stdio_adapter._streaming_coordinators) == 1  # Mock discovery should find the mock coordinator
             
             # Manually set up the discovery and test
             stdio_adapter._discovery = mock_discovery
@@ -142,6 +142,9 @@ class TestCrossTransportEventRelay:
         test_data = {"provider": "openai", "attempt": 1}
 
         await stdio_adapter.send_event(test_event, test_data)
+
+        # Give asyncio tasks time to complete
+        await asyncio.sleep(0.1)
 
         # Verify HTTP POST was made to SSE endpoint
         mock_session.post.assert_called_once()
@@ -196,7 +199,9 @@ class TestCrossTransportEventRelay:
 
         # Mock aiohttp ClientSession with connection error
         mock_session = AsyncMock()
-        mock_session.post.side_effect = aiohttp.ClientConnectorError(connection_key=None, os_error=None)
+        # Create a proper OSError for the ClientConnectorError
+        os_error = OSError("Connection failed")
+        mock_session.post.side_effect = aiohttp.ClientConnectorError(connection_key=None, os_error=os_error)
         stdio_adapter._client_session = mock_session
 
         # Test sending an AIDER event (should not raise exception)
@@ -205,6 +210,9 @@ class TestCrossTransportEventRelay:
 
         # This should complete without raising an exception
         await stdio_adapter.send_event(test_event, test_data)
+
+        # Give asyncio tasks time to complete
+        await asyncio.sleep(0.1)
 
         # Verify HTTP POST was attempted
         mock_session.post.assert_called_once()
