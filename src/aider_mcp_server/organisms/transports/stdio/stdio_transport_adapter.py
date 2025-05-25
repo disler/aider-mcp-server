@@ -10,7 +10,10 @@ import json
 import sys
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Set, TextIO, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, TextIO, Union
+
+import aiohttp
+import aiohttp.client_exceptions
 
 from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 
@@ -29,6 +32,20 @@ if TYPE_CHECKING:
 
 
 # Logger is inherited from AbstractTransportAdapter
+
+
+# Define AIDER event types that should be relayed to streaming transports
+AIDER_EVENT_TYPES_TO_RELAY = {
+    EventTypes.AIDER_SESSION_STARTED,
+    EventTypes.AIDER_SESSION_PROGRESS,
+    EventTypes.AIDER_SESSION_COMPLETED,
+    EventTypes.AIDER_RATE_LIMIT_DETECTED,
+    EventTypes.AIDER_THROTTLING_DETECTED,
+    EventTypes.AIDER_ERROR_OCCURRED,
+    EventTypes.AIDER_CHANGES_SUMMARY,
+    EventTypes.AIDER_FILE_PROGRESS,
+    EventTypes.AIDER_OPERATION_STATUS,
+}
 
 
 class StdioTransportAdapter(AbstractTransportAdapter):
@@ -69,11 +86,13 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # Exclude HEARTBEAT unless specifically needed/handled
         }
 
-    _read_task: Optional[AsyncTask[None]]
+    _read_task: Optional[AsyncTask[None]] = None
     _input: TextIO
     _output: TextIO
-    _stop_reading: bool
-    _discovery: Optional[CoordinatorDiscovery]
+    _stop_reading: bool = False
+    _discovery: Optional[CoordinatorDiscovery] = None
+    _streaming_coordinators: List[CoordinatorInfo] = []
+    _client_session: Optional[aiohttp.ClientSession] = None
 
     def __init__(
         self,
@@ -102,10 +121,14 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         )
         self._input = input_stream if input_stream is not None else sys.stdin
         self._output = output_stream if output_stream is not None else sys.stdout
-        self._read_task = None
-        self._stop_reading = False
-        self._discovery = None
-        self._discovery_file = Path(discovery_file) if discovery_file else None
+        # Initialize discovery instance if discovery_file is provided
+        if discovery_file:
+            self._discovery_file = Path(discovery_file)
+            self._discovery = CoordinatorDiscovery(discovery_file=self._discovery_file)
+        else:
+            self._discovery_file = None
+            self._discovery = None
+
         self.logger.info(f"StdioTransportAdapter created with ID: {self.transport_id}")
 
     @classmethod
@@ -128,100 +151,129 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Returns:
             A connected StdioTransportAdapter or None if no coordinator found
         """
-        from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
-
         # Convert string path to Path if provided
         discovery_path = Path(discovery_file) if discovery_file else None
 
         try:
-            # Find existing coordinator using discovery
-            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(discovery_file=discovery_path)
+            # Create a discovery instance for this factory method
+            discovery = CoordinatorDiscovery(discovery_file=discovery_path)
+            async with discovery: # Use async context manager for shutdown
+                # Find existing streaming coordinators using discovery
+                streaming_coordinators = await discovery.find_streaming_coordinators()
 
-            if not coordinator_info:
-                return None
+                if not streaming_coordinators:
+                    cls.logger.info("No active streaming coordinators found.")
+                    return None
 
-            # Create a new instance with discovery file configuration
-            adapter = cls(
-                coordinator=None,  # We'll set this after initialization
-                input_stream=input_stream,
-                output_stream=output_stream,
-                heartbeat_interval=heartbeat_interval,
-                discovery_file=discovery_path,
-            )
+                # For find_and_connect, we assume we want to connect to *one* coordinator
+                # to potentially send requests *to*. This method isn't ideal for the
+                # relaying scenario, which is handled by the instance's _auto_discover_coordinator.
+                # However, if we interpret this as finding *any* coordinator to connect to
+                # for request processing, we can pick one. Let's pick the first streaming one found.
+                coordinator_info = streaming_coordinators[0]
+                cls.logger.info(
+                    f"Found streaming coordinator {coordinator_info.coordinator_id} "
+                    f"at {coordinator_info.host}:{coordinator_info.port}. Attempting to connect."
+                )
 
-            # Connect to the found coordinator
-            success = await adapter.connect_to_coordinator(coordinator_info)
-            return adapter if success else None
+                # Create a new instance with discovery file configuration
+                # Note: This instance will *also* run _auto_discover_coordinator during initialize,
+                # which will find streaming coordinators again for relaying.
+                adapter = cls(
+                    coordinator=None,  # Will be set during initialize
+                    input_stream=input_stream,
+                    output_stream=output_stream,
+                    heartbeat_interval=heartbeat_interval,
+                    discovery_file=discovery_path,
+                )
+
+                # Initialize the adapter. This will trigger its own discovery and setup.
+                await adapter.initialize()
+
+                # After initialization, the adapter should have its _coordinator set
+                # and potentially discovered streaming coordinators for relaying.
+                # This factory method's purpose is slightly ambiguous in the context
+                # of the relaying feature vs. being a client for requests.
+                # Assuming it's primarily for setting up the STDIO adapter to *use*
+                # the MCP system, we return the initialized adapter.
+                # The actual connection logic for *sending* requests to a remote
+                # coordinator isn't implemented here, only the relaying *from*
+                # the local coordinator *to* remote streaming ones.
+
+                # If the adapter successfully initialized and has a coordinator, return it.
+                if adapter._coordinator:
+                     cls.logger.info(f"Successfully initialized adapter connected to local coordinator for request processing.")
+                     return adapter
+                else:
+                     cls.logger.warning("Adapter initialized but failed to connect to a local coordinator.")
+                     return None
+
 
         except Exception as e:
-            print(f"Error finding and connecting to coordinator: {e}", file=sys.stderr)
+            cls.logger.error(f"Error finding and connecting to coordinator: {e}")
             return None
 
     async def _auto_discover_coordinator(self) -> None:
         """
         Automatically discover and connect to available coordinators.
         Creates a new coordinator if none found.
+        Also discovers streaming coordinators for event relay.
         """
         try:
             from aider_mcp_server.atoms.logging.logger import get_logger
             from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
-            self.logger.info(f"Auto-discovering coordinator for STDIO transport {self.transport_id}...")
+            self.logger.info(f"Auto-discovering coordinators for STDIO transport {self.transport_id}...")
 
-            # Try to find existing coordinator using discovery
-            coordinator_info = await ApplicationCoordinator.find_existing_coordinator(
-                discovery_file=self._discovery_file
-            )
+            # Always get/create the local ApplicationCoordinator singleton
+            # This is needed to handle incoming requests from stdin and receive local events
+            if not self._coordinator:
+                 self.logger.info(f"Getting/Creating local coordinator instance for STDIO transport {self.transport_id}")
+                 self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
+                 self.logger.info("Successfully got/connected to local coordinator instance")
 
-            if coordinator_info:
-                self.logger.info(
-                    f"Found existing coordinator {coordinator_info.coordinator_id} "
-                    f"at {coordinator_info.host}:{coordinator_info.port}"
-                )
-                success = await self.connect_to_coordinator(coordinator_info)
-                if success:
-                    self.logger.info("Successfully connected to existing coordinator")
-                    return
-                else:
-                    self.logger.warning("Failed to connect to existing coordinator, will create new one")
+            # Discover streaming coordinators for event relay if discovery is enabled
+            if self._discovery:
+                self.logger.info("Discovering streaming coordinators...")
+                self._streaming_coordinators = await self._discovery.find_streaming_coordinators()
+                self.logger.info(f"Found {len(self._streaming_coordinators)} active streaming coordinators.")
+                for coord in self._streaming_coordinators:
+                    self.logger.info(f"  - {coord.coordinator_id} at {coord.host}:{coord.port} ({coord.transport_type})")
+                    if not coord.streaming_capabilities:
+                         self.logger.warning(f"    Coordinator {coord.coordinator_id} reported no streaming capabilities.")
+                    else:
+                         self.logger.debug(f"    Capabilities: {coord.streaming_capabilities}")
+            else:
+                self.logger.info("Coordinator discovery is not enabled (no discovery_file provided).")
 
-            # No existing coordinator found or connection failed, create/get singleton
-            self.logger.info(f"Creating new coordinator instance for STDIO transport {self.transport_id}")
-            self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
-            self.logger.info("Successfully created/connected to coordinator instance")
 
         except Exception as e:
             self.logger.error(f"Error during coordinator auto-discovery: {e}")
-            # Continue without coordinator - degraded functionality but non-fatal
+            # Continue without coordinator or streaming relay - degraded functionality but non-fatal
+            if not self._coordinator:
+                 self.logger.warning(
+                    f"STDIO transport {self.transport_id} failed to connect to local coordinator (degraded functionality)"
+                 )
             self.logger.warning(
-                f"STDIO transport {self.transport_id} will continue without coordinator (degraded functionality)"
+                 f"STDIO transport {self.transport_id} failed to discover streaming coordinators (no event relay)"
             )
+
 
     async def _subscribe_to_aider_events(self) -> None:
         """
-        Subscribe to AIDER events for cross-transport communication.
-        This enables the STDIO transport to relay events to other transports.
+        Subscribe to AIDER events on the local coordinator.
+        This enables the STDIO transport to receive these events and potentially relay them.
         """
         if not self._coordinator:
-            self.logger.warning("No coordinator available for event subscription")
+            self.logger.warning("No local coordinator available for event subscription")
             return
 
         try:
             # Define AIDER event types to subscribe to
-            aider_events = [
-                EventTypes.AIDER_SESSION_STARTED,
-                EventTypes.AIDER_SESSION_PROGRESS,
-                EventTypes.AIDER_SESSION_COMPLETED,
-                EventTypes.AIDER_RATE_LIMIT_DETECTED,
-                EventTypes.AIDER_THROTTLING_DETECTED,
-                EventTypes.AIDER_ERROR_OCCURRED,
-                # Phase 1.3: Enhanced progress monitoring
-                EventTypes.AIDER_CHANGES_SUMMARY,
-                EventTypes.AIDER_FILE_PROGRESS,
-                EventTypes.AIDER_OPERATION_STATUS,
-            ]
+            # These are defined in AIDER_EVENT_TYPES_TO_RELAY at the top
+            aider_events = list(AIDER_EVENT_TYPES_TO_RELAY)
 
-            self.logger.info(f"Subscribing STDIO transport {self.transport_id} to AIDER events: {aider_events}")
+            self.logger.info(f"Subscribing STDIO transport {self.transport_id} to AIDER events on local coordinator: {aider_events}")
 
             # Subscribe to each AIDER event type
             for event_type in aider_events:
@@ -232,14 +284,14 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                         result = subscribe_method(self.transport_id, event_type)
                         if asyncio.iscoroutine(result):
                             await result
-                        self.logger.debug(f"Subscribed to event type: {event_type}")
+                        self.logger.debug(f"Subscribed to event type: {event_type.value}")
                     else:
-                        self.logger.warning("Coordinator does not support event subscription")
-                        break
+                        self.logger.warning("Local Coordinator does not support event subscription")
+                        break # Exit loop if subscription method is missing
                 except Exception as e:
-                    self.logger.warning(f"Failed to subscribe to event {event_type}: {e}")
+                    self.logger.warning(f"Failed to subscribe to event {event_type.value}: {e}")
 
-            self.logger.info(f"STDIO transport {self.transport_id} event subscription completed")
+            self.logger.info(f"STDIO transport {self.transport_id} event subscription completed on local coordinator")
 
         except Exception as e:
             self.logger.error(f"Error subscribing to AIDER events: {e}")
@@ -247,6 +299,12 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     async def connect_to_coordinator(self, coordinator_info: CoordinatorInfo) -> bool:
         """
         Connect to a specific coordinator using the provided information.
+        NOTE: This method's primary purpose seems to be for the STDIO adapter
+        to act as a *client* receiving requests/events from a remote coordinator.
+        The event relaying feature works by the STDIO adapter receiving events
+        from the *local* coordinator and sending them *to* remote streaming endpoints.
+        This method is kept for potential future use or existing call sites,
+        but is not directly used for the event relaying implementation described.
 
         Args:
             coordinator_info: Information about the coordinator to connect to
@@ -254,53 +312,70 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Returns:
             True if connection successful, False otherwise
         """
+        self.logger.warning(
+            "StdioTransportAdapter.connect_to_coordinator called. "
+            "This method is not used for the event relaying feature."
+        )
+        # The logic below seems to just get the local singleton anyway.
+        # Keeping it for compatibility but noting its limited scope here.
         try:
             from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
-
-            self.logger.info(
-                f"Connecting to coordinator {coordinator_info.coordinator_id} "
-                f"at {coordinator_info.host}:{coordinator_info.port}"
-            )
-
-            # Here you would establish a connection to the coordinator
-            # For now, we'll use the singleton ApplicationCoordinator instance
-            # In a networked implementation, this would involve creating a client connection
-
-            # Get logger factory from the transport coordinator module
             from aider_mcp_server.atoms.logging.logger import get_logger
 
+            self.logger.info(
+                f"Attempting to connect STDIO adapter {self.transport_id} to coordinator {coordinator_info.coordinator_id} "
+                f"at {coordinator_info.host}:{coordinator_info.port} (via local singleton access)"
+            )
+
+            # Access the local singleton instance
             self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
+            self.logger.info(f"Successfully accessed local coordinator singleton.")
+
+            # Note: This does NOT establish a network connection to the specified host/port.
+            # It merely ensures the adapter has a reference to the local coordinator.
+            # If a true network client connection were needed, this method would require
+            # significant changes and potentially new libraries (like aiohttp client).
+
+            # Initialize the adapter (this will trigger auto-discovery and event subscription)
             await self.initialize()
 
             return True
         except Exception as e:
-            self.logger.error(f"Error connecting to coordinator: {e}")
+            self.logger.error(f"Error connecting to coordinator (via local singleton access): {e}")
             return False
 
     async def initialize(self) -> None:
         """
         Initialize the stdio transport and register with coordinator.
-        Automatically discovers and connects to coordinators if none provided.
+        Automatically discovers local and streaming coordinators.
         Does NOT start the read task automatically. Call start_listening() separately.
         """
         self.logger.info(f"Initializing stdio transport {self.transport_id}...")
 
-        # If no coordinator provided, attempt auto-discovery
-        if not self._coordinator:
-            await self._auto_discover_coordinator()
+        # Auto-discover local and streaming coordinators
+        await self._auto_discover_coordinator()
 
+        # Register this adapter with the local coordinator (if available)
+        # This allows the local coordinator to send events *to* this adapter
         await super().initialize()
 
-        # Subscribe to AIDER events for cross-transport communication
+        # Subscribe to AIDER events on the local coordinator (if available)
+        # This ensures send_event is called for AIDER events
         if self._coordinator:
             await self._subscribe_to_aider_events()
+
+        # Create a client session for relaying events if streaming coordinators were found
+        if self._streaming_coordinators and self._client_session is None:
+             self.logger.info("Creating aiohttp ClientSession for event relaying.")
+             self._client_session = aiohttp.ClientSession()
 
         self.logger.info(f"Stdio transport {self.transport_id} initialized.")
 
     async def shutdown(self) -> None:
         """
         Shut down the stdio transport and unregister from coordinator.
-        Stops the task reading from stdin and cleans up discovery resources.
+        Stops the task reading from stdin, cleans up discovery resources,
+        and closes the aiohttp client session.
         """
         self.logger.info(f"Shutting down stdio transport {self.transport_id}...")
         self._stop_reading = True
@@ -308,7 +383,8 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             self.logger.debug(f"Cancelling stdin read task for {self.transport_id}.")
             self._read_task.cancel()
             try:
-                await asyncio.wait_for(self._read_task, timeout=1.0)  # Shorter timeout for stdio
+                # Give the task a moment to cancel gracefully
+                await asyncio.wait_for(self._read_task, timeout=0.1) # Shorter timeout
             except asyncio.CancelledError:
                 self.logger.debug(f"Stdin read task for {self.transport_id} cancelled.")
             except asyncio.TimeoutError:
@@ -316,7 +392,13 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             except Exception as e:
                 self.logger.error(f"Error cancelling stdin read task for {self.transport_id}: {e}")
             finally:
-                self._read_task = None
+                self._read_task = None # Ensure task reference is cleared
+
+        # Close the aiohttp client session if it exists
+        if self._client_session:
+            self.logger.info("Closing aiohttp ClientSession.")
+            await self._client_session.close()
+            self._client_session = None
 
         # Clean up discovery if it was created
         if self._discovery:
@@ -327,27 +409,81 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                 self.logger.error(f"Error shutting down discovery service: {e}")
             self._discovery = None
 
+        # Perform base adapter shutdown (unregister from local coordinator)
         await super().shutdown()
         self.logger.info(f"Stdio transport {self.transport_id} shut down.")
 
     def get_capabilities(self) -> Set[EventTypes]:
         """Declare the event types this Stdio transport adapter supports."""
         # Stdio typically doesn't need heartbeats, but can receive other events
+        # It supports receiving all AIDER events from the local coordinator
+        # and sending basic status/progress/tool_result events to stdout.
+        # The relaying capability is internal and not declared here.
         return {
             EventTypes.STATUS,
             EventTypes.PROGRESS,
             EventTypes.TOOL_RESULT,
-            # Exclude HEARTBEAT unless specifically needed/handled
+            # Include all AIDER events it subscribes to, as it *receives* them
+            *AIDER_EVENT_TYPES_TO_RELAY,
         }
+
+    async def _relay_event_to_remote(
+        self,
+        coord_info: CoordinatorInfo,
+        endpoint: Dict[str, Any],
+        event: EventTypes,
+        data: EventData,
+    ) -> None:
+        """Helper to send an event to a single remote streaming endpoint."""
+        if not self._client_session:
+            self.logger.error(f"Cannot relay event {event.value}: aiohttp client session is not initialized.")
+            return
+
+        endpoint_path = endpoint.get("path")
+        if not endpoint_path:
+            self.logger.warning(
+                f"Streaming endpoint for {coord_info.coordinator_id} "
+                f"is missing 'path': {endpoint}"
+            )
+            return
+
+        url = f"http://{coord_info.host}:{coord_info.port}{endpoint_path}"
+        payload = {"event": event.value, "data": data}
+
+        try:
+            # Use POST to send the event data
+            async with self._client_session.post(url, json=payload) as response:
+                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                self.logger.debug(
+                    f"Successfully relayed event {event.value} to "
+                    f"{coord_info.coordinator_id} at {url} (Status: {response.status})"
+                )
+        except aiohttp.client_exceptions.ClientConnectorError as e:
+            self.logger.warning(
+                f"Failed to connect to streaming endpoint for {coord_info.coordinator_id} "
+                f"at {url} to relay event {event.value}: {e}"
+            )
+        except aiohttp.client_exceptions.ClientResponseError as e:
+             self.logger.warning(
+                f"Received error response from streaming endpoint for {coord_info.coordinator_id} "
+                f"at {url} while relaying event {event.value}: {e.status} - {e.message}"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Unexpected error relaying event {event.value} to "
+                f"{coord_info.coordinator_id} at {url}: {e}"
+            )
+
 
     async def send_event(self, event: EventTypes, data: EventData) -> None:
         """
-        Send an event to stdout as JSON.
+        Send an event to stdout as JSON and relay AIDER events to discovered streaming transports.
 
         Args:
             event: The event type (e.g., EventTypes.PROGRESS)
             data: The event payload
         """
+        # 1. Send event to stdout (original functionality)
         try:
             message = {
                 "event": event.value,
@@ -357,9 +493,34 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # Use async write via executor to avoid blocking
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, lambda: print(json_str, file=self._output, flush=True))
-            # self.logger.debug(f"Sent {event.value} event to stdout")
+            # self.logger.debug(f"Sent {event.value} event to stdout") # Keep debug level low for stdout
         except Exception as e:
             self.logger.error(f"Error sending {event.value} event to stdout: {e}")
+
+        # 2. Relay AIDER events to discovered streaming transports
+        if event in AIDER_EVENT_TYPES_TO_RELAY:
+            if self._client_session and self._streaming_coordinators:
+                self.logger.debug(f"Relaying AIDER event {event.value} to {len(self._streaming_coordinators)} streaming coordinators.")
+                for coord in self._streaming_coordinators:
+                    # Find the specific streaming endpoint for AIDER events
+                    aider_endpoint = coord.get_streaming_endpoint("aider_events") # Assuming "aider_events" is the key
+                    if aider_endpoint:
+                        # Create a task to relay the event to this coordinator
+                        asyncio.create_task(
+                            self._relay_event_to_remote(coord, aider_endpoint, event, data)
+                        )
+                    else:
+                        self.logger.warning(
+                            f"Streaming coordinator {coord.coordinator_id} "
+                            f"does not have an 'aider_events' endpoint in capabilities: {coord.streaming_capabilities}"
+                        )
+            else:
+                self.logger.debug(
+                    f"Not relaying AIDER event {event.value}: "
+                    f"client session initialized: {self._client_session is not None}, "
+                    f"streaming coordinators found: {len(self._streaming_coordinators)}"
+                )
+
 
     async def start_listening(self) -> None:
         """
@@ -372,7 +533,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
 
         self.logger.info(f"Starting stdin read task for {self.transport_id}...")
         self._stop_reading = False
-        self._read_task = asyncio.create_task(self._read_stdin_loop())
+        self._read_task = asyncio.create_task(self._read_stdin_loop(), name=f"stdio_read_loop_{self.transport_id}")
         self._read_task.add_done_callback(self._read_task_done_callback)
         self.logger.info(f"Stdin read task for {self.transport_id} started.")
 
