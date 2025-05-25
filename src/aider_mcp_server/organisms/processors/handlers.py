@@ -13,7 +13,7 @@ from ...molecules.tools.aider_ai_code import code_with_aider
 from ...molecules.tools.aider_list_models import list_models
 
 if TYPE_CHECKING:
-    from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from ...interfaces.application_coordinator import IApplicationCoordinator
 
 # Configure logging for this module
 logger = get_logger(__name__)
@@ -96,7 +96,7 @@ async def _execute_aider_code(
     model_to_use: str,
     current_working_dir: str,
     params: RequestParameters,
-    coordinator: Optional["ApplicationCoordinator"] = None,
+    coordinator: Optional["IApplicationCoordinator"] = None,
 ) -> OperationResult:
     """Execute the Aider code generation and process the results."""
     try:
@@ -190,7 +190,7 @@ async def process_aider_ai_code_request(
     clear_cached_for_unchanged: bool = True,
     editor_model: str = "",  # Passed by coordinator/server based on config
     current_working_dir: str = "",  # Passed by coordinator/server based on config
-    coordinator: Optional["ApplicationCoordinator"] = None,  # For event broadcasting
+    coordinator: Optional["IApplicationCoordinator"] = None,  # For event broadcasting
 ) -> Dict[str, Any]:
     """
     Process an aider_ai_code request.

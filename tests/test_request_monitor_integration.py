@@ -273,4 +273,3 @@ class TestThrottlingDetection:
         # Complete the request to clean up
         await monitor.complete_request(request_id, success=True)
         await monitor.shutdown()
-
