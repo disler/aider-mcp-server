@@ -23,7 +23,7 @@ def mock_coordinator():
     return coordinator
 
 
-@pytest.fixture  
+@pytest.fixture
 def mock_request_monitor():
     """Create a mock RequestMonitor for testing."""
     monitor = AsyncMock(spec=RequestMonitor)
@@ -71,9 +71,11 @@ class TestRequestMonitorIntegration:
         mock_execute_aider.return_value = mock_response
 
         # Mock API key check
-        with patch("aider_mcp_server.molecules.tools.aider_ai_code._handle_api_key_checks_and_warnings") as mock_api_check:
+        with patch(
+            "aider_mcp_server.molecules.tools.aider_ai_code._handle_api_key_checks_and_warnings"
+        ) as mock_api_check:
             mock_api_check.return_value = ({}, None)
-            
+
             with patch("aider_mcp_server.molecules.tools.aider_ai_code._finalize_aider_response"):
                 # Execute the function
                 await code_with_aider(
@@ -105,7 +107,7 @@ class TestRequestMonitorIntegration:
                 "stage": "executing_aider",
                 "model": "gemini/test-model",  # Model gets normalized
                 "files_count": 1,
-            }
+            },
         )
 
         # Verify request completion was called
@@ -162,15 +164,21 @@ class TestRequestMonitorIntegration:
     @pytest.mark.asyncio
     async def test_request_monitor_without_coordinator(self):
         """Test that AIDER works normally when no coordinator is provided."""
-        with patch("aider_mcp_server.molecules.tools.aider_ai_code._validate_working_dir_and_api_keys") as mock_validate:
+        with patch(
+            "aider_mcp_server.molecules.tools.aider_ai_code._validate_working_dir_and_api_keys"
+        ) as mock_validate:
             mock_validate.return_value = None
-            
-            with patch("aider_mcp_server.molecules.tools.aider_ai_code._execute_aider_with_coordination") as mock_execute:
+
+            with patch(
+                "aider_mcp_server.molecules.tools.aider_ai_code._execute_aider_with_coordination"
+            ) as mock_execute:
                 mock_execute.return_value = {"success": True, "changes_summary": {"files": []}}
-                
-                with patch("aider_mcp_server.molecules.tools.aider_ai_code._handle_api_key_checks_and_warnings") as mock_api_check:
+
+                with patch(
+                    "aider_mcp_server.molecules.tools.aider_ai_code._handle_api_key_checks_and_warnings"
+                ) as mock_api_check:
                     mock_api_check.return_value = ({}, None)
-                    
+
                     with patch("aider_mcp_server.molecules.tools.aider_ai_code._finalize_aider_response"):
                         # Execute without coordinator
                         result = await code_with_aider(
@@ -188,10 +196,10 @@ class TestRequestMonitorIntegration:
         """Test that RequestMonitor emits appropriate events during request lifecycle."""
         # Create real RequestMonitor instance to test event emission
         monitor = RequestMonitor(mock_coordinator)
-        
+
         # Track a request
         request_id = await monitor.track_request(context={"test": "context"})
-        
+
         # Verify session started event was emitted
         mock_coordinator.broadcast_event.assert_called_with(
             EventTypes.AIDER_SESSION_STARTED,
@@ -200,19 +208,22 @@ class TestRequestMonitorIntegration:
                 "start_time": mock_coordinator.broadcast_event.call_args[0][1]["start_time"],
                 "context": {"test": "context"},
                 "timestamp": mock_coordinator.broadcast_event.call_args[0][1]["timestamp"],
-            }
+            },
         )
-        
+
         # Update progress
         await monitor.update_request_progress(request_id, {"stage": "processing"})
-        
+
         # Complete the request
         await monitor.complete_request(request_id, success=True, result={"files": 2})
-        
+
         # Verify completion event was emitted
         assert mock_coordinator.broadcast_event.call_count >= 2
-        completion_call = [call for call in mock_coordinator.broadcast_event.call_args_list 
-                          if call[0][0] == EventTypes.AIDER_SESSION_COMPLETED][0]
+        completion_call = [
+            call
+            for call in mock_coordinator.broadcast_event.call_args_list
+            if call[0][0] == EventTypes.AIDER_SESSION_COMPLETED
+        ][0]
         assert completion_call[0][1]["success"] is True
         assert completion_call[0][1]["result"]["files"] == 2
 
@@ -229,30 +240,37 @@ class TestThrottlingDetection:
             warning_threshold=0.1,  # 100ms
             throttling_threshold=0.2,  # 200ms
         )
-        
+
         # Track a request
         request_id = await monitor.track_request(context={"test": "long_running"})
-        
+
         # Wait for warning threshold
         await asyncio.sleep(0.15)  # Wait past warning threshold
-        
+
         # Check if warning event was emitted
-        warning_calls = [call for call in mock_coordinator.broadcast_event.call_args_list
-                        if call[0][0] == EventTypes.AIDER_OPERATION_STATUS]
+        warning_calls = [
+            call
+            for call in mock_coordinator.broadcast_event.call_args_list
+            if call[0][0] == EventTypes.AIDER_OPERATION_STATUS
+        ]
         assert len(warning_calls) >= 1
         warning_event = warning_calls[0][0][1]
         assert warning_event["status"] == "long_running_warning"
-        
+
         # Wait for throttling threshold
         await asyncio.sleep(0.1)  # Wait past throttling threshold
-        
+
         # Check if throttling event was emitted
-        throttling_calls = [call for call in mock_coordinator.broadcast_event.call_args_list
-                           if call[0][0] == EventTypes.AIDER_THROTTLING_DETECTED]
+        throttling_calls = [
+            call
+            for call in mock_coordinator.broadcast_event.call_args_list
+            if call[0][0] == EventTypes.AIDER_THROTTLING_DETECTED
+        ]
         assert len(throttling_calls) >= 1
         throttling_event = throttling_calls[0][0][1]
         assert throttling_event["status"] == "throttled"
-        
+
         # Complete the request to clean up
         await monitor.complete_request(request_id, success=True)
         await monitor.shutdown()
+

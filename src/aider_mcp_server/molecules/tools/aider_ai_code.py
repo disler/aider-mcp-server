@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 # Add TYPE_CHECKING import for coordinator
 if TYPE_CHECKING:
-    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator
 
 from aider.coders import Coder
 from aider.io import InputOutput
@@ -22,12 +22,12 @@ from aider_mcp_server.atoms.logging.logger import get_logger
 # Internal imports
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
-from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
 )
+from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
 from aider_mcp_server.molecules.tools.aider_compatibility import (
     filter_supported_params,
     get_aider_version,
@@ -1050,7 +1050,7 @@ async def _execute_with_retry(
     architect_mode: bool = False,
     editor_model: Optional[str] = None,
     auto_accept_architect: bool = True,
-    coordinator: Optional["ApplicationCoordinator"] = None,
+    coordinator: Optional["IApplicationCoordinator"] = None,
 ) -> ResponseDict:
     """
     Execute Aider with retry logic for rate limit handling.
@@ -1137,7 +1137,7 @@ async def _handle_rate_limit_or_error(
     backoff_factor: float,
     current_model: str,
     response: ResponseDict,
-    coordinator: Optional["ApplicationCoordinator"] = None,
+    coordinator: Optional["IApplicationCoordinator"] = None,
 ) -> tuple[bool, str]:
     """
     Handles rate limits and other errors during Aider execution.
@@ -1236,7 +1236,7 @@ def _get_fallback_used(response: Union[Dict[str, Any], ResponseDict]) -> bool:
 
 
 async def _broadcast_session_start(
-    coordinator: "ApplicationCoordinator",
+    coordinator: "IApplicationCoordinator",
     ai_coding_prompt: str,
     relative_editable_files: List[str],
     relative_readonly_files: Optional[List[str]],
@@ -1264,7 +1264,7 @@ async def _broadcast_session_start(
 
 
 async def _broadcast_session_completed(
-    coordinator: "ApplicationCoordinator", response: ResponseDict, actual_model_used: str, original_model: str
+    coordinator: "IApplicationCoordinator", response: ResponseDict, actual_model_used: str, original_model: str
 ) -> None:
     """Helper function to broadcast session completed event."""
     try:
@@ -1350,7 +1350,7 @@ def _estimate_complexity(total_files_changed: int, total_lines_added: int, total
 
 
 async def _broadcast_changes_summary(
-    coordinator: "ApplicationCoordinator", response: ResponseDict, session_id: str, relative_editable_files: List[str]
+    coordinator: "IApplicationCoordinator", response: ResponseDict, session_id: str, relative_editable_files: List[str]
 ) -> None:
     """
     Phase 1.3: Broadcast lightweight changes summary without full diffs.
@@ -1443,7 +1443,7 @@ async def _execute_aider_with_coordination(
     architect_mode: bool,
     editor_model: Optional[str],
     auto_accept_architect: bool,
-    coordinator: Optional["ApplicationCoordinator"],
+    coordinator: Optional["IApplicationCoordinator"],
 ) -> ResponseDict:
     """Execute AIDER with coordination support. This is the main execution logic."""
     # For now, delegate to existing _execute_with_retry function with stdout/stderr capture
@@ -1492,7 +1492,7 @@ async def _execute_aider_with_coordination(
             logger.warning(f"Captured stderr: {captured_stderr[:500]}...")
 
 
-async def code_with_aider(
+async def code_with_aider(  # noqa: C901
     ai_coding_prompt: str,
     relative_editable_files: List[str],
     relative_readonly_files: Optional[List[str]] = None,
@@ -1504,7 +1504,7 @@ async def code_with_aider(
     editor_model: Optional[str] = None,
     auto_accept_architect: bool = True,
     include_raw_diff: bool = False,
-    coordinator: Optional["ApplicationCoordinator"] = None,
+    coordinator: Optional["IApplicationCoordinator"] = None,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -1526,7 +1526,7 @@ async def code_with_aider(
                                               confirmation. Defaults to True.
         include_raw_diff (bool, optional): Whether to include raw diff in the response (not recommended).
                                         Defaults to False.
-        coordinator (ApplicationCoordinator, optional): Coordinator instance for event broadcasting.
+        coordinator (IApplicationCoordinator, optional): Coordinator instance for event broadcasting.
                                                      Enables real-time streaming of rate limits, progress,
                                                      and errors. Defaults to None.
 
@@ -1573,7 +1573,7 @@ async def code_with_aider(
         request_monitor = RequestMonitor(coordinator)
         request_context = {
             "model": original_model,
-            "provider": provider, 
+            "provider": provider,
             "editable_files": len(relative_editable_files),
             "readonly_files": len(relative_readonly_files),
             "architect_mode": architect_mode,
@@ -1594,13 +1594,16 @@ async def code_with_aider(
                 architect_mode,
             )
 
-        # Update progress before AIDER execution  
+        # Update progress before AIDER execution
         if request_monitor and request_id:
-            await request_monitor.update_request_progress(request_id, {
-                "stage": "executing_aider",
-                "model": normalized_model_name,
-                "files_count": len(abs_editable_files),
-            })
+            await request_monitor.update_request_progress(
+                request_id,
+                {
+                    "stage": "executing_aider",
+                    "model": normalized_model_name,
+                    "files_count": len(abs_editable_files),
+                },
+            )
 
         # Execute AIDER with coordination support
         response = await _execute_aider_with_coordination(
@@ -1662,7 +1665,7 @@ async def code_with_aider(
                 "error_type": type(e).__name__,
             }
             await request_monitor.complete_request(request_id, success=False, result=error_result)
-        
+
         # Re-raise the exception to maintain original error handling
         raise
 
@@ -1678,7 +1681,7 @@ async def _initial_setup_and_logging(
     architect_mode: bool,
     editor_model: Optional[str],
     auto_accept_architect: bool,
-    coordinator: Optional["ApplicationCoordinator"] = None,
+    coordinator: Optional["IApplicationCoordinator"] = None,
 ) -> None:
     """Performs initial setup and logging for code_with_aider."""
     global diff_cache  # Ensure diff_cache is accessible
