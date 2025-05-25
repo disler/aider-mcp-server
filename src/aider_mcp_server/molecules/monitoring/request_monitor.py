@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.interfaces.application_coordinator import ApplicationCoordinator
+from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator
 
 
 class RequestMonitor:
@@ -19,13 +19,13 @@ class RequestMonitor:
 
     def __init__(
         self,
-        coordinator: ApplicationCoordinator,
+        coordinator: IApplicationCoordinator,
         throttling_threshold: float = 60.0,
         warning_threshold: float = 30.0,
     ):
         """
         Initialize the request monitor.
-        
+
         Args:
             coordinator: ApplicationCoordinator for event broadcasting
             throttling_threshold: Seconds after which to consider request throttled
@@ -35,7 +35,7 @@ class RequestMonitor:
         self.throttling_threshold = throttling_threshold
         self.warning_threshold = warning_threshold
         self.active_requests: Dict[str, Dict[str, Any]] = {}
-        self._monitoring_tasks: Dict[str, asyncio.Task] = {}
+        self._monitoring_tasks: Dict[str, "asyncio.Task[None]"] = {}
 
     async def track_request(
         self,
@@ -44,11 +44,11 @@ class RequestMonitor:
     ) -> str:
         """
         Start tracking a request.
-        
+
         Args:
             request_id: Optional request ID (generates one if not provided)
             context: Request context information
-            
+
         Returns:
             The request ID being tracked
         """
@@ -63,9 +63,7 @@ class RequestMonitor:
         }
 
         # Start monitoring for this request
-        self._monitoring_tasks[request_id] = asyncio.create_task(
-            self._monitor_request(request_id)
-        )
+        self._monitoring_tasks[request_id] = asyncio.create_task(self._monitor_request(request_id))
 
         # Broadcast session start event
         await self.coordinator.broadcast_event(
@@ -88,7 +86,7 @@ class RequestMonitor:
     ) -> None:
         """
         Mark a request as completed.
-        
+
         Args:
             request_id: The request ID to complete
             success: Whether the request was successful
@@ -131,7 +129,7 @@ class RequestMonitor:
     ) -> None:
         """
         Update progress for an active request.
-        
+
         Args:
             request_id: The request ID to update
             progress_data: Progress information
@@ -158,7 +156,7 @@ class RequestMonitor:
     async def _monitor_request(self, request_id: str) -> None:
         """
         Monitor a request for throttling and warnings.
-        
+
         Args:
             request_id: The request ID to monitor
         """
@@ -168,7 +166,7 @@ class RequestMonitor:
 
             # Wait for warning threshold
             await asyncio.sleep(self.warning_threshold)
-            
+
             if request_id in self.active_requests and "warning" not in warnings_issued:
                 await self._issue_warning(request_id)
                 warnings_issued.add("warning")
@@ -243,17 +241,17 @@ class RequestMonitor:
         """Continue monitoring a throttled request for status updates."""
         # Check every 30 seconds for severely throttled requests
         check_interval = 30.0
-        
+
         while request_id in self.active_requests:
             await asyncio.sleep(check_interval)
-            
+
             if request_id not in self.active_requests:
                 break
-                
+
             request_info = self.active_requests[request_id]
             current_time = time.time()
             duration = current_time - request_info["start_time"]
-            
+
             # Broadcast periodic updates for severely throttled requests
             await self.coordinator.broadcast_event(
                 EventTypes.AIDER_THROTTLING_DETECTED,
@@ -273,7 +271,7 @@ class RequestMonitor:
         """Get information about all active requests."""
         current_time = time.time()
         active_info = {}
-        
+
         for request_id, request_info in self.active_requests.items():
             duration = current_time - request_info["start_time"]
             active_info[request_id] = {
@@ -284,7 +282,7 @@ class RequestMonitor:
                 "status": self._get_request_status(duration),
                 "warnings_issued": list(request_info["warnings_issued"]),
             }
-            
+
         return active_info
 
     def _get_request_status(self, duration: float) -> str:
@@ -299,11 +297,11 @@ class RequestMonitor:
     async def get_performance_metrics(self) -> Dict[str, Any]:
         """Get performance metrics for monitored requests."""
         active_requests = await self.get_active_requests()
-        
+
         total_active = len(active_requests)
         throttled_count = sum(1 for req in active_requests.values() if req["status"] == "throttled")
         long_running_count = sum(1 for req in active_requests.values() if req["status"] == "long_running")
-        
+
         return {
             "total_active_requests": total_active,
             "throttled_requests": throttled_count,
@@ -319,11 +317,11 @@ class RequestMonitor:
         # Cancel all monitoring tasks
         for task in self._monitoring_tasks.values():
             task.cancel()
-        
+
         # Wait for tasks to complete cancellation
         if self._monitoring_tasks:
             await asyncio.gather(*self._monitoring_tasks.values(), return_exceptions=True)
-        
+
         # Clear all data
         self.active_requests.clear()
         self._monitoring_tasks.clear()

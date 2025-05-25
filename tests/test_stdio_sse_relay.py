@@ -79,7 +79,8 @@ async def stdio_adapter(tmp_path, mock_coordinator):
     # Cleanup
     try:
         await adapter.shutdown()
-    except Exception:
+    except Exception:  # noqa: S110
+        # Ignore shutdown errors in test cleanup - this is intentional for test teardown
         pass
 
 
@@ -97,11 +98,11 @@ class TestCrossTransportEventRelay:
 
             # Check that streaming coordinators were stored
             assert len(stdio_adapter._streaming_coordinators) == 1  # Mock discovery should find the mock coordinator
-            
+
             # Manually set up the discovery and test
             stdio_adapter._discovery = mock_discovery
             await stdio_adapter._auto_discover_coordinator()
-            
+
             # After setting discovery, should find streaming coordinators
             assert stdio_adapter._streaming_coordinators == [mock_streaming_coordinator]
 
@@ -321,8 +322,10 @@ class TestStdioTransportAdapterInitialization:
     async def test_initialization_with_discovery_file(self, tmp_path):
         """Test adapter initialization with discovery file."""
         discovery_file = tmp_path / "test_discovery.json"
-        
-        with patch("aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance") as mock_get_instance:
+
+        with patch(
+            "aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance"
+        ) as mock_get_instance:
             mock_coordinator = AsyncMock()
             mock_get_instance.return_value = mock_coordinator
 
@@ -345,7 +348,9 @@ class TestStdioTransportAdapterInitialization:
     @pytest.mark.asyncio
     async def test_initialization_without_discovery_file(self):
         """Test adapter initialization without discovery file."""
-        with patch("aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance") as mock_get_instance:
+        with patch(
+            "aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance"
+        ) as mock_get_instance:
             mock_coordinator = AsyncMock()
             mock_get_instance.return_value = mock_coordinator
 
