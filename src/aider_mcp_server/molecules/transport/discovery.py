@@ -119,6 +119,43 @@ class CoordinatorInfo:
         """
         return endpoint_key in self.streaming_capabilities
 
+    def get_streaming_endpoint(self, endpoint_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the configuration for a specific streaming endpoint.
+
+        Args:
+            endpoint_key: The key for the streaming endpoint (e.g., "aider_events", "health")
+
+        Returns:
+            The dictionary configuration for the endpoint, or None if not found.
+        """
+        return self.streaming_capabilities.get(endpoint_key)
+
+    def get_all_streaming_endpoints(self) -> Dict[str, Any]:
+        """
+        Retrieve all reported streaming capabilities.
+
+        Returns:
+            The dictionary containing all streaming endpoint configurations.
+        """
+        return self.streaming_capabilities
+
+    def supports_event_type(self, endpoint_key: str, event_type: str) -> bool:
+        """
+        Check if a specific streaming endpoint supports a given event type.
+
+        Args:
+            endpoint_key: The key for the streaming endpoint.
+            event_type: The event type to check for (e.g., "message", "tool_code").
+
+        Returns:
+            True if the endpoint exists and its 'event_types' list contains the event type.
+        """
+        endpoint = self.get_streaming_endpoint(endpoint_key)
+        if endpoint and "event_types" in endpoint and isinstance(endpoint["event_types"], list):
+            return event_type in endpoint["event_types"]
+        return False
+
 
 class CoordinatorDiscovery:
     """
