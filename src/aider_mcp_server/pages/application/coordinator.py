@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Type
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.molecules.events.event_system import EventSystem
+from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor, HealthStatus
 from aider_mcp_server.organisms.coordinators.event_coordinator import EventCoordinator
 from aider_mcp_server.organisms.processors.request_processor import RequestProcessor
 from aider_mcp_server.organisms.registries.handler_registry import HandlerRegistry, RequestHandler
@@ -47,6 +48,9 @@ class ApplicationCoordinator:
         self._transport_registry = TransportAdapterRegistry()
         self._handler_registry = HandlerRegistry()
         self._initialization_lock = asyncio.Lock()
+        
+        # Health monitoring component (Phase 3.2)
+        self._health_monitor: Optional[HealthMonitor] = None
 
         ApplicationCoordinator._initialized = True
         self._logger.info("ApplicationCoordinator components instantiated.")
@@ -69,6 +73,12 @@ class ApplicationCoordinator:
                 if handler:
                     self._request_processor.register_handler(request_type, handler)
                     self._logger.debug(f"Registered handler for '{request_type}' with RequestProcessor.")
+            
+            # Initialize health monitoring (Phase 3.2)
+            self._health_monitor = HealthMonitor(self, metrics_retention_minutes=60, health_check_interval=30.0)
+            await self._health_monitor.start_monitoring()
+            self._logger.info("Health monitoring started.")
+            
             self._logger.info("ApplicationCoordinator initialization complete.")
 
     async def register_transport(
@@ -143,6 +153,12 @@ class ApplicationCoordinator:
         """Shut down the application coordinator and all components."""
         async with self._initialization_lock:
             self._logger.info("Shutting down ApplicationCoordinator...")
+            
+            # Stop health monitoring
+            if self._health_monitor:
+                await self._health_monitor.stop_monitoring()
+                self._logger.info("Health monitoring stopped.")
+            
             if hasattr(self._transport_registry, "shutdown_all"):
                 await self._transport_registry.shutdown_all()
             else:
@@ -152,3 +168,47 @@ class ApplicationCoordinator:
             ApplicationCoordinator._initialized = False
             # ApplicationCoordinator._instance = None # To allow full re-creation in tests
             self._logger.info("ApplicationCoordinator shutdown complete.")
+            
+    # Health monitoring methods (Phase 3.2)
+    
+    async def get_health_status(self) -> Optional[HealthStatus]:
+        """Get comprehensive system health status."""
+        if self._health_monitor:
+            return await self._health_monitor.get_health_status()
+        return None
+    
+    async def get_health_metrics_summary(self, minutes_back: int = 30) -> Optional[Dict[str, Any]]:
+        """Get health metrics summary for the specified time period."""
+        if self._health_monitor:
+            return await self._health_monitor.get_metrics_summary(minutes_back)
+        return None
+    
+    async def record_request_start(self, request_id: str, context: Optional[Dict[str, Any]] = None) -> None:
+        """Record the start of a request for health monitoring."""
+        if self._health_monitor:
+            await self._health_monitor.record_request_start(request_id, context)
+    
+    async def record_request_completion(
+        self, 
+        request_id: str, 
+        success: bool, 
+        error_type: Optional[str] = None
+    ) -> None:
+        """Record the completion of a request for health monitoring."""
+        if self._health_monitor:
+            await self._health_monitor.record_request_completion(request_id, success, error_type)
+    
+    async def record_throttling_event(self, request_id: str, context: Optional[Dict[str, Any]] = None) -> None:
+        """Record a throttling event for health monitoring."""
+        if self._health_monitor:
+            await self._health_monitor.record_throttling_event(request_id, context)
+    
+    async def register_streaming_client(self, client_id: str, client_info: Dict[str, Any]) -> None:
+        """Register a streaming client for health monitoring."""
+        if self._health_monitor:
+            await self._health_monitor.register_streaming_client(client_id, client_info)
+    
+    async def unregister_streaming_client(self, client_id: str) -> None:
+        """Unregister a streaming client from health monitoring."""
+        if self._health_monitor:
+            await self._health_monitor.unregister_streaming_client(client_id)
