@@ -94,9 +94,10 @@ class TestSSEMonitoringEndpoints:
                     response = await client.get(endpoint, timeout=1.0)
                     # SSE endpoints will timeout but shouldn't be 404
                     assert response.status_code != 404
-                except Exception:
+                except Exception as e:
                     # Timeout is expected for SSE endpoints in this test
-                    pass
+                    # Log for debugging but don't fail the test
+                    print(f"Expected timeout/error for {endpoint}: {e}")
 
     @pytest.mark.asyncio
     async def test_broadcast_to_sse_clients(self):
@@ -238,9 +239,9 @@ class TestSSEEndpointIntegration:
             try:
                 # Start SSE connection with short timeout
                 await client.get("/events/aider", timeout=0.5)
-            except Exception:
+            except Exception as e:
                 # Timeout expected, but we can check if response started
-                pass
+                print(f"Expected timeout for SSE endpoint: {e}")
 
             # In a real test environment, we would check:
             # - Content-Type: text/event-stream
