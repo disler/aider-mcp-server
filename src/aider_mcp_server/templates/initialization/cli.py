@@ -6,21 +6,22 @@ import sys
 from pathlib import Path  # Import Path
 from typing import Callable, Optional, Tuple
 
+from ...atoms.logging.logger import Logger, get_logger
+from ...atoms.types.mcp_types import LoggerProtocol
+
 # Use relative imports within the package
 from ...atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from ...atoms.logging.logger import Logger, get_logger
-from ...atoms.types.mcp_types import LoggerProtocol
+from ...pages.application.coordinator import ApplicationCoordinator
 from ..servers.multi_transport_server import serve_multi_transport  # multi mode
 from ..servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
 )
 from ..servers.sse_server import serve_sse  # sse mode
-from ...pages.application.coordinator import ApplicationCoordinator
 
 # Configure logging early
 log_dir_path: Optional[Path] = None
@@ -41,7 +42,7 @@ async def handle_sigterm(loop: asyncio.AbstractEventLoop, logger_instance: Logge
     """Gracefully shuts down the coordinator when SIGTERM is received (for stdio/sse modes)."""
     logger_instance.info("SIGTERM received. Initiating graceful shutdown via Coordinator...")
     try:
-        coordinator = await ApplicationCoordinator.getInstance(get_logger)
+        coordinator = ApplicationCoordinator()
         await coordinator.shutdown()
         logger_instance.info("ApplicationCoordinator shutdown initiated via SIGTERM.")
     except Exception as e:

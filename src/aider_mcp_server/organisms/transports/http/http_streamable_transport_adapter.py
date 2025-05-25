@@ -30,6 +30,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
@@ -37,7 +38,6 @@ from aider_mcp_server.atoms.types.mcp_types import (
     LoggerProtocol,
     RequestParameters,
 )
-from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.molecules.transport.base_adapter import (
     AbstractTransportAdapter,
 )

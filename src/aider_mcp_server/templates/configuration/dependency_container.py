@@ -9,6 +9,7 @@ import inspect
 from contextlib import AsyncExitStack
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, Set, Type, TypeVar, cast
 
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 from aider_mcp_server.interfaces.dependency_container import (
     CircularDependencyError,
     DependencyRegistrationError,
@@ -17,7 +18,6 @@ from aider_mcp_server.interfaces.dependency_container import (
     Scope,
     TFactory,
 )
-from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 T = TypeVar("T")
 R = TypeVar("R")

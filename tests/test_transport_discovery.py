@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.discovery.transport_discovery import DiscoveryService, get_discovery_service
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 
 class TestTransportDiscovery(unittest.IsolatedAsyncioTestCase):

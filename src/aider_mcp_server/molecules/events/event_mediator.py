@@ -3,11 +3,11 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 from aider_mcp_server.molecules.events.event_participant import IEventParticipant
 
 # MODIFIED: Import EventSystem from event_system.py
 from aider_mcp_server.molecules.events.event_system import EventSystem
-from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 
 
 class EventMediator:

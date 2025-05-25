@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.organisms.processors.handlers import process_aider_ai_code_request
 from aider_mcp_server.atoms.security.context import SecurityContext
-from aider_mcp_server.templates.servers.sse_server import run_sse_server
-from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.organisms.processors.handlers import process_aider_ai_code_request
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.templates.servers.sse_server import run_sse_server
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_sse_adapter_passes_config_to_handlers():
     """Test that SSE adapter correctly passes configuration to handlers."""
     # Create mock coordinator
     mock_coordinator = MagicMock(spec=ApplicationCoordinator)
-    mock_coordinator.get_logger = MagicMock() # Add mock for get_logger if ApplicationCoordinator expects it
+    mock_coordinator.get_logger = MagicMock()  # Add mock for get_logger if ApplicationCoordinator expects it
 
     # Create SSE adapter with configuration
     editor_model = "test-model"
@@ -101,7 +101,7 @@ async def test_sse_server_passes_config_to_adapter():
     with patch("aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator") as mock_coordinator_class:
         mock_coordinator = MagicMock()  # Don't use AsyncMock here
         mock_coordinator._initialize_coordinator = AsyncMock()
-        mock_coordinator.get_logger = MagicMock() # Add mock for get_logger
+        mock_coordinator.get_logger = MagicMock()  # Add mock for get_logger
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock(return_value=None)
         mock_coordinator_class.getInstance = AsyncMock(return_value=mock_coordinator)

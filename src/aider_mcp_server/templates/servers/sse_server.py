@@ -6,9 +6,9 @@ from typing import Any, Callable, Coroutine, Optional
 
 from ...atoms.logging.logger import Logger, get_logger
 from ...atoms.security.context import SecurityContext
-from .server import is_git_repository
-from ...organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from ...organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from .server import is_git_repository
 
 logger: Logger = get_logger(__name__)
 

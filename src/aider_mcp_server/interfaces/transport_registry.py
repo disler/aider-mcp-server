@@ -9,8 +9,8 @@ import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type, cast
 
-from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 logger = get_logger("transport_registry")

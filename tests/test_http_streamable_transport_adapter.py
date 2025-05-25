@@ -8,13 +8,13 @@ import httpx  # For making async HTTP requests
 import pytest
 import pytest_asyncio
 
-from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import HttpStreamableTransportAdapter
-from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
 from aider_mcp_server.atoms.security.context import SecurityContext
+from aider_mcp_server.atoms.types.event_types import EventTypes
+from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
 
 # Mocked dependencies
 from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import HttpStreamableTransportAdapter
 
 
 # Helper function to parse a line and append event
@@ -637,7 +637,9 @@ class TestHttpStreamableTransportAdapter:
         )
 
         # Test no FastMCP if no coordinator
-        adapter_no_coord = HttpStreamableTransportAdapter(coordinator=None, get_logger=logger_factory, heartbeat_interval=30)
+        adapter_no_coord = HttpStreamableTransportAdapter(
+            coordinator=None, get_logger=logger_factory, heartbeat_interval=30
+        )
         await adapter_no_coord.initialize()
         assert adapter_no_coord._mcp_server is None
         assert adapter_no_coord._fastmcp_initialized is False

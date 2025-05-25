@@ -150,7 +150,7 @@ async def create_app(
         logger.error("Failed to create SSE transport adapter via registry")
         raise RuntimeError("Failed to create SSE transport adapter")
 
-    _adapter = adapter  # type: ignore  # We know this is an SSETransportAdapter
+    _adapter = adapter  # We know this is an SSETransportAdapter
     logger.info(f"Created FastAPI app with SSE adapter {adapter.get_transport_id()} (heartbeat: {heartbeat_interval}s)")
 
     # Set up the routes

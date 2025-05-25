@@ -15,8 +15,8 @@ import pytest
 from starlette.exceptions import HTTPException
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.templates.servers.sse_server import run_sse_server
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.templates.servers.sse_server import run_sse_server
 
 
 @pytest.fixture
@@ -244,11 +244,14 @@ async def test_run_sse_server_network_bind_error():
     mock_adapter.shutdown = AsyncMock()
 
     # Path ApplicationCoordinator.getInstance and SSETransportAdapter constructor
-    async def mock_get_instance_func(logger_factory): # Keep logger_factory if getInstance expects it
+    async def mock_get_instance_func(logger_factory):  # Keep logger_factory if getInstance expects it
         return mock_coordinator
 
     with (
-        patch("aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator.getInstance", side_effect=mock_get_instance_func),
+        patch(
+            "aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator.getInstance",
+            side_effect=mock_get_instance_func,
+        ),
         patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter", return_value=mock_adapter),
         patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, "")),
         patch("aider_mcp_server.templates.servers.sse_server.get_logger") as mock_get_logger,

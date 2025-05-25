@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
-from aider_mcp_server.organisms.registries.handler_registry import RequestHandler
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
+from aider_mcp_server.organisms.registries.handler_registry import RequestHandler
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 # Mock get_logger before it's used by the module
 mock_logger_instance = MagicMock()
@@ -30,11 +30,15 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
         )  # EventSystem uses get_logger_func
         # EventCoordinator takes logger_factory parameter, no direct import to patch for its own logger.
         # ApplicationCoordinator passes the mocked get_logger to EventCoordinator.
-        self.get_logger_patcher_rp = patch("aider_mcp_server.organisms.processors.request_processor.get_logger", mock_get_logger)
+        self.get_logger_patcher_rp = patch(
+            "aider_mcp_server.organisms.processors.request_processor.get_logger", mock_get_logger
+        )
         self.get_logger_patcher_tar = patch(
             "aider_mcp_server.organisms.registries.transport_adapter_registry.get_logger_func", mock_get_logger
         )  # TAR uses get_logger_func
-        self.get_logger_patcher_hr = patch("aider_mcp_server.organisms.registries.handler_registry.get_logger", mock_get_logger)
+        self.get_logger_patcher_hr = patch(
+            "aider_mcp_server.organisms.registries.handler_registry.get_logger", mock_get_logger
+        )
 
         self.mock_ac_logger = self.get_logger_patcher_ac.start()
         self.mock_es_logger = self.get_logger_patcher_es.start()
@@ -61,7 +65,9 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
         self.transport_registry_patcher = patch(
             "aider_mcp_server.pages.application.coordinator.TransportAdapterRegistry", autospec=True
         )
-        self.handler_registry_patcher = patch("aider_mcp_server.pages.application.coordinator.HandlerRegistry", autospec=True)
+        self.handler_registry_patcher = patch(
+            "aider_mcp_server.pages.application.coordinator.HandlerRegistry", autospec=True
+        )
 
         self.mock_event_system_cls = self.event_system_patcher.start()
         self.mock_event_coordinator_cls = self.event_coordinator_patcher.start()

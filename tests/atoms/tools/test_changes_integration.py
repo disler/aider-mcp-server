@@ -85,7 +85,9 @@ class TestChangesIntegration:
 
                 # Mock the file status check to indicate file creation
                 # The patch needs to be where the function is imported, not where it's defined
-                with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+                with patch(
+                    "aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes"
+                ) as mock_check:
                     mock_check.return_value = False  # No meaningful content
 
                     # Need to patch the imported name, not the actual module

@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 from aider_mcp_server.atoms.security.errors import AuthenticationError
 from aider_mcp_server.interfaces.authentication_provider import UserInfo
-from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
 from aider_mcp_server.molecules.security.security_service import SecurityService
 
 

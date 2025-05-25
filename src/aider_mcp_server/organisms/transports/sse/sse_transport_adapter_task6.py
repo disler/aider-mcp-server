@@ -7,8 +7,8 @@ from typing import Any, Dict, Optional, Set
 
 from aiohttp import web
 
-from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.security.context import SecurityContext
+from aider_mcp_server.atoms.types.event_types import EventTypes
 
 logger = logging.getLogger(__name__)
 

@@ -18,12 +18,10 @@ from typing import (
     Union,
 )
 
+from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
+
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery, CoordinatorInfo
-
-# Import the interface directly for runtime
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface
 from aider_mcp_server.atoms.types.mcp_types import (
     AsyncTask,
     LoggerFactory,
@@ -31,7 +29,10 @@ from aider_mcp_server.atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
-from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
+
+# Import the interface directly for runtime
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter as TransportInterface
+from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery, CoordinatorInfo
 
 # Import only during type checking
 if TYPE_CHECKING:

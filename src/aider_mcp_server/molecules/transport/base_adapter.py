@@ -18,16 +18,17 @@ from typing import (
     Set,
 )
 
+from aider_mcp_server.atoms.security.context import SecurityContext
+
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.interfaces.transport_adapter import TransportAdapterBase
 from aider_mcp_server.atoms.types.mcp_types import (
     EventData,
     LoggerFactory,
     LoggerProtocol,
     RequestParameters,
 )
-from aider_mcp_server.atoms.security.context import SecurityContext
+from aider_mcp_server.interfaces.transport_adapter import TransportAdapterBase
 
 # Import ApplicationCoordinator from transport_coordinator only during type checking
 if TYPE_CHECKING:

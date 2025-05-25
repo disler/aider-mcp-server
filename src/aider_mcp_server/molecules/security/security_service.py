@@ -5,11 +5,11 @@ Centralized security service implementation.
 import asyncio
 from typing import Any, Dict, Optional
 
+from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, Permissions, SecurityContext
 from aider_mcp_server.atoms.security.errors import AuthenticationError
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
 from aider_mcp_server.interfaces.authentication_provider import IAuthenticationProvider
 from aider_mcp_server.interfaces.security_service import ISecurityService
-from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
-from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, Permissions, SecurityContext
 
 
 class SecurityService(ISecurityService):

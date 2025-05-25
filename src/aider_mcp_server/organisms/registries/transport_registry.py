@@ -3,8 +3,8 @@ import typing
 from typing import Dict, Optional, Set
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
+from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 
 # Initialize the logger factory
 get_logger_func: LoggerFactory

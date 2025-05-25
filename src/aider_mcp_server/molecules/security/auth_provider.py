@@ -9,14 +9,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Set, Union
 
+from aider_mcp_server.atoms.security.context import Permissions
 from aider_mcp_server.atoms.security.errors import InvalidCredentialsError
+from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
 from aider_mcp_server.interfaces.authentication_provider import (
     AuthToken,
     IAuthenticationProvider,
     UserInfo,
 )
-from aider_mcp_server.atoms.types.mcp_types import LoggerFactory
-from aider_mcp_server.atoms.security.context import Permissions
 
 # Type alias for token data
 TokenData = Dict[str, Union[str, Set[Permissions]]]

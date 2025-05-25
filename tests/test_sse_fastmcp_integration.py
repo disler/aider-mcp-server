@@ -127,7 +127,10 @@ async def test_adapter_integrates_with_mcp_transport(mock_mcp_transport, mock_fa
     # Create the adapter with the mock coordinator
     with (
         patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch(
+            "aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport",
+            return_value=mock_mcp_transport,
+        ),
     ):
         adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
@@ -154,7 +157,10 @@ async def test_adapter_handle_sse_request_with_fastmcp(mock_mcp_transport, mock_
     # Create the adapter with the mock coordinator
     with (
         patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch(
+            "aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport",
+            return_value=mock_mcp_transport,
+        ),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()
@@ -229,7 +235,10 @@ async def test_adapter_handle_sse_request_with_exception(mock_mcp_transport, moc
     # Create the adapter with the mock coordinator
     with (
         patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch(
+            "aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport",
+            return_value=mock_mcp_transport,
+        ),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()
@@ -273,7 +282,10 @@ async def test_adapter_handle_sse_request_with_cancellation(mock_mcp_transport, 
     # Create the adapter with the mock coordinator
     with (
         patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport", return_value=mock_mcp_transport),
+        patch(
+            "aider_mcp_server.organisms.transports.sse.sse_transport_adapter.SseServerTransport",
+            return_value=mock_mcp_transport,
+        ),
         patch("starlette.responses.Response") as mock_response_cls,
     ):
         mock_response = MagicMock()

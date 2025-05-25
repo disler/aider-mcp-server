@@ -15,7 +15,9 @@ class TestInitializationSequence(unittest.IsolatedAsyncioTestCase):
         mock_logger_instance.reset_mock()
 
         # Patch get_logger for the InitializationSequence module
-        self.get_logger_patcher = patch("aider_mcp_server.templates.initialization.initialization_sequence.get_logger", mock_get_logger_global)
+        self.get_logger_patcher = patch(
+            "aider_mcp_server.templates.initialization.initialization_sequence.get_logger", mock_get_logger_global
+        )
         self.mock_get_logger = self.get_logger_patcher.start()
         self.mock_get_logger.reset_mock()  # Ensure clean state for the get_logger function mock
         self.addCleanup(self.get_logger_patcher.stop)
@@ -34,7 +36,9 @@ class TestInitializationSequence(unittest.IsolatedAsyncioTestCase):
         self.mock_coordinator_instance.shutdown = AsyncMock()
 
         # Patch asyncio.wait_for to allow fine-grained control over it
-        self.wait_for_patcher = patch("aider_mcp_server.templates.initialization.initialization_sequence.asyncio.wait_for")
+        self.wait_for_patcher = patch(
+            "aider_mcp_server.templates.initialization.initialization_sequence.asyncio.wait_for"
+        )
         self.mock_wait_for = self.wait_for_patcher.start()
 
         # By default, make wait_for actually await the coroutine
@@ -55,7 +59,9 @@ class TestInitializationSequence(unittest.IsolatedAsyncioTestCase):
         self.mock_app_coordinator_cls.assert_called_once()
         self.assertFalse(self.init_seq._initialized)
         self.assertIsInstance(self.init_seq._initialization_lock, asyncio.Lock)
-        self.mock_get_logger.assert_called_once_with("aider_mcp_server.templates.initialization.initialization_sequence")
+        self.mock_get_logger.assert_called_once_with(
+            "aider_mcp_server.templates.initialization.initialization_sequence"
+        )
         self.assertIs(self.init_seq._logger, mock_logger_instance)
 
     async def test_initialize_successful_no_transports(self):

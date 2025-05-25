@@ -2,15 +2,15 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from ...atoms.logging.logger import get_logger
-from ...molecules.tools.aider_ai_code import code_with_aider
-from ...molecules.tools.aider_list_models import list_models
+
+# Use absolute imports from the package root
+from ...atoms.security.context import SecurityContext
 from ...atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
-
-# Use absolute imports from the package root
-from ...atoms.security.context import SecurityContext
+from ...molecules.tools.aider_ai_code import code_with_aider
+from ...molecules.tools.aider_list_models import list_models
 
 # Configure logging for this module
 logger = get_logger(__name__)

@@ -2,9 +2,9 @@ import asyncio
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.atoms.logging.logger import Logger, get_logger
 from aider_mcp_server.organisms.processors.error_handling import ErrorHandler, TransportError
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 
 class DiscoveryService:

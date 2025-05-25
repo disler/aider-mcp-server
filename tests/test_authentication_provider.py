@@ -7,16 +7,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from aider_mcp_server.atoms.security.context import Permissions
 from aider_mcp_server.atoms.security.errors import (
     InvalidCredentialsError,
 )
-from aider_mcp_server.molecules.security.auth_provider import DefaultAuthenticationProvider
 from aider_mcp_server.interfaces.authentication_provider import (
     AuthToken,
     IAuthenticationProvider,
     UserInfo,
 )
-from aider_mcp_server.atoms.security.context import Permissions
+from aider_mcp_server.molecules.security.auth_provider import DefaultAuthenticationProvider
 
 
 @pytest.fixture

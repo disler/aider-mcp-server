@@ -11,9 +11,9 @@ import pytest_asyncio
 # Adjust path to import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
+from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter  # For type hinting
-from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportAdapter
 from aider_mcp_server.organisms.registries.transport_adapter_registry import TransportAdapterRegistry
 
@@ -235,7 +235,9 @@ class TestDiscoverAdapters:
 
             assert MockAdapterOne.TRANSPORT_TYPE_NAME in registry._adapter_classes
             assert registry._adapter_classes[MockAdapterOne.TRANSPORT_TYPE_NAME] == MockAdapterOne
-            logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
+            logger = mock_logger_factory.logger_mocks[
+                "aider_mcp_server.organisms.registries.transport_adapter_registry"
+            ]
             logger.warning.assert_any_call(
                 f"Package {mock_pkg_name} has no __path__ attribute. Cannot discover modules."
             )
@@ -254,7 +256,9 @@ class TestDiscoverAdapters:
             registry.discover_adapters(mock_pkg_name)
 
             assert not registry._adapter_classes
-            logger = mock_logger_factory.logger_mocks["aider_mcp_server.organisms.registries.transport_adapter_registry"]
+            logger = mock_logger_factory.logger_mocks[
+                "aider_mcp_server.organisms.registries.transport_adapter_registry"
+            ]
             logger.error.assert_any_call(f"Failed to import package: {mock_pkg_name}")
 
     async def test_discover_adapters_module_import_error(
@@ -360,7 +364,9 @@ class TestInitializeAdapter:
         assert mock_coordinator.subscribe_to_event_type.call_count == len(expected_capabilities)
 
         # Check adapter's own logger
-        adapter_logger_name = f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter.get_transport_id()}"
+        adapter_logger_name = (
+            f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter.get_transport_id()}"
+        )
         assert adapter_logger_name in mock_logger_factory.logger_mocks
         adapter_logger = mock_logger_factory.logger_mocks[adapter_logger_name]
         adapter_logger.info.assert_any_call(
@@ -454,7 +460,9 @@ class TestShutdownAllAdapters:
         logger.info.assert_any_call("All transport adapters shut down and registry cleared.")
 
         # Check adapter's own logger for shutdown message
-        adapter1_logger_name = f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter1.get_transport_id()}"
+        adapter1_logger_name = (
+            f"aider_mcp_server.molecules.transport.base_adapter.MockAdapterOne.{adapter1.get_transport_id()}"
+        )
         adapter1_logger = mock_logger_factory.logger_mocks[adapter1_logger_name]
         adapter1_logger.info.assert_any_call(f"{adapter1.get_transport_type()} shutdown")
 

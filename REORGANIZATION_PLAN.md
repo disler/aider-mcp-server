@@ -244,7 +244,7 @@ find src tests -name "*.py" -exec sed -i 's/import aider_mcp_server\.mcp_types/i
 ## Timeline Estimate
 
 - **Phase 1**: 2-3 sessions (atoms foundation)
-- **Phase 2**: 2-3 sessions (molecules migration)  
+- **Phase 2**: 2-3 sessions (molecules migration)
 - **Phase 3**: 3-4 sessions (organisms migration)
 - **Phase 4**: 2 sessions (templates migration)
 - **Phase 5**: 2 sessions (pages migration)

@@ -20,28 +20,28 @@ import uvicorn
 # Use absolute imports from the package root
 from fastapi import FastAPI, Request
 
+from ...atoms.logging.logger import get_logger
+from ...atoms.security.context import Permissions, SecurityContext
+from ...atoms.types.mcp_types import (
+    OperationResult,
+    RequestParameters,
+)
 from ...atoms.utils.atoms_utils import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from ...atoms.logging.logger import get_logger
+from ...interfaces.shutdown_context import ShutdownContextProtocol
+from ...interfaces.transport_adapter import ITransportAdapter
+from ...interfaces.transport_registry import TransportAdapterRegistry
+from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
 from ...organisms.processors.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,
 )
-from ...interfaces.shutdown_context import ShutdownContextProtocol
-from ...interfaces.transport_adapter import ITransportAdapter
-from ...interfaces.transport_registry import TransportAdapterRegistry
-from ...atoms.types.mcp_types import (
-    OperationResult,
-    RequestParameters,
-)
-from ...atoms.security.context import Permissions, SecurityContext
 
 # Import is_git_repository for validation if needed here, or rely on __main__ validation
 from .server import is_git_repository
-from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
 
 # Define a generic type variable for Task
 T = TypeVar("T")

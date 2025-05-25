@@ -139,18 +139,20 @@ def _extract_changes_from_chunk(chunk: str, max_context_lines: int) -> List[str]
     context_lines: List[str] = []
     change_found = False
     # Ensure lines are split correctly and iterated
-    for line_content in chunk.splitlines(): # Use splitlines to handle different line endings
-        line = line_content # Keep original line for appending
+    for line_content in chunk.splitlines():  # Use splitlines to handle different line endings
+        line = line_content  # Keep original line for appending
         if line.startswith("+") or line.startswith("-"):
             change_found = True
             context_lines.append(line)
-        elif change_found: # If a change was found, keep adding context lines up to the limit
-            if len(context_lines) < (max_context_lines * 2) + sum(1 for l in context_lines if l.startswith("+") or l.startswith("-")): # Heuristic
+        elif change_found:  # If a change was found, keep adding context lines up to the limit
+            if len(context_lines) < (max_context_lines * 2) + sum(
+                1 for line_item in context_lines if line_item.startswith("+") or line_item.startswith("-")
+            ):  # Heuristic
                 context_lines.append(line)
             # else: if context is full after a change, stop adding
-        elif not change_found: # If no change found yet, manage pre-context
+        elif not change_found:  # If no change found yet, manage pre-context
             if len(context_lines) >= max_context_lines:
-                context_lines.pop(0) # Remove oldest pre-context line
+                context_lines.pop(0)  # Remove oldest pre-context line
             context_lines.append(line)
         # This logic aims to keep `max_context_lines` before and after the change block.
         # A more robust approach might involve identifying change blocks first.
@@ -160,25 +162,28 @@ def _extract_changes_from_chunk(chunk: str, max_context_lines: int) -> List[str]
 def _process_diff_chunks(file_diff: str, max_context_lines: int, max_file_kb: int) -> List[str]:
     """Processes diff chunks to extract changes."""
     changes: List[str] = []
-    chunk_pattern = r"@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@.*" # Include rest of line
+    chunk_pattern = r"@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@.*"  # Include rest of line
     chunk_matches = list(re.finditer(chunk_pattern, file_diff))
 
     for i, match in enumerate(chunk_matches):
         # Find the start of the next chunk header, or end of file_diff
         chunk_content_end = chunk_matches[i + 1].start() if i + 1 < len(chunk_matches) else len(file_diff)
-        
-        # Extract the content part of the chunk (lines after the @@ line)
-        chunk_content_with_header = file_diff[match.start():chunk_content_end]
-        # Remove the header line itself from the content to be processed for context
-        header_line_end = chunk_content_with_header.find('\n') + 1 if chunk_content_with_header.find('\n') != -1 else len(chunk_content_with_header)
-        chunk_actual_content = chunk_content_with_header[header_line_end:]
 
+        # Extract the content part of the chunk (lines after the @@ line)
+        chunk_content_with_header = file_diff[match.start() : chunk_content_end]
+        # Remove the header line itself from the content to be processed for context
+        header_line_end = (
+            chunk_content_with_header.find("\n") + 1
+            if chunk_content_with_header.find("\n") != -1
+            else len(chunk_content_with_header)
+        )
+        chunk_actual_content = chunk_content_with_header[header_line_end:]
 
         if len(chunk_actual_content) > max_file_kb * 1024:
             chunk_actual_content = chunk_actual_content[: max_file_kb * 1024] + "\n... (truncated)"
 
         context_lines = _extract_changes_from_chunk(chunk_actual_content, max_context_lines)
-        if context_lines and any(line.strip() for line in context_lines): # Check for non-empty lines
+        if context_lines and any(line.strip() for line in context_lines):  # Check for non-empty lines
             # Add the @@ header to the context for clarity
             header = match.group(0)
             changes.append(header + "\n" + "\n".join(line for line in context_lines if line.strip()))
@@ -200,7 +205,7 @@ def _build_git_diff_summary_string(stats_counter: Dict[str, int]) -> str:
         file_details.append(f"{stats_counter['files_deleted']} deleted")
 
     if file_details:
-        summary_parts.append(f"({', '.join(file_details)})") # Wrap in parentheses
+        summary_parts.append(f"({', '.join(file_details)})")  # Wrap in parentheses
 
     line_details = []
     if stats_counter["lines_added"] > 0:
@@ -209,9 +214,9 @@ def _build_git_diff_summary_string(stats_counter: Dict[str, int]) -> str:
         line_details.append(f"removed {stats_counter['lines_removed']} lines")
 
     if line_details:
-        summary_parts.append(f"with {', '.join(line_details)}") # "with" for line changes
+        summary_parts.append(f"with {', '.join(line_details)}")  # "with" for line changes
 
-    return ". ".join(filter(None, summary_parts)) # Filter ensures no empty strings from missing parts
+    return ". ".join(filter(None, summary_parts))  # Filter ensures no empty strings from missing parts
 
 
 def _process_git_diff_file_section(
@@ -258,9 +263,7 @@ def _process_git_diff_file_sections(
     """Processes all file sections from a git diff."""
     file_count = 0
     for file_diff in file_sections:
-        file_summary_entry = _process_git_diff_file_section(
-            file_diff, stats_counter, max_context_lines, max_file_kb
-        )
+        file_summary_entry = _process_git_diff_file_section(file_diff, stats_counter, max_context_lines, max_file_kb)
         if file_summary_entry:
             file_count += 1
             if file_count <= max_files:
@@ -318,7 +321,7 @@ def _summarize_git_diff(
 
     non_zero_stats: Dict[str, int] = {key: value for key, value in stats_counter.items() if value > 0}
     if non_zero_stats:
-        result["stats"] = non_zero_stats # type: ignore[assignment]
+        result["stats"] = non_zero_stats  # type: ignore[assignment]
 
     result["summary"] = _build_git_diff_summary_string(stats_counter)
     return result
@@ -341,15 +344,14 @@ def _process_single_file_content(
             stats_counter["files_deleted"] += 1
             operation = "deleted"
         else:
-            operation = "error" # File exists but error reading
+            operation = "error"  # File exists but error reading
     else:
         # For non-git diff, assume new/changed content is 'created' or 'modified'
         # Defaulting to 'created' as it's a common case for this function's input.
-        stats_counter["files_created"] += 1 # Or files_modified, depending on context
-        operation = "created" # Or "modified"
-        line_count = file_content.count("\n") + 1 # Count lines
+        stats_counter["files_created"] += 1  # Or files_modified, depending on context
+        operation = "created"  # Or "modified"
+        line_count = file_content.count("\n") + 1  # Count lines
         stats_counter["lines_added"] += line_count
-
 
     if len(file_content) > max_file_kb * 1024:
         file_content = file_content[: max_file_kb * 1024] + "\n... (truncated)"
@@ -361,7 +363,7 @@ def _process_single_file_content(
         "name": file_name,
         "operation": operation,
     }
-    if line_count > 0 and operation not in ["deleted", "error"]: # Only add lines_added if relevant
+    if line_count > 0 and operation not in ["deleted", "error"]:  # Only add lines_added if relevant
         file_summary["lines_added"] = line_count
     if sample_lines and any(s.strip() for s in sample_lines) and operation not in ["deleted", "error"]:
         file_summary["changes"] = ["\n".join(s for s in sample_lines if s.strip())]
@@ -391,7 +393,6 @@ def _build_file_content_summary_string(stats_counter: Dict[str, int]) -> str:
 
     if line_details:
         summary_parts.append(" ".join(line_details))
-
 
     if not summary_parts:
         return "No file changes detected or could not parse file content format."
@@ -463,9 +464,7 @@ def _summarize_file_contents(
     return result
 
 
-def _check_single_file_status(
-    file_path: str, working_dir: Optional[str]
-) -> Optional[FileStatusEntry]:
+def _check_single_file_status(file_path: str, working_dir: Optional[str]) -> Optional[FileStatusEntry]:
     """Checks the status of a single file."""
     full_path = file_path
     if working_dir and not os.path.isabs(file_path):
@@ -473,11 +472,11 @@ def _check_single_file_status(
 
     if os.path.exists(full_path):
         file_size = os.path.getsize(full_path)
-        if file_size == 0: # Empty file often means new or cleared
-            return {"name": file_path, "operation": "created"} # Or "empty"
-        else: # Non-empty means modified or existing
+        if file_size == 0:  # Empty file often means new or cleared
+            return {"name": file_path, "operation": "created"}  # Or "empty"
+        else:  # Non-empty means modified or existing
             return {"name": file_path, "operation": "modified"}
-    return None # File does not exist
+    return None  # File does not exist
 
 
 def _build_file_status_summary_string(
@@ -495,13 +494,14 @@ def _build_file_status_summary_string(
         etc_created = "..." if len(created_names) > 3 else ""
         summary_parts.append(f"{files_created} files created/empty ({', '.join(display_created_names)}{etc_created})")
 
-
     if files_modified > 0:
         modified_names = [f["name"] for f in changed_files if f["operation"] == "modified"]
         # Limit listed names
         display_modified_names = modified_names[:3]
         etc_modified = "..." if len(modified_names) > 3 else ""
-        summary_parts.append(f"{files_modified} files modified/existing ({', '.join(display_modified_names)}{etc_modified})")
+        summary_parts.append(
+            f"{files_modified} files modified/existing ({', '.join(display_modified_names)}{etc_modified})"
+        )
 
     return "Filesystem changes detected: " + ", ".join(summary_parts)
 
@@ -535,17 +535,19 @@ def get_file_status_summary(relative_editable_files: List[str], working_dir: Opt
                 files_created += 1
             elif status_entry["operation"] == "modified":
                 files_modified += 1
-    
+
     has_any_changes = files_created > 0 or files_modified > 0
     result["has_changes"] = has_any_changes
 
     if has_any_changes:
-        if changed_file_entries: # Ensure list is not empty before assigning
-            result["files"] = changed_file_entries
+        if changed_file_entries:  # Ensure list is not empty before assigning
+            result["files"] = [
+                {"name": entry["name"], "operation": entry["operation"]} for entry in changed_file_entries
+            ]
         if files_created > 0:
             result["files_created"] = files_created
         if files_modified > 0:
             result["files_modified"] = files_modified
-    
+
     result["status_summary"] = _build_file_status_summary_string(files_created, files_modified, changed_file_entries)
     return result
