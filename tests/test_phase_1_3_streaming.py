@@ -11,7 +11,7 @@ import pytest_asyncio
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType
 from aider_mcp_server.molecules.tools.aider_ai_code import _broadcast_changes_summary
-from ...pages.application.coordinator import ApplicationCoordinator
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 
 @pytest_asyncio.fixture
