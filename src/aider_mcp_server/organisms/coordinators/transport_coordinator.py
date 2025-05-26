@@ -18,7 +18,8 @@ from typing import (
     Union,
 )
 
-from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
+from aider_mcp_server.atoms.security import Permissions
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 # Use absolute imports from the package root
 from aider_mcp_server.atoms.types.event_types import EventTypes

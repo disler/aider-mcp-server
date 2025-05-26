@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Protocol, Set
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.security.context import Permissions
+from aider_mcp_server.atoms.security import Permissions
 
 
 @dataclass

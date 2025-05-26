@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Set, Union, cast
 
 from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, Permissions, SecurityContext
+from aider_mcp_server.atoms.security import Permissions
+from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 
 # Module-level logger can be kept for module-level concerns if any,
 # but SessionManager will use its own instance.

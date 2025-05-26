@@ -6,7 +6,8 @@ from typing import Any, Dict, Optional, Protocol
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.security.context import Permissions, SecurityContext
+from aider_mcp_server.atoms.security import Permissions
+from aider_mcp_server.atoms.security.context import SecurityContext
 
 
 @runtime_checkable

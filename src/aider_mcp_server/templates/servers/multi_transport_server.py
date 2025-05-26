@@ -21,7 +21,8 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from ...atoms.logging.logger import get_logger
-from ...atoms.security.context import Permissions, SecurityContext
+from ...atoms.security import Permissions
+from ...atoms.security.context import SecurityContext
 from ...atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
