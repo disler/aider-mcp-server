@@ -30,11 +30,6 @@ def mock_serve_sse() -> Generator[AsyncMock, None, None]:
         yield mock
 
 
-@pytest.fixture
-def mock_serve_multi() -> Generator[AsyncMock, None, None]:
-    """Mock the serve_multi_transport function."""
-    with patch("aider_mcp_server.templates.initialization.cli.serve_multi_transport", new_callable=AsyncMock) as mock:
-        yield mock
 
 
 # Remove mock_logger_warning, use mock_get_logger instead
@@ -146,7 +141,7 @@ def run_main_with_args(
 def test_stdio_mode_default(
     mock_serve: AsyncMock,
     mock_serve_sse: AsyncMock,
-    mock_serve_multi: AsyncMock,
+    
     mock_is_git_repository: MagicMock,
     mock_os_makedirs: MagicMock,
     mock_get_logger: MagicMock,
@@ -169,7 +164,6 @@ def test_stdio_mode_default(
     assert call_args["current_working_dir"] == abs_test_dir  # __main__ passes resolved string path
     assert call_args["editor_model"] == DEFAULT_EDITOR_MODEL
     mock_serve_sse.assert_not_called()
-    mock_serve_multi.assert_not_called()
     # Check is_git_repository was called with a Path object
     mock_is_git_repository.assert_called_once()
     assert isinstance(mock_is_git_repository.call_args[0][0], Path)
