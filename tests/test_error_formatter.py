@@ -9,7 +9,7 @@ from aider_mcp_server.atoms.errors.application_errors import (
     TransportError,
     ValidationError,
 )
-from aider_mcp_server.organisms.processors.error_formatter import ErrorResponseFormatter
+from aider_mcp_server.molecules.handlers.error_formatter import ErrorResponseFormatter
 
 
 @pytest.fixture
