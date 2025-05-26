@@ -12,6 +12,6 @@ from aider_mcp_server.atoms.security.permissions import Permissions
 
 __all__ = [
     "Permissions",
-    "SecurityContext", 
+    "SecurityContext",
     "ANONYMOUS_SECURITY_CONTEXT",
 ]

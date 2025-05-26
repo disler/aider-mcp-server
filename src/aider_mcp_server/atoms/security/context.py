@@ -18,7 +18,7 @@ class SecurityContext:
     """
     Represents the security context of a request, including user identity
     and granted permissions.
-    
+
     This is an atomic component focused solely on context representation.
     """
 
@@ -41,7 +41,7 @@ class SecurityContext:
         self.user_id = user_id
         self.transport_id = transport_id
         self.is_anonymous = is_anonymous
-        
+
         # Process permissions with simple logic
         processed_permissions: Set[Permissions] = set()
         if permissions and not is_anonymous:
@@ -56,9 +56,9 @@ class SecurityContext:
                         # Grant all permissions for wildcard
                         processed_permissions.update(Permissions)
                         break
-        
+
         self.permissions = processed_permissions
-        
+
         # Ensure anonymous users have no identity or permissions
         if self.is_anonymous:
             self.user_id = None
@@ -76,12 +76,13 @@ class SecurityContext:
         """
         if self.is_anonymous:
             return False
-            
+
         if isinstance(required_permission, str):
-            required_permission = Permissions.from_string(required_permission)
-            if not required_permission:
+            enum_perm = Permissions.from_string(required_permission)
+            if not enum_perm:
                 return False
-                
+            required_permission = enum_perm
+
         return required_permission in self.permissions
 
     def has_any_permission(self, required_permissions: Set[Union[Permissions, str]]) -> bool:
@@ -96,7 +97,9 @@ class SecurityContext:
         """String representation of the security context."""
         if self.is_anonymous:
             return f"SecurityContext(anonymous, transport={self.transport_id})"
-        return f"SecurityContext(user={self.user_id}, permissions={len(self.permissions)}, transport={self.transport_id})"
+        return (
+            f"SecurityContext(user={self.user_id}, permissions={len(self.permissions)}, transport={self.transport_id})"
+        )
 
 
 # Anonymous security context singleton for reuse
