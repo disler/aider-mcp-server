@@ -437,12 +437,12 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         self,
         coord_info: CoordinatorInfo,
         endpoint: Dict[str, Any],
-        event: EventTypes,
+        event_type: EventTypes,
         data: EventData,
     ) -> None:
         """Helper to send an event to a single remote streaming endpoint."""
         if not self._client_session:
-            self.logger.error(f"Cannot relay event {event.value}: aiohttp client session is not initialized.")
+            self.logger.error(f"Cannot relay event {event_type.value}: aiohttp client session is not initialized.")
             return
 
         endpoint_path = endpoint.get("path")
@@ -451,43 +451,43 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             return
 
         url = f"http://{coord_info.host}:{coord_info.port}{endpoint_path}"
-        payload = {"event": event.value, "data": data}
+        payload = {"event": event_type.value, "data": data}
 
         try:
             # Use POST to send the event data
             async with self._client_session.post(url, json=payload) as response:
                 response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
                 self.logger.debug(
-                    f"Successfully relayed event {event.value} to "
+                    f"Successfully relayed event {event_type.value} to "
                     f"{coord_info.coordinator_id} at {url} (Status: {response.status})"
                 )
         except aiohttp.client_exceptions.ClientConnectorError as e:
             self.logger.warning(
                 f"Failed to connect to streaming endpoint for {coord_info.coordinator_id} "
-                f"at {url} to relay event {event.value}: {e}"
+                f"at {url} to relay event {event_type.value}: {e}"
             )
         except aiohttp.client_exceptions.ClientResponseError as e:
             self.logger.warning(
                 f"Received error response from streaming endpoint for {coord_info.coordinator_id} "
-                f"at {url} while relaying event {event.value}: {e.status} - {e.message}"
+                f"at {url} while relaying event {event_type.value}: {e.status} - {e.message}"
             )
         except Exception as e:
             self.logger.error(
-                f"Unexpected error relaying event {event.value} to {coord_info.coordinator_id} at {url}: {e}"
+                f"Unexpected error relaying event {event_type.value} to {coord_info.coordinator_id} at {url}: {e}"
             )
 
-    async def send_event(self, event: EventTypes, data: EventData) -> None:
+    async def send_event(self, event_type: EventTypes, data: EventData) -> None:
         """
         Send an event to stdout as JSON and relay AIDER events to discovered streaming transports.
 
         Args:
-            event: The event type (e.g., EventTypes.PROGRESS)
+            event_type: The event type (e.g., EventTypes.PROGRESS)
             data: The event payload
         """
         # 1. Send event to stdout (original functionality)
         try:
             message = {
-                "event": event.value,
+                "event": event_type.value,
                 "data": data,
             }
             json_str = json.dumps(message)
@@ -496,13 +496,13 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             await loop.run_in_executor(None, lambda: print(json_str, file=self._output, flush=True))
             # self.logger.debug(f"Sent {event.value} event to stdout") # Keep debug level low for stdout
         except Exception as e:
-            self.logger.error(f"Error sending {event.value} event to stdout: {e}")
+            self.logger.error(f"Error sending {event_type.value} event to stdout: {e}")
 
         # 2. Relay AIDER events to discovered streaming transports
-        if event in AIDER_EVENT_TYPES_TO_RELAY:
+        if event_type in AIDER_EVENT_TYPES_TO_RELAY:
             if self._client_session and self._streaming_coordinators:
                 self.logger.debug(
-                    f"Relaying AIDER event {event.value} to {len(self._streaming_coordinators)} streaming coordinators."
+                    f"Relaying AIDER event {event_type.value} to {len(self._streaming_coordinators)} streaming coordinators."
                 )
                 for coord in self._streaming_coordinators:
                     # Find the specific streaming endpoint for AIDER events
@@ -513,7 +513,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                         # Create a task to relay the event to this coordinator
                         # Create endpoint dict with path
                         endpoint_config = {"path": aider_endpoint_path}
-                        asyncio.create_task(self._relay_event_to_remote(coord, endpoint_config, event, data))
+                        asyncio.create_task(self._relay_event_to_remote(coord, endpoint_config, event_type, data))
                     else:
                         self.logger.warning(
                             f"Streaming coordinator {coord.coordinator_id} "
@@ -521,7 +521,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                         )
             else:
                 self.logger.debug(
-                    f"Not relaying AIDER event {event.value}: "
+                    f"Not relaying AIDER event {event_type.value}: "
                     f"client session initialized: {self._client_session is not None}, "
                     f"streaming coordinators found: {len(self._streaming_coordinators)}"
                 )
