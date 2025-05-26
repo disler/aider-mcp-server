@@ -14,6 +14,7 @@ authors = [
 ]
 dependencies = [
     "aider-chat>=0.83.1",
+    "fastapi>=0.115.0",  # Required for multi-transport server and app endpoints
     "mcp>=1.9.1",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "psutil>=5.9.0",  # Added for system resource monitoring
