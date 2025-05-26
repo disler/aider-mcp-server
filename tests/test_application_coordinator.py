@@ -34,8 +34,8 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
             "aider_mcp_server.organisms.processors.request_processor.get_logger", mock_get_logger
         )
         self.get_logger_patcher_tar = patch(
-            "aider_mcp_server.organisms.registries.transport_adapter_registry.get_logger_func", mock_get_logger
-        )  # TAR uses get_logger_func
+            "aider_mcp_server.organisms.registries.transport_adapter_registry_enhanced.get_logger", mock_get_logger
+        )  # Enhanced TAR uses get_logger
         self.get_logger_patcher_hr = patch(
             "aider_mcp_server.organisms.registries.handler_registry.get_logger", mock_get_logger
         )
@@ -63,7 +63,7 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
             "aider_mcp_server.pages.application.coordinator.RequestProcessor", autospec=True
         )
         self.transport_registry_patcher = patch(
-            "aider_mcp_server.pages.application.coordinator.TransportAdapterRegistry", autospec=True
+            "aider_mcp_server.pages.application.coordinator.EnhancedTransportAdapterRegistry", autospec=True
         )
         self.handler_registry_patcher = patch(
             "aider_mcp_server.pages.application.coordinator.HandlerRegistry", autospec=True

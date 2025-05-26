@@ -8,7 +8,7 @@ from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor, 
 from aider_mcp_server.organisms.coordinators.event_coordinator import EventCoordinator
 from aider_mcp_server.organisms.processors.request_processor import RequestProcessor
 from aider_mcp_server.organisms.registries.handler_registry import HandlerRegistry, RequestHandler
-from aider_mcp_server.organisms.registries.transport_adapter_registry import TransportAdapterRegistry
+from aider_mcp_server.organisms.registries.transport_adapter_registry_enhanced import EnhancedTransportAdapterRegistry
 
 
 class ApplicationCoordinator:
@@ -45,7 +45,7 @@ class ApplicationCoordinator:
         self._request_processor = RequestProcessor()
         # As per Task 9 spec, TransportAdapterRegistry is initialized without arguments.
         # This assumes TransportAdapterRegistry's __init__ matches Task 3 spec: TransportAdapterRegistry()
-        self._transport_registry = TransportAdapterRegistry()
+        self._transport_registry = EnhancedTransportAdapterRegistry()
         self._handler_registry = HandlerRegistry()
         self._initialization_lock = asyncio.Lock()
 
