@@ -26,7 +26,7 @@ from ...atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
-from ...atoms.utils.atoms_utils import (
+from ...atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,

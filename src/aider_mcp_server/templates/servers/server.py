@@ -13,7 +13,7 @@ from mcp.types import TextContent, Tool
 
 from ...atoms.logging.logger import get_logger
 from ...atoms.security.context import ANONYMOUS_SECURITY_CONTEXT
-from ...atoms.utils.atoms_utils import DEFAULT_EDITOR_MODEL
+from ...atoms.utils.config_constants import DEFAULT_EDITOR_MODEL
 from ...organisms.processors.handlers import (
     process_aider_ai_code_request,
     process_list_models_request,

@@ -7,7 +7,7 @@ import pytest
 from _pytest.tmpdir import TempPathFactory
 
 from aider_mcp_server.atoms.logging.logger import Logger  # Import Logger for spec
-from aider_mcp_server.atoms.utils.atoms_utils import (
+from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
 )
 

@@ -13,7 +13,7 @@ import aider_mcp_server.templates.initialization.cli as cli_module
 
 # Import Logger for mocking
 from aider_mcp_server.atoms.logging.logger import Logger
-from aider_mcp_server.atoms.utils.atoms_utils import (
+from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
