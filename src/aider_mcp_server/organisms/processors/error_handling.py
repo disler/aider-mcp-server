@@ -9,44 +9,8 @@ from ...atoms.logging.logger import Logger as ProjectLogger
 from ...atoms.logging.logger import get_logger
 
 
-# Custom Exception Hierarchy
-class AiderMCPError(Exception):
-    """Base exception for all Aider MCP Server errors."""
-
-    pass
-
-
-class TransportError(AiderMCPError):
-    """Error related to transport adapters."""
-
-    pass
-
-
-class HandlerError(AiderMCPError):
-    """Error related to request handlers."""
-
-    pass
-
-
-class EventError(AiderMCPError):
-    """Error related to event system."""
-
-    pass
-
-
-class InitializationError(AiderMCPError):
-    """Error during component or application initialization."""
-
-    pass
-
-
-class ConfigurationError(AiderMCPError):
-    """Error related to configuration loading or validation."""
-
-    pass
-
-
 # Error Handler Utilities
+# Note: Exception classes moved to atoms.errors.application_errors for proper atomic design
 class ErrorHandler:
     """Provides utility methods for handling exceptions consistently."""
 
