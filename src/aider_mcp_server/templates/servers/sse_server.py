@@ -136,7 +136,7 @@ async def _setup_sse_adapter(
     current_working_dir: str,
 ) -> SSETransportAdapter:
     """Initialize and start the SSE adapter."""
-    coordinator = await ApplicationCoordinator.getInstance(get_logger)
+    coordinator = ApplicationCoordinator()
     logger.debug("Coordinator instance obtained")
 
     # Initialize the coordinator's internal state

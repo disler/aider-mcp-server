@@ -222,7 +222,7 @@ async def clean_coordinator():
     ApplicationCoordinator._initialized = False
 
     # Get fresh instance
-    coordinator = await ApplicationCoordinator.getInstance()
+    coordinator = ApplicationCoordinator()
     await coordinator.__aenter__()
 
     yield coordinator

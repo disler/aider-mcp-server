@@ -231,7 +231,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             # This is needed to handle incoming requests from stdin and receive local events
             if not self._coordinator:
                 self.logger.info(f"Getting/Creating local coordinator instance for STDIO transport {self.transport_id}")
-                self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
+                self._coordinator = ApplicationCoordinator()
                 self.logger.info("Successfully got/connected to local coordinator instance")
 
             # Discover streaming coordinators for event relay if discovery is enabled
@@ -334,7 +334,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
             )
 
             # Access the local singleton instance
-            self._coordinator = await ApplicationCoordinator.getInstance(get_logger)
+            self._coordinator = ApplicationCoordinator()
             self.logger.info("Successfully accessed local coordinator singleton.")
 
             # Note: This does NOT establish a network connection to the specified host/port.

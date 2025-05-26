@@ -19,8 +19,9 @@ async def clean_coordinator():
     ApplicationCoordinator._instance = None
     ApplicationCoordinator._initialized = False
 
-    # Get fresh instance
-    coordinator = await ApplicationCoordinator.getInstance()
+    # Get fresh instance (singleton)
+    coordinator = ApplicationCoordinator()
+    await coordinator.initialize()
     await coordinator.__aenter__()
 
     yield coordinator
