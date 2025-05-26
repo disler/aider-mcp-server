@@ -74,12 +74,22 @@ class MessageFormatError(TransportError):
 
 
 # Authentication errors moved to atoms.security.errors for better organization
-# Import here for backward compatibility
-from aider_mcp_server.atoms.security.errors import (
-    AuthenticationError,
-    PermissionDeniedError as AuthorizationError,
-    TokenExpiredError as TokenError,
-)
+# Maintain inheritance while providing backward compatibility
+
+
+class AuthenticationError(SecurityError):
+    """Base exception for authentication errors (backward compatibility)."""
+    pass
+
+
+class AuthorizationError(SecurityError):
+    """Raised when user lacks required permissions (backward compatibility)."""
+    pass
+
+
+class TokenError(SecurityError):
+    """Raised when there's an issue with a token (backward compatibility)."""
+    pass
 
 
 class InputValidationError(ValidationError):

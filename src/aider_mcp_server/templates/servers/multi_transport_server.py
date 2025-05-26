@@ -31,7 +31,6 @@ from ...atoms.utils.atoms_utils import (
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
-from ...interfaces.shutdown_context import ShutdownContextProtocol
 from ...interfaces.transport_adapter import ITransportAdapter
 from ...interfaces.transport_registry import TransportAdapterRegistry
 from ...organisms.coordinators.transport_coordinator import ApplicationCoordinator
@@ -53,7 +52,7 @@ DEFAULT_LOG_DIR = Path("./.aider_mcp_logs")
 # --- Helper Context Managers for Shutdown ---
 @asynccontextmanager
 async def adapter_shutdown_context(
-    adapter: ShutdownContextProtocol,
+    adapter: ITransportAdapter,
 ) -> AsyncIterator[None]:
     """Ensures adapter.shutdown() is called on context exit."""
     adapter_name = f"{adapter.get_transport_id()} adapter"

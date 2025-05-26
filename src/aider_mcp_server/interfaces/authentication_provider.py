@@ -5,10 +5,11 @@ This module defines the abstract authentication provider interface that allows
 for different authentication methods to be plugged into the system.
 """
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Protocol, Set
+
+from typing_extensions import runtime_checkable
 
 from aider_mcp_server.atoms.security.context import Permissions
 
@@ -59,10 +60,10 @@ class UserInfo:
             self.metadata = {}
 
 
-class IAuthenticationProvider(ABC):
-    """Abstract interface for authentication providers."""
+@runtime_checkable
+class IAuthenticationProvider(Protocol):
+    """Interface for authentication providers."""
 
-    @abstractmethod
     async def authenticate(self, credentials: Dict[str, Any]) -> AuthToken:
         """
         Authenticate user with provided credentials.
@@ -77,9 +78,8 @@ class IAuthenticationProvider(ABC):
         Raises:
             AuthenticationError: If authentication fails
         """
-        pass
+        ...
 
-    @abstractmethod
     async def validate_token(self, token: str) -> bool:
         """
         Validate an authentication token.
@@ -90,9 +90,8 @@ class IAuthenticationProvider(ABC):
         Returns:
             True if the token is valid, False otherwise
         """
-        pass
+        ...
 
-    @abstractmethod
     async def get_user_info(self, token: str) -> Optional[UserInfo]:
         """
         Get user information from a valid token.
@@ -103,9 +102,8 @@ class IAuthenticationProvider(ABC):
         Returns:
             UserInfo object if token is valid, None otherwise
         """
-        pass
+        ...
 
-    @abstractmethod
     async def revoke_token(self, token: str) -> bool:
         """
         Revoke an authentication token.
@@ -116,9 +114,8 @@ class IAuthenticationProvider(ABC):
         Returns:
             True if the token was successfully revoked, False otherwise
         """
-        pass
+        ...
 
-    @abstractmethod
     async def refresh_token(self, token: str) -> Optional[AuthToken]:
         """
         Refresh an existing token.
@@ -129,4 +126,4 @@ class IAuthenticationProvider(ABC):
         Returns:
             New AuthToken if refresh successful, None otherwise
         """
-        pass
+        ...

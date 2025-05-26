@@ -10,7 +10,6 @@ from aider_mcp_server.atoms.types.event_types import EventTypes
 class ITransportAdapter(Protocol):
     """Protocol defining the interface for transport adapters."""
 
-    # Include ShutdownContextProtocol methods
     def get_transport_id(self) -> str: ...
     async def shutdown(self) -> None: ...
 

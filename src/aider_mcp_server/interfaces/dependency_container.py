@@ -5,9 +5,10 @@ This module defines the abstract dependency container interface that allows
 for dependency registration, resolution, and lifecycle management.
 """
 
-from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Any, Awaitable, Callable, Optional, Type, TypeVar, Union
+from typing import Any, Awaitable, Callable, Optional, Protocol, Type, TypeVar, Union
+
+from typing_extensions import runtime_checkable
 
 T = TypeVar("T")
 TFactory = Callable[..., Union[T, Awaitable[T]]]
@@ -22,20 +23,18 @@ class Scope(Enum):
     SCOPED = auto()  # One instance per scope (e.g., request)
 
 
-class IDependencyContainer(ABC):
+@runtime_checkable
+class IDependencyContainer(Protocol):
     """Interface for dependency container."""
 
-    @abstractmethod
     async def __aenter__(self) -> "IDependencyContainer":
         """Enter async context."""
-        pass
+        ...
 
-    @abstractmethod
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit async context."""
-        pass
+        ...
 
-    @abstractmethod
     async def register_singleton(
         self,
         service_type: Type[T],
@@ -55,9 +54,8 @@ class IDependencyContainer(ABC):
         Notes:
             At most one of implementation_type, factory, or instance must be provided.
         """
-        pass
+        ...
 
-    @abstractmethod
     async def register_transient(
         self,
         service_type: Type[T],
@@ -75,9 +73,8 @@ class IDependencyContainer(ABC):
         Notes:
             At most one of implementation_type or factory must be provided.
         """
-        pass
+        ...
 
-    @abstractmethod
     async def register_scoped(
         self,
         service_type: Type[T],
@@ -95,9 +92,8 @@ class IDependencyContainer(ABC):
         Notes:
             At most one of implementation_type or factory must be provided.
         """
-        pass
+        ...
 
-    @abstractmethod
     async def resolve(self, service_type: Type[T]) -> T:
         """
         Resolve a service from the container.
@@ -111,9 +107,8 @@ class IDependencyContainer(ABC):
         Raises:
             DependencyResolutionError: If the service cannot be resolved.
         """
-        pass
+        ...
 
-    @abstractmethod
     async def create_scope(self) -> "IDependencyContainer":
         """
         Create a new scoped container inheriting registrations from this container.
@@ -121,9 +116,8 @@ class IDependencyContainer(ABC):
         Returns:
             A new container with a separate scope.
         """
-        pass
+        ...
 
-    @abstractmethod
     async def has_registration(self, service_type: Type[T]) -> bool:
         """
         Check if a service type is registered.
@@ -134,7 +128,7 @@ class IDependencyContainer(ABC):
         Returns:
             True if the service is registered, False otherwise.
         """
-        pass
+        ...
 
 
 class DependencyRegistrationError(Exception):
