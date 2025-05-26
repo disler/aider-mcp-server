@@ -2,10 +2,10 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aider_mcp_server.atoms.errors.application_errors import ProcessingError as HandlerError
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.internal_types import InternalEvent
 from aider_mcp_server.organisms.discovery.transport_discovery import DiscoveryService
-from aider_mcp_server.atoms.errors.application_errors import ProcessingError as HandlerError
 from aider_mcp_server.organisms.processors.error_handling import ErrorHandler
 from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.templates.configuration.configuration_system import ConfigurationSystem
@@ -37,7 +37,7 @@ class TestRequestHandler:
 
     async def handle_error(self, request):
         """Handler that simulates an error."""
-        raise HandlerError("Simulated handler error for testing")
+        raise HandlerError("INTEGRATION_TEST_001", "Simulated handler error for testing")
 
     async def handle_slow(self, request):
         """Handler that takes some time to process."""
@@ -302,11 +302,11 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Simulated handler error", response["error"])
 
             # Test ErrorHandler utility functions
-            test_exception = HandlerError("Test error for formatting")
+            test_exception = HandlerError("INTEGRATION_TEST_002", "Test error for formatting")
             formatted_error = ErrorHandler.format_exception(test_exception)
 
             self.assertEqual(formatted_error["type"], "error")
-            self.assertEqual(formatted_error["error"]["type"], "HandlerError")
+            self.assertEqual(formatted_error["error"]["type"], "ProcessingError")
             self.assertEqual(formatted_error["error"]["message"], "Test error for formatting")
 
         finally:

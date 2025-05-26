@@ -2,14 +2,16 @@ import asyncio
 import unittest
 from unittest.mock import MagicMock, patch
 
-from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
 from aider_mcp_server.atoms.errors.application_errors import (
     BaseApplicationError,
-    ProcessingError as HandlerError,
-    SecurityError as EventError,
-    TransportError,
-    ValidationError as InitializationError,
 )
+from aider_mcp_server.atoms.errors.application_errors import ProcessingError as HandlerError
+from aider_mcp_server.atoms.errors.application_errors import SecurityError as EventError
+from aider_mcp_server.atoms.errors.application_errors import (
+    TransportError,
+)
+from aider_mcp_server.atoms.errors.application_errors import ValidationError as InitializationError
+from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
 from aider_mcp_server.organisms.processors.error_handling import ErrorHandler
 
 # For backward compatibility in tests
@@ -49,24 +51,24 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
         patch.stopall()
 
     def test_custom_exception_hierarchy(self):
-        self.assertIsInstance(TransportError("test"), AiderMCPError)
-        self.assertIsInstance(HandlerError("test"), AiderMCPError)
-        self.assertIsInstance(EventError("test"), AiderMCPError)
-        self.assertIsInstance(InitializationError("test"), AiderMCPError)
-        self.assertIsInstance(ConfigurationError("test"), AiderMCPError)
-        self.assertIsInstance(AiderMCPError("test"), Exception)
+        self.assertIsInstance(TransportError("TRANSPORT_001", "test"), AiderMCPError)
+        self.assertIsInstance(HandlerError("PROCESSING_001", "test"), AiderMCPError)
+        self.assertIsInstance(EventError("SECURITY_001", "test"), AiderMCPError)
+        self.assertIsInstance(InitializationError("VALIDATION_001", "test"), AiderMCPError)
+        self.assertIsInstance(ConfigurationError("VALIDATION_002", "test"), AiderMCPError)
+        self.assertIsInstance(AiderMCPError("BASE_001", "test"), Exception)
 
         exceptions_to_test = [
-            AiderMCPError,
-            TransportError,
-            HandlerError,
-            EventError,
-            InitializationError,
-            ConfigurationError,
+            (AiderMCPError, "BASE_002"),
+            (TransportError, "TRANSPORT_002"),
+            (HandlerError, "PROCESSING_002"),
+            (EventError, "SECURITY_002"),
+            (InitializationError, "VALIDATION_003"),
+            (ConfigurationError, "VALIDATION_004"),
         ]
-        for exc_type in exceptions_to_test:
+        for exc_type, error_code in exceptions_to_test:
             with self.assertRaises(exc_type):
-                raise exc_type("Specific message for " + exc_type.__name__)
+                raise exc_type(error_code, "Specific message for " + exc_type.__name__)
 
     def _raise_and_format_exception(self, exc_to_raise: Exception):
         try:
@@ -86,7 +88,7 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ValueError: A standard error occurred", formatted_error["error"]["traceback"])
 
     def test_format_exception_custom_exception(self):
-        exception = TransportError("A transport layer error")
+        exception = TransportError("TRANSPORT_003", "A transport layer error")
         formatted_error = self._raise_and_format_exception(exception)
 
         self.assertEqual(formatted_error["type"], "error")
@@ -96,37 +98,37 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
 
     def test_format_exception_unicode_message(self):
         unicode_message = "こんにちは世界"  # Hello world in Japanese
-        exception = HandlerError(unicode_message)
+        exception = HandlerError("PROCESSING_003", unicode_message)
         formatted_error = self._raise_and_format_exception(exception)
 
         self.assertEqual(formatted_error["error"]["message"], unicode_message)
-        self.assertIn(f"HandlerError: {unicode_message}", formatted_error["error"]["traceback"])
+        self.assertIn(f"ProcessingError: {unicode_message}", formatted_error["error"]["traceback"])
 
     def test_format_exception_no_message(self):
-        exception = AiderMCPError()  # Exception with no message
+        exception = AiderMCPError("BASE_003", "")  # Exception with empty message
         formatted_error = self._raise_and_format_exception(exception)
 
         # str(AiderMCPError()) might be empty or the class name depending on __str__
         # For a generic Exception(), str(e) is often empty.
         # Let's assume it results in an empty string if no args passed.
         self.assertEqual(formatted_error["error"]["message"], "")
-        self.assertIn("AiderMCPError", formatted_error["error"]["traceback"])
+        self.assertIn("BaseApplicationError", formatted_error["error"]["traceback"])
 
     def test_format_exception_none_message(self):
-        exception = EventError(None)  # Exception with None as message
+        exception = EventError("SECURITY_003", None)  # Exception with None as message
         formatted_error = self._raise_and_format_exception(exception)
 
         self.assertEqual(formatted_error["error"]["message"], "None")  # str(None) is "None"
-        self.assertIn("EventError: None", formatted_error["error"]["traceback"])
+        self.assertIn("SecurityError: None", formatted_error["error"]["traceback"])
 
     def test_log_exception_default_logger(self):
-        exception = InitializationError("Init failed")
+        exception = InitializationError("VALIDATION_005", "Init failed")
         ErrorHandler.log_exception(exception)
 
         mock_error_handler_class_logger.error.assert_called_once_with("Error: Init failed", exc_info=True)
 
     def test_log_exception_with_context(self):
-        exception = ConfigurationError("Config parse error")
+        exception = ConfigurationError("VALIDATION_006", "Config parse error")
         context = "loading settings.json"
         ErrorHandler.log_exception(exception, context=context)
 
@@ -135,14 +137,14 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_log_exception_custom_logger(self):
-        exception = AiderMCPError("Generic MCP failure")
+        exception = AiderMCPError("BASE_004", "Generic MCP failure")
         ErrorHandler.log_exception(exception, logger_instance=self.mock_custom_logger)
 
         self.mock_custom_logger.error.assert_called_once_with("Error: Generic MCP failure", exc_info=True)
         mock_error_handler_class_logger.error.assert_not_called()  # Ensure default logger wasn't used
 
     def test_log_exception_no_context(self):  # Same as default logger test, explicit for clarity
-        exception = TransportError("Connection lost")
+        exception = TransportError("TRANSPORT_004", "Connection lost")
         ErrorHandler.log_exception(exception, context=None)  # Explicitly pass None context
 
         mock_error_handler_class_logger.error.assert_called_once_with("Error: Connection lost", exc_info=True)
@@ -150,7 +152,7 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
     @patch("aider_mcp_server.organisms.processors.error_handling.ErrorHandler.format_exception")
     @patch("aider_mcp_server.organisms.processors.error_handling.ErrorHandler.log_exception")
     def test_handle_exception(self, mock_log_exception, mock_format_exception):
-        exception = HandlerError("Request handling failed")
+        exception = HandlerError("PROCESSING_004", "Request handling failed")
         context = "processing user request"
         mock_formatted_response = {"type": "error", "error": {"type": "HandlerError", "message": "..."}}
         mock_format_exception.return_value = mock_formatted_response
