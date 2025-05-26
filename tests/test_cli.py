@@ -213,12 +213,12 @@ def test_sse_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
 
 
 
-def test_stdio_mode_host_port_warning(monkeypatch: pytest.MonkeyPatch, mode_args: List[str], extra_args: List[str]):
+@pytest.mark.parametrize("extra_args", [["--host", "1.1.1.1"], ["--port", "1234"]])
+def test_stdio_mode_host_port_warning(monkeypatch: pytest.MonkeyPatch, extra_args: List[str]):
     """Test warning when host/port are used with stdio mode."""
-    args = mode_args + extra_args + ["--current-working-dir", "."]
+    args = ["--server-mode", "stdio"] + extra_args + ["--current-working-dir", "."]
     (
         mock_serve,
-        _,
         _,
         _,
         mock_logger_instance,
@@ -242,7 +242,7 @@ def test_custom_editor_model_stdio(monkeypatch: pytest.MonkeyPatch):
     """Test custom editor model parameter with stdio mode."""
     model = "test-editor-model"
     args = ["--editor-model", model, "--current-working-dir", "."]
-    mock_serve, _, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+    mock_serve, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
 
     cwd_path = Path(".").resolve()
     mock_path_is_dir.assert_called_once()
@@ -265,7 +265,7 @@ def test_custom_editor_model_sse(monkeypatch: pytest.MonkeyPatch):
         "--current-working-dir",
         ".",
     ]
-    _, mock_serve_sse, _, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
+    _, mock_serve_sse, _, _, mock_path_is_dir, mock_is_git_repo, mock_exit = run_main(monkeypatch, args)
 
     cwd_path = Path(".").resolve()
     mock_path_is_dir.assert_called_once()
@@ -307,7 +307,6 @@ def test_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     # Set up other mocks needed by run_main
     mock_serve = mock.MagicMock()
     mock_serve_sse = mock.MagicMock()
-    mock_serve_multi = mock.MagicMock()
     mock_logger_instance = mock.MagicMock(spec=Logger)
     mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
     mock_is_git_repo = mock.MagicMock()  # Won't be called
@@ -347,7 +346,6 @@ def test_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     # Set up mocks *before* running main
     mock_serve = mock.AsyncMock()
     mock_serve_sse = mock.AsyncMock()
-    mock_serve_multi = mock.AsyncMock()
     mock_logger_instance = mock.MagicMock(spec=Logger)
     mock_get_logger = mock.MagicMock(return_value=mock_logger_instance)
     # Mock Path.is_dir to return True for this path
@@ -411,7 +409,6 @@ def test_working_dir_valid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
     (
         mock_serve,
-        _,
         _,
         _,
         mock_logger_instance,
