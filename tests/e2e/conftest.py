@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 
 @pytest.fixture
 def mock_popen():
@@ -18,9 +20,10 @@ def mock_popen():
 
     # Patch subprocess.Popen to return our mock process object
     with patch("subprocess.Popen", return_value=mock_process) as _mock_popen:
-        yield _mock_popen # Yield the patch object itself if needed, or just the mock_process
+        yield _mock_popen  # Yield the patch object itself if needed, or just the mock_process
 
     # Note: The patch context manager handles restoring the original Popen
+
 
 # Example usage in a test function:
 # def test_something_using_subprocess(mock_popen):
