@@ -95,9 +95,9 @@ Task Master offers two primary ways to interact:
     - Dependencies are displayed with status indicators (✅ for completed, ⏱️ for pending)
     - This helps quickly identify which prerequisite tasks are blocking work
 - **priority**: Importance level (Example: `"high"`, `"medium"`, `"low"`)
-- **details**: In-depth implementation instructions (Example: `"Use GitHub client ID/secret, handle callback, set session token."`) 
-- **testStrategy**: Verification approach (Example: `"Deploy and call endpoint to confirm 'Hello World' response."`) 
-- **subtasks**: List of smaller, more specific tasks (Example: `[{"id": 1, "title": "Configure OAuth", ...}]`) 
+- **details**: In-depth implementation instructions (Example: `"Use GitHub client ID/secret, handle callback, set session token."`)
+- **testStrategy**: Verification approach (Example: `"Deploy and call endpoint to confirm 'Hello World' response."`)
+- **subtasks**: List of smaller, more specific tasks (Example: `[{"id": 1, "title": "Configure OAuth", ...}]`)
 - Refer to task structure details (previously linked to `tasks.md`).
 
 ## Configuration Management (Updated)
@@ -160,7 +160,7 @@ Taskmaster configuration is managed through two main mechanisms:
 - Use `move_task` / `task-master move --from=<id> --to=<id>` to move tasks or subtasks within the hierarchy
 - This command supports several use cases:
   - Moving a standalone task to become a subtask (e.g., `--from=5 --to=7`)
-  - Moving a subtask to become a standalone task (e.g., `--from=5.2 --to=7`) 
+  - Moving a subtask to become a standalone task (e.g., `--from=5.2 --to=7`)
   - Moving a subtask to a different parent (e.g., `--from=5.2 --to=7.3`)
   - Reordering subtasks within the same parent (e.g., `--from=5.2 --to=5.4`)
   - Moving a task to a new, non-existent ID position (e.g., `--from=5 --to=25`)

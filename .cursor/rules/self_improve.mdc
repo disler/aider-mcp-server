@@ -38,7 +38,7 @@ alwaysApply: true
     select: { id: true, email: true },
     where: { status: 'ACTIVE' }
   });
-  
+
   // Consider adding to [prisma.mdc](mdc:.cursor/rules/prisma.mdc):
   // - Standard select fields
   // - Common where conditions

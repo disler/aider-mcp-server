@@ -81,7 +81,7 @@ alwaysApply: true
   # Description: <brief description>
   # Details:
   <detailed implementation notes>
-  
+
   # Test Strategy:
   <verification approach>
   ```
@@ -90,7 +90,7 @@ alwaysApply: true
   - Legacy Syntax: `node scripts/dev.js parse-prd --input=<prd-file.txt>`
   - CLI Syntax: `task-master parse-prd --input=<prd-file.txt>`
   - Description: Parses a PRD document and generates a tasks.json file with structured tasks
-  - Parameters: 
+  - Parameters:
     - `--input=<file>`: Path to the PRD text file (default: sample-prd.txt)
   - Example: `task-master parse-prd --input=requirements.txt`
   - Notes: Will overwrite existing tasks.json file. Use with caution.
@@ -109,7 +109,7 @@ alwaysApply: true
   - Legacy Syntax: `node scripts/dev.js generate`
   - CLI Syntax: `task-master generate`
   - Description: Generates individual task files in tasks/ directory based on tasks.json
-  - Parameters: 
+  - Parameters:
     - `--file=<path>, -f`: Use alternative tasks.json file (default: 'tasks/tasks.json')
     - `--output=<dir>, -o`: Output directory (default: 'tasks')
   - Example: `task-master generate`
@@ -129,7 +129,7 @@ alwaysApply: true
   - Legacy Syntax: `node scripts/dev.js list`
   - CLI Syntax: `task-master list`
   - Description: Lists all tasks in tasks.json with IDs, titles, and status
-  - Parameters: 
+  - Parameters:
     - `--status=<status>, -s`: Filter by status
     - `--with-subtasks`: Show subtasks for each task
     - `--file=<path>, -f`: Use alternative tasks.json file (default: 'tasks/tasks.json')
@@ -174,7 +174,7 @@ alwaysApply: true
     - `task-master clear-subtasks --id=3`
     - `task-master clear-subtasks --id=1,2,3`
     - `task-master clear-subtasks --all`
-  - Notes: 
+  - Notes:
     - Task files are automatically regenerated after clearing subtasks
     - Can be combined with expand command to immediately generate new subtasks
     - Works with both parent tasks and individual subtasks
@@ -264,7 +264,7 @@ alwaysApply: true
   - Parameters:
     - `--file=<path>, -f`: Use alternative tasks.json file (default: 'tasks/tasks.json')
   - Example: `task-master validate-dependencies`
-  - Notes: 
+  - Notes:
     - Reports all non-existent dependencies and self-dependencies without modifying files
     - Provides detailed statistics on task dependency state
     - Use before fix-dependencies to audit your task structure
@@ -276,7 +276,7 @@ alwaysApply: true
   - Parameters:
     - `--file=<path>, -f`: Use alternative tasks.json file (default: 'tasks/tasks.json')
   - Example: `task-master fix-dependencies`
-  - Notes: 
+  - Notes:
     - Removes references to non-existent tasks and subtasks
     - Eliminates self-dependencies (tasks depending on themselves)
     - Regenerates task files with corrected dependencies
@@ -289,7 +289,7 @@ alwaysApply: true
   - Parameters:
     - `--file=<path>, -f`: Path to the complexity report file (default: 'scripts/task-complexity-report.json')
   - Example: `task-master complexity-report`
-  - Notes: 
+  - Notes:
     - Shows tasks organized by complexity score with recommended actions
     - Provides complexity distribution statistics
     - Displays ready-to-use expansion commands for complex tasks
@@ -311,7 +311,7 @@ alwaysApply: true
   - Description: Initialize a new project with Task Master structure
   - Parameters: None
   - Example: `task-master init`
-  - Notes: 
+  - Notes:
     - Creates initial project structure with required files
     - Prompts for project settings if not provided
     - Merges with existing files when appropriate
@@ -371,7 +371,7 @@ The below describes how you should be structuring new rule sections in this docu
   ```typescript
   // ✅ DO: Show good examples
   const goodExample = true;
-  
+
   // ❌ DON'T: Show anti-patterns
   const badExample = false;
   ```
@@ -394,7 +394,7 @@ The below describes how you should be structuring new rule sections in this docu
   - Keep descriptions concise
   - Include both DO and DON'T examples
   - Reference actual code over theoretical examples
-  - Use consistent formatting across rules 
+  - Use consistent formatting across rules
 
 ---
 SELF_IMPROVE
@@ -439,7 +439,7 @@ alwaysApply: true
     select: { id: true, email: true },
     where: { status: 'ACTIVE' }
   });
-  
+
   // Consider adding a PRISMA section in the .windsurfrules:
   // - Standard select fields
   // - Common where conditions

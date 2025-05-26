@@ -90,7 +90,7 @@ class ApplicationCoordinator:
         # Task 3 spec for TAR.initialize_adapter is (adapter_name, **kwargs)
         # Provided TAR.initialize_adapter is (transport_type, coordinator, config)
         # Adhering to Task 9 spec for the call:
-        transport = await self._transport_registry.initialize_adapter(transport_name, self, {})  # type: ignore[arg-type]
+        transport = await self._transport_registry.initialize_adapter(transport_name, self, {})
 
         if transport:
             # EventCoordinator in chat has register_transport_adapter
