@@ -3,15 +3,18 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from aider_mcp_server.atoms.logging.logger import Logger as ProjectLogger
-from aider_mcp_server.organisms.processors.error_handling import (
-    AiderMCPError,
-    ConfigurationError,
-    ErrorHandler,
-    EventError,
-    HandlerError,
-    InitializationError,
+from aider_mcp_server.atoms.errors.application_errors import (
+    BaseApplicationError,
+    ProcessingError as HandlerError,
+    SecurityError as EventError,
     TransportError,
+    ValidationError as InitializationError,
 )
+from aider_mcp_server.organisms.processors.error_handling import ErrorHandler
+
+# For backward compatibility in tests
+AiderMCPError = BaseApplicationError
+ConfigurationError = InitializationError  # Map to appropriate atoms error type
 
 # This global mock instance will be assigned to ErrorHandler._logger
 # allowing us to control its behavior across all tests for ErrorHandler static methods.

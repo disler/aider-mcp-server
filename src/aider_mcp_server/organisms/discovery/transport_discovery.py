@@ -71,7 +71,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to register discovery callback: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("discovery_error", error_msg) from e
 
     async def unregister_discovery_callback(self, callback_id: str) -> None:
         """
@@ -91,7 +91,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to unregister discovery callback {callback_id}: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def notify_transport_available(self, transport_name: str, transport_info: Dict[str, Any]) -> None:
         """
@@ -138,7 +138,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to notify transport '{transport_name}' availability: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def notify_transport_unavailable(self, transport_name: str) -> None:
         """
@@ -166,7 +166,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to notify transport '{transport_name}' unavailability: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def check_coordinator_available(self) -> bool:
         """
@@ -209,7 +209,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to get available transports: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def get_transport_info(self, transport_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -235,7 +235,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to get transport info for '{transport_name}': {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def discover_transports(self) -> List[str]:
         """
@@ -265,7 +265,7 @@ class DiscoveryService:
         except Exception as e:
             error_msg = f"Failed to discover transports: {e}"
             self._logger.error(error_msg)
-            raise TransportError(error_msg) from e
+            raise TransportError("transport_error", error_msg) from e
 
     async def register_transport_with_coordinator(self, transport_name: str, **transport_config: Any) -> bool:
         """
@@ -287,7 +287,7 @@ class DiscoveryService:
             if self._coordinator is not None:
                 await self._coordinator.register_transport(transport_name, **transport_config)
             else:
-                raise TransportError("Coordinator not available for transport registration")
+                raise TransportError("coordinator_unavailable", "Coordinator not available for transport registration")
 
             # Update our transport info
             await self.notify_transport_available(transport_name, transport_config)
