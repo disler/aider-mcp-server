@@ -223,12 +223,12 @@ async def clean_coordinator():
 
     # Get fresh instance
     coordinator = ApplicationCoordinator()
-    await coordinator.__aenter__()
+    # coordinator initialized
 
     yield coordinator
 
     # Clean up after test
-    await coordinator.__aexit__(None, None, None)
+    await coordinator.shutdown()
 
     # Reset singleton state for next test
     ApplicationCoordinator._instance = None

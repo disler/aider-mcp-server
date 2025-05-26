@@ -222,7 +222,6 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Also discovers streaming coordinators for event relay.
         """
         try:
-            from aider_mcp_server.atoms.logging.logger import get_logger
             from ...pages.application.coordinator import ApplicationCoordinator
 
             self.logger.info(f"Auto-discovering coordinators for STDIO transport {self.transport_id}...")
@@ -325,7 +324,6 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         # The logic below seems to just get the local singleton anyway.
         # Keeping it for compatibility but noting its limited scope here.
         try:
-            from aider_mcp_server.atoms.logging.logger import get_logger
             from ...pages.application.coordinator import ApplicationCoordinator
 
             self.logger.info(
