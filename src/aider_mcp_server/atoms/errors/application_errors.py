@@ -73,22 +73,13 @@ class MessageFormatError(TransportError):
     pass
 
 
-class AuthenticationError(SecurityError):
-    """Raised when authentication fails."""
-
-    pass
-
-
-class AuthorizationError(SecurityError):
-    """Raised when the user lacks sufficient permissions."""
-
-    pass
-
-
-class TokenError(SecurityError):
-    """Raised when there is an issue with an authentication token."""
-
-    pass
+# Authentication errors moved to atoms.security.errors for better organization
+# Import here for backward compatibility
+from aider_mcp_server.atoms.security.errors import (
+    AuthenticationError,
+    PermissionDeniedError as AuthorizationError,
+    TokenExpiredError as TokenError,
+)
 
 
 class InputValidationError(ValidationError):
