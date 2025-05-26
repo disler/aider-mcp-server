@@ -31,7 +31,7 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 )
 
 if TYPE_CHECKING:
-    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from ...pages.application.coordinator import ApplicationCoordinator
 
 # Add imports for official MCP SDK
 from mcp.server.fastmcp import FastMCP

@@ -13,7 +13,7 @@ from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
 
 # Mocked dependencies
-from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from ...pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import HttpStreamableTransportAdapter
 
 

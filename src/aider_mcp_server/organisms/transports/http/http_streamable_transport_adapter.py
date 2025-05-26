@@ -43,7 +43,7 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 )
 
 if TYPE_CHECKING:
-    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from ...pages.application.coordinator import ApplicationCoordinator
 
     # LoggerFactory and LoggerProtocol are now imported directly from mcp_types
 

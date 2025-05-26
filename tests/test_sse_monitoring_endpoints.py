@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+from ...pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.pages.application.app import (
     _broadcast_to_sse_clients,
     broadcast_event_to_sse_clients,

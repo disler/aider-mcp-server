@@ -32,7 +32,7 @@ from aider_mcp_server.interfaces.transport_adapter import TransportAdapterBase
 
 # Import ApplicationCoordinator from transport_coordinator only during type checking
 if TYPE_CHECKING:
-    from aider_mcp_server.organisms.coordinators.transport_coordinator import ApplicationCoordinator
+    from ...pages.application.coordinator import ApplicationCoordinator
 
 
 # Initialize the logger factory

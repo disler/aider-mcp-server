@@ -16,7 +16,6 @@ from ...atoms.utils.config_constants import (
     DEFAULT_WS_PORT,
 )
 from ...pages.application.coordinator import ApplicationCoordinator
-from ..servers.multi_transport_server import serve_multi_transport  # multi mode
 from ..servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
@@ -63,7 +62,7 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--server-mode",
         type=str,
-        choices=["stdio", "sse", "multi"],
+        choices=["stdio", "sse"],
         default="stdio",
         help="Server communication mode (default: stdio).",
     )
@@ -143,28 +142,18 @@ def _validate_server_mode_args(log: LoggerProtocol, server_mode: str, host: str,
 
 def _setup_signal_handling(log: LoggerProtocol, server_mode: str) -> None:
     """Set up signal handling based on server mode."""
-    if server_mode != "multi":
-        try:
-            # Signal handlers will be set up in the server functions
-            log.info(f"SIGTERM handler registration will be done in server function for {server_mode} mode.")
-        except NotImplementedError:
-            log.warning("Signal handlers (SIGTERM) not supported on this platform.")
-        except Exception as e:
-            log.error(f"Error preparing SIGTERM handler: {e}")
-    else:
-        log.info("Signal handling delegated to multi_transport_server for 'multi' mode.")
+    try:
+        # Signal handlers will be set up in the server functions
+        log.info(f"SIGTERM handler registration will be done in server function for {server_mode} mode.")
+    except NotImplementedError:
+        log.warning("Signal handlers (SIGTERM) not supported on this platform.")
+    except Exception as e:
+        log.error(f"Error preparing SIGTERM handler: {e}")
 
 
 async def _run_server(server_mode: str, host: str, port: int, editor_model: str, cwd_str: str) -> None:
     """Run the appropriate server based on the server mode."""
-    if server_mode == "multi":
-        await serve_multi_transport(
-            host=host,
-            port=port,
-            editor_model=editor_model,
-            current_working_dir=cwd_str,
-        )
-    elif server_mode == "sse":
+    if server_mode == "sse":
         await serve_sse(
             host=host,
             port=port,
@@ -203,17 +192,7 @@ def _setup_logging(get_logger_func: Callable[..., LoggerProtocol], args: argpars
 def _run_server_by_mode(log: LoggerProtocol, args: argparse.Namespace, abs_cwd_str: str) -> None:
     """Run the appropriate server based on specified mode."""
     try:
-        if args.server_mode == "multi":
-            log.info(f"Starting in Multi-Transport server mode (SSE on http://{args.host}:{args.port}, plus Stdio)")
-            asyncio.run(
-                serve_multi_transport(
-                    host=args.host,
-                    port=args.port,
-                    editor_model=args.editor_model,
-                    current_working_dir=abs_cwd_str,
-                )
-            )
-        elif args.server_mode == "sse":
+        if args.server_mode == "sse":
             # Log message moved to SSE server when actually ready
             asyncio.run(
                 serve_sse(

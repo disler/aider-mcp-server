@@ -16,7 +16,6 @@ from .pages.application.coordinator import ApplicationCoordinator
 
 # Import main from cli.py instead of __main__.py to avoid circular imports
 from .templates.initialization.cli import main  # Import main function for entry point
-from .templates.servers.multi_transport_server import serve_multi_transport
 from .templates.servers.server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
 from .templates.servers.sse_server import serve_sse
 
@@ -36,7 +35,6 @@ except importlib.metadata.PackageNotFoundError:
 __all__ = [
     "main",  # Re-added to support entry points in setup.py
     "serve_sse",
-    "serve_multi_transport",
     "ApplicationCoordinator",
     "SSETransportAdapter",
     "StdioTransportAdapter",
