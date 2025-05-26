@@ -79,16 +79,19 @@ class MessageFormatError(TransportError):
 
 class AuthenticationError(SecurityError):
     """Base exception for authentication errors (backward compatibility)."""
+
     pass
 
 
 class AuthorizationError(SecurityError):
     """Raised when user lacks required permissions (backward compatibility)."""
+
     pass
 
 
 class TokenError(SecurityError):
     """Raised when there's an issue with a token (backward compatibility)."""
+
     pass
 
 

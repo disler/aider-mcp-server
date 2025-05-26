@@ -15,18 +15,19 @@ from aider_mcp_server.atoms.types.mcp_types import LoggerFactory, LoggerProtocol
 def get_logger_with_fallback(module_name: str) -> LoggerProtocol:
     """
     Get a logger with fallback capability for the specified module.
-    
+
     This function attempts to use the custom logger from atoms.logging.logger,
     but falls back to a standard logger implementation if not available.
-    
+
     Args:
         module_name: Name of the module requesting the logger
-        
+
     Returns:
         LoggerProtocol: A logger instance compatible with the expected interface
     """
     try:
         from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
+
         return typing.cast(LoggerProtocol, custom_get_logger(module_name))
     except ImportError:
         return _create_fallback_logger(module_name)
@@ -35,7 +36,7 @@ def get_logger_with_fallback(module_name: str) -> LoggerProtocol:
 def _create_fallback_logger(name: str, *args: Any, **kwargs: Any) -> LoggerProtocol:
     """
     Create a fallback logger implementation.
-    
+
     This provides the same logger pattern that was duplicated across multiple
     files in the codebase.
     """
@@ -76,12 +77,13 @@ def _create_fallback_logger(name: str, *args: Any, **kwargs: Any) -> LoggerProto
 def get_fallback_logger_factory() -> LoggerFactory:
     """
     Get a logger factory function for modules that need the factory pattern.
-    
+
     Returns:
         LoggerFactory: A factory function that creates loggers with fallback
     """
     try:
         from aider_mcp_server.atoms.logging.logger import get_logger as custom_get_logger
+
         return typing.cast(LoggerFactory, custom_get_logger)
     except ImportError:
         return _create_fallback_logger
