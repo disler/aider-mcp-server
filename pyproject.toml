@@ -14,9 +14,6 @@ authors = [
 ]
 dependencies = [
     "aider-chat>=0.83.1",
-    "boto3>=1.37.27",
-    "fastapi>=0.110.0",  # Added for API endpoints
-    "httpx>=0.27.0",     # Added for testing SSE
     "mcp>=1.9.1",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "psutil>=5.9.0",  # Added for system resource monitoring
@@ -25,7 +22,6 @@ dependencies = [
     "sse-starlette>=2.0.0",  # Added for SSE specific functionality
     "starlette>=0.38.0",     # Added for SSE server
     "uvicorn[standard]>=0.30.0", # Added for running Starlette/SSE server
-    "uvloop>=0.17.0",
     "hatch",
     "toml>=0.10.2",  # Added for reading pyproject.toml in compatibility tests
     "packaging>=21.3",  # Added for version parsing in compatibility checks
