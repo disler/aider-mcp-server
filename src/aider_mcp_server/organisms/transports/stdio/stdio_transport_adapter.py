@@ -28,7 +28,7 @@ from aider_mcp_server.molecules.transport.base_adapter import AbstractTransportA
 from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery, CoordinatorInfo
 
 if TYPE_CHECKING:
-    from ...pages.application.coordinator import ApplicationCoordinator
+    from ....pages.application.coordinator import ApplicationCoordinator
 
 
 # Logger is inherited from AbstractTransportAdapter
@@ -222,7 +222,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         Also discovers streaming coordinators for event relay.
         """
         try:
-            from ...pages.application.coordinator import ApplicationCoordinator
+            from ....pages.application.coordinator import ApplicationCoordinator
 
             self.logger.info(f"Auto-discovering coordinators for STDIO transport {self.transport_id}...")
 
@@ -324,7 +324,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         # The logic below seems to just get the local singleton anyway.
         # Keeping it for compatibility but noting its limited scope here.
         try:
-            from ...pages.application.coordinator import ApplicationCoordinator
+            from ....pages.application.coordinator import ApplicationCoordinator
 
             self.logger.info(
                 f"Attempting to connect STDIO adapter {self.transport_id} to coordinator {coordinator_info.coordinator_id} "
