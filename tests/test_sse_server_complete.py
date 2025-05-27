@@ -36,7 +36,7 @@ class TestSSEServer:
         ):
             # Set up mock event for graceful shutdown signalling
             mock_event = MagicMock()
-            mock_event.wait = AsyncMock()  # serve_sse awaits this
+            mock_event.wait = AsyncMock(return_value=None)  # Return immediately to avoid hanging
             mock_event.set = MagicMock()
             # is_set might be used if serve_sse had a different loop structure,
             # but current serve_sse relies on wait().
@@ -104,6 +104,10 @@ class TestSSEServer:
                 await mock_adapter._create_app()
 
             mock_adapter.initialize = AsyncMock(side_effect=initialize_side_effect)
+            mock_adapter.start_listening = AsyncMock(return_value=None)  # Don't hang on start_listening
+            mock_adapter.shutdown = AsyncMock(return_value=None)  # Don't hang on shutdown
+            # Mock _server_task attribute that _wait_for_shutdown checks
+            mock_adapter._server_task = None  # No server task to wait for
 
             # Call run_sse_server with the proper function signature
             await run_sse_server(host=host, port=port, editor_model=editor_model, current_working_dir=cwd)
