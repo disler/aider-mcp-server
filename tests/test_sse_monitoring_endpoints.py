@@ -34,7 +34,7 @@ async def mock_coordinator():
     with patch(
         "aider_mcp_server.pages.application.coordinator.ApplicationCoordinator",
         return_value=coordinator,
-    ) as mock_get_instance:
+    ):
         yield coordinator
 
 

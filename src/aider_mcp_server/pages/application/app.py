@@ -37,7 +37,7 @@ def _check_adapter_availability() -> Optional[Response]:
         logger.error("Request received but SSE Transport Adapter is not initialized.")
         return Response(content="Server not ready", status_code=503, media_type="text/plain")
 
-    if _adapter._coordinator and _adapter._coordinator.is_shutting_down():
+    if _adapter._coordinator and _adapter._coordinator.is_shutting_down:
         logger.warning("Request rejected: Server is shutting down.")
         return Response(content="Server is shutting down", status_code=503, media_type="text/plain")
 
@@ -100,7 +100,7 @@ async def _handle_message_request(request: Request) -> Response:
         # This should never happen due to the check above, but keeps mypy happy
         raise HTTPException(status_code=503, detail="Server not ready")
 
-    if adapter._coordinator and adapter._coordinator.is_shutting_down():
+    if adapter._coordinator and adapter._coordinator.is_shutting_down:
         logger.warning("Message request rejected: Server is shutting down.")
         raise HTTPException(status_code=503, detail="Server is shutting down")
 

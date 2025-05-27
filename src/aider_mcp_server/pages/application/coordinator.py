@@ -29,6 +29,13 @@ class ApplicationCoordinator:
             cls._instance = super(ApplicationCoordinator, cls).__new__(cls)
         return cls._instance
 
+    @classmethod
+    async def getInstance(cls, logger_factory=None) -> "ApplicationCoordinator":
+        """Get or create the singleton instance."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
     def __init__(self) -> None:
         """
         Initialize the ApplicationCoordinator.
@@ -53,6 +60,9 @@ class ApplicationCoordinator:
 
         # Health monitoring component (Phase 3.2)
         self._health_monitor: Optional[HealthMonitor] = None
+        
+        # For backward compatibility with tests
+        self._transports: Dict[str, ITransportAdapter] = {}
 
         ApplicationCoordinator._initialized = True
         self._logger.info("ApplicationCoordinator components instantiated.")
@@ -110,6 +120,10 @@ class ApplicationCoordinator:
         transport_id = transport_adapter.get_transport_id()
         transport_type = transport_adapter.get_transport_type()
         self._logger.info(f"Registering instantiated transport adapter: {transport_id} ({transport_type})")
+        
+        # Add to _transports for backward compatibility
+        self._transports[transport_id] = transport_adapter
+        
         await self._event_coordinator.register_transport_adapter(transport_adapter)
         self._logger.info(f"Transport adapter '{transport_id}' registered with EventCoordinator.")
 
@@ -140,16 +154,18 @@ class ApplicationCoordinator:
         return await self._request_processor.process_request(request)
 
     async def broadcast_event(
-        self, event_type: Union[str, EventTypes], event_data: Optional[Dict[str, Any]] = None, client_id: Optional[str] = None, 
-        data: Optional[Dict[str, Any]] = None, exclude_transport_id: Optional[str] = None
+        self,
+        event_type: Union[str, EventTypes],
+        event_data: Optional[Dict[str, Any]] = None,
+        client_id: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        exclude_transport_id: Optional[str] = None,
     ) -> None:
         """Broadcast an event to all registered transports."""
-        from aider_mcp_server.atoms.types.event_types import EventTypes
-        
         # Handle both 'event_data' and 'data' parameters for backward compatibility
         actual_data = event_data or data or {}
         self._logger.debug(f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{actual_data}'")
-        
+
         # Handle both EventTypes enum and string input
         if isinstance(event_type, EventTypes):
             event_type_enum = event_type
@@ -168,8 +184,6 @@ class ApplicationCoordinator:
 
     async def subscribe_to_event_type(self, transport_id: str, event_type: Union[str, EventTypes]) -> None:
         """Subscribe a transport to an event type."""
-        from aider_mcp_server.atoms.types.event_types import EventTypes
-        
         self._logger.debug(f"Subscribing transport {transport_id} to event type {event_type}")
         # Convert EventTypes enum to string or handle string input
         if isinstance(event_type, EventTypes):
@@ -182,7 +196,7 @@ class ApplicationCoordinator:
                 return
         else:
             event_type_enum = event_type
-            
+
         # Delegate to event coordinator
         await self._event_coordinator.subscribe_to_event_type(transport_id, event_type_enum)
 
@@ -192,9 +206,14 @@ class ApplicationCoordinator:
         # Delegate to event coordinator
         await self._event_coordinator.unregister_transport_adapter(transport_id)
 
-    async def start_request(self, request_id: str, transport_id: Optional[str] = None, 
-                           operation_name: Optional[str] = None, request_data: Optional[Dict[str, Any]] = None,
-                           context: Optional[Dict[str, Any]] = None) -> None:
+    async def start_request(
+        self,
+        request_id: str,
+        transport_id: Optional[str] = None,
+        operation_name: Optional[str] = None,
+        request_data: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Start tracking a request."""
         # Build context from all provided data
         full_context = context or {}
@@ -206,9 +225,15 @@ class ApplicationCoordinator:
             full_context["request_data"] = request_data
         await self.record_request_start(request_id, full_context)
 
-    async def fail_request(self, request_id: str, operation_name: Optional[str] = None,
-                          error: Optional[str] = None, error_details: Optional[str] = None,
-                          originating_transport_id: Optional[str] = None, error_type: Optional[str] = None) -> None:
+    async def fail_request(
+        self,
+        request_id: str,
+        operation_name: Optional[str] = None,
+        error: Optional[str] = None,
+        error_details: Optional[str] = None,
+        originating_transport_id: Optional[str] = None,
+        error_type: Optional[str] = None,
+    ) -> None:
         """Mark a request as failed."""
         # Use error or error_type as the error type for health monitoring
         final_error_type = error_type or error or "unknown_error"
@@ -220,11 +245,14 @@ class ApplicationCoordinator:
         # For now, always return False - could be enhanced with a shutdown flag
         return False
 
-    async def _initialize_coordinator(self, host: Optional[str] = None, port: Optional[int] = None, 
-                                     register_in_discovery: bool = False, **kwargs: Any) -> None:
+    async def _initialize_coordinator(
+        self, host: Optional[str] = None, port: Optional[int] = None, register_in_discovery: bool = False, **kwargs: Any
+    ) -> None:
         """Initialize coordinator (alias for initialize method)."""
         # Log the initialization parameters for debugging
-        self._logger.debug(f"Initializing coordinator with host={host}, port={port}, register_in_discovery={register_in_discovery}")
+        self._logger.debug(
+            f"Initializing coordinator with host={host}, port={port}, register_in_discovery={register_in_discovery}"
+        )
         await self.initialize()
 
     async def shutdown(self) -> None:
