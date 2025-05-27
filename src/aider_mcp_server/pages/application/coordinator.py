@@ -30,7 +30,7 @@ class ApplicationCoordinator:
         return cls._instance
 
     @classmethod
-    async def getInstance(cls, logger_factory=None) -> "ApplicationCoordinator":
+    async def getInstance(cls, logger_factory: Optional[Any] = None) -> "ApplicationCoordinator":
         """Get or create the singleton instance."""
         if cls._instance is None:
             cls._instance = cls()
@@ -177,7 +177,8 @@ class ApplicationCoordinator:
                 self._logger.warning(f"Unknown event type: {event_type}, using as-is")
                 event_type_enum = event_type  # type: ignore
         else:
-            event_type_enum = event_type
+            # Fallback for any other type
+            event_type_enum = event_type  # type: ignore
 
         # Use the EventCoordinator's broadcast_event method (without client_id)
         await self._event_coordinator.broadcast_event(event_type_enum, actual_data)
@@ -195,7 +196,8 @@ class ApplicationCoordinator:
                 self._logger.warning(f"Unknown event type: {event_type}")
                 return
         else:
-            event_type_enum = event_type
+            # Fallback for any other type - should not happen with proper typing
+            event_type_enum = event_type  # type: ignore
 
         # Delegate to event coordinator
         await self._event_coordinator.subscribe_to_event_type(transport_id, event_type_enum)
