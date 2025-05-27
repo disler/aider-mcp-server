@@ -193,6 +193,7 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown_event: asyn
 async def _wait_for_shutdown(http_adapter: HttpStreamableTransportAdapter, shutdown_event: asyncio.Event) -> None:
     """Wait for the shutdown signal and HTTP server task to complete."""
     SHUTDOWN_TIMEOUT = 10.0  # 10 seconds timeout
+    GRACEFUL_DELAY = 2.0  # 2 seconds for graceful connection cleanup
 
     server_task = getattr(http_adapter, "_server_task", None)
     if server_task:
@@ -215,11 +216,16 @@ async def _wait_for_shutdown(http_adapter: HttpStreamableTransportAdapter, shutd
             logger.warning(f"HTTP server: Shutdown wait timed out after {SHUTDOWN_TIMEOUT}s, forcing shutdown.")
             if server_task and not server_task.done():
                 server_task.cancel()
-                await asyncio.sleep(0.1)  # Give cancellation a moment
+                # Allow graceful cleanup of connections
+                logger.info("HTTP server: Waiting for active connections to close gracefully...")
+                await asyncio.sleep(GRACEFUL_DELAY)
     else:
         logger.debug("HTTP server: Waiting on shutdown_event (no server_task found).")
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=SHUTDOWN_TIMEOUT)
+            # Brief delay for graceful cleanup even without server task
+            logger.info("HTTP server: Allowing brief cleanup period for active connections...")
+            await asyncio.sleep(GRACEFUL_DELAY)
         except asyncio.TimeoutError:
             logger.warning(f"HTTP server: Shutdown event wait timed out after {SHUTDOWN_TIMEOUT}s.")
     logger.info("HTTP server: Shutdown event processed or server task completed. Proceeding to close server.")
