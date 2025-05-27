@@ -115,7 +115,7 @@ class ConfigurationSystem:
                     raise ValueError(f"Unsupported configuration file format: {file_path.suffix}")
 
             if config:
-                self._merge_config(config)
+                self._merge_dicts(config, self._config)
                 self._logger.info(f"Successfully loaded configuration from {file_path}")
             else:
                 self._logger.warning(f"Configuration file {file_path} is empty or invalid")
@@ -123,23 +123,6 @@ class ConfigurationSystem:
         except Exception as e:
             self._logger.error(f"Error loading configuration from {file_path}: {e}")
             raise
-
-    def _merge_config(self, config: Dict[str, Any]) -> None:
-        """
-        Merge a configuration dictionary with the current configuration.
-
-        Args:
-            config: Configuration dictionary to merge
-        """
-
-        def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> None:
-            for key, value in source.items():
-                if isinstance(value, dict) and key in destination and isinstance(destination[key], dict):
-                    merge_dicts(value, destination[key])
-                else:
-                    destination[key] = value
-
-        merge_dicts(config, self._config)
 
     def _merge_dicts(self, source: Dict[str, Any], destination: Dict[str, Any]) -> None:
         """
