@@ -56,16 +56,15 @@ async def test_app(mock_coordinator):
     # These patches will be active for the duration of any test using this fixture
     # because the `yield app` statement is within their context.
     try:
-        with patch(
-            "aider_mcp_server.pages.application.app.TransportAdapterRegistry.get_instance", new_callable=AsyncMock
-        ) as mock_registry_get_instance, \
-             patch(
-                 "aider_mcp_server.pages.application.app._start_coordinator_event_listener", new_callable=AsyncMock
-             ), \
-             patch(
-                 "aider_mcp_server.pages.application.app.CoordinatorDiscovery", new_callable=MagicMock
-             ) as MockCoordinatorDiscovery:  # The mock_start_listener can be used for assertions if needed
-
+        with (
+            patch(
+                "aider_mcp_server.pages.application.app.TransportAdapterRegistry.get_instance", new_callable=AsyncMock
+            ) as mock_registry_get_instance,
+            patch("aider_mcp_server.pages.application.app._start_coordinator_event_listener", new_callable=AsyncMock),
+            patch(
+                "aider_mcp_server.pages.application.app.CoordinatorDiscovery", new_callable=MagicMock
+            ) as MockCoordinatorDiscovery,
+        ):  # The mock_start_listener can be used for assertions if needed
             # Configure the mock CoordinatorDiscovery
             mock_discovery_instance = MagicMock()
             mock_discovery_instance.register_coordinator = AsyncMock(return_value="mock_coordinator_id")
