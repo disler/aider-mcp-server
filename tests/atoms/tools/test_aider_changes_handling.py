@@ -106,7 +106,7 @@ class TestAiderChangesHandling:
                 # Check that git diff output was returned
                 assert diff_output == "mock git diff output"
 
-    @pytest.mark.skip(reason="Need to update for proper exception handling")
+    # Re-enabled after verifying exception handling is properly implemented
     def test_get_changes_diff_or_content_fallback(self):
         """Test that _get_changes_diff_or_content falls back to reading file contents."""
         with tempfile.TemporaryDirectory() as temp_dir:

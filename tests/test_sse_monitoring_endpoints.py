@@ -274,7 +274,7 @@ class TestSSEMonitoringEndpoints:
 class TestSSEEndpointIntegration:
     """Integration tests for SSE endpoint behavior."""
 
-    @pytest.mark.skip(reason="Skipping complex SSE header test for now.")
+    # Re-enabled after fixing method name issues
     @pytest.mark.asyncio
     @patch("sse_starlette.sse.EventSourceResponse")  # Patch the EventSourceResponse class
     async def test_sse_endpoint_headers(self, MockEventSourceResponse, test_app):

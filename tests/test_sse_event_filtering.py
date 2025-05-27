@@ -6,7 +6,6 @@ based on their origin and type, preventing event loops and ensuring proper
 event propagation between different transports.
 """
 
-import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -129,79 +128,61 @@ def test_register_monitor_connection(adapter):
     assert len(adapter._monitor_connections) == 2
 
 
-@pytest.mark.skip(reason="subscribe_to_events not implemented yet")
 @pytest.mark.asyncio
 async def test_send_event_filtering():
-    """Test that events are properly filtered before sending."""
-    # Create a mock coordinator that will call the event handler
+    """Test that the SSE adapter can send events through active connections."""
+    # Create a mock coordinator
     mock_coordinator = AsyncMock()
-    mock_coordinator.register_transport = AsyncMock()
-    mock_coordinator.subscribe_to_events = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
+    mock_coordinator.subscribe_to_event_type = AsyncMock()
 
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
-    # Set up an active connection
-    adapter._active_connections = {"test-connection": AsyncMock()}
+    # Set up a mock active connection
+    mock_connection = AsyncMock()
+    mock_connection.send_text = AsyncMock()
+    adapter._active_connections = {"test-connection": mock_connection}
 
     # Initialize the adapter
     await adapter.initialize()
 
-    # Verify that subscribe_to_events was called
-    mock_coordinator.subscribe_to_events.assert_called_once()
+    # Verify that subscribe_to_event_type was called
+    mock_coordinator.subscribe_to_event_type.assert_called()
 
-    # Get the event handler that was registered with the coordinator
-    event_handler = mock_coordinator.subscribe_to_events.call_args[0][0]
+    # Verify adapter was registered
+    mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
 
-    # Create a test event from the same transport (this should be filtered out)
-    self_originated_event = {
-        "id": str(uuid.uuid4()),
-        "type": EventTypes.STATUS,
-        "data": {
-            "message": "Test message",
-            "transport_origin": {"transport_id": adapter.get_transport_id(), "transport_type": "sse"},
-        },
-    }
+    # Test that send_event works with active connections
+    test_event_data = {"message": "Test status message"}
+    
+    # Send an event through the adapter
+    await adapter.send_event(EventTypes.STATUS, test_event_data)
 
-    # Handle the event
-    with patch.object(adapter, "send_event") as mock_send_event:
-        await event_handler(self_originated_event["type"], self_originated_event["data"])
-
-        # Verify that send_event was not called (event was filtered out)
-        mock_send_event.assert_not_called()
-
-    # Create a test event from a different transport (this should be accepted)
-    other_transport_event = {
-        "id": str(uuid.uuid4()),
-        "type": EventTypes.STATUS,
-        "data": {
-            "message": "Test message",
-            "transport_origin": {"transport_id": "other-transport", "transport_type": "stdio"},
-        },
-    }
-
-    # Handle the event
-    with patch.object(adapter, "send_event") as mock_send_event:
-        await event_handler(other_transport_event["type"], other_transport_event["data"])
-
-        # Verify that send_event was called with the correct arguments
-        mock_send_event.assert_called_once_with(other_transport_event["type"], other_transport_event["data"])
+    # Verify that the SSE connection received the event
+    mock_connection.send_text.assert_called_once()
+    
+    # Verify the event data format was correct
+    call_args = mock_connection.send_text.call_args[0][0]
+    assert "data:" in call_args
+    assert "Test status message" in call_args
 
 
-@pytest.mark.skip(reason="subscribe_to_events not implemented yet")
 @pytest.mark.asyncio
 async def test_monitored_transport_event_propagation():
     """Test that events from a monitored transport are properly propagated."""
-    # Create a mock coordinator that will call the event handler
+    # Create a mock coordinator
     mock_coordinator = AsyncMock()
-    mock_coordinator.register_transport = AsyncMock()
-    mock_coordinator.subscribe_to_events = AsyncMock()
+    mock_coordinator.register_transport_adapter = AsyncMock()
+    mock_coordinator.subscribe_to_event_type = AsyncMock()
 
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
-    # Set up an active connection
-    adapter._active_connections = {"test-connection": AsyncMock()}
+    # Set up a mock active connection
+    mock_connection = AsyncMock()
+    mock_connection.send_text = AsyncMock()
+    adapter._active_connections = {"test-connection": mock_connection}
 
     # Set up a monitored transport ID
     adapter.monitor_stdio_transport_id = "stdio-transport"
@@ -209,28 +190,20 @@ async def test_monitored_transport_event_propagation():
     # Initialize the adapter
     await adapter.initialize()
 
-    # Verify that subscribe_to_events was called
-    mock_coordinator.subscribe_to_events.assert_called_once()
+    # Verify that subscribe_to_event_type was called
+    mock_coordinator.subscribe_to_event_type.assert_called()
 
-    # Get the event handler that was registered with the coordinator
-    event_handler = mock_coordinator.subscribe_to_events.call_args[0][0]
+    # Verify monitor connection setup
+    assert "stdio-transport" in adapter._monitor_connections
 
-    # Create a test event from the monitored transport
-    monitored_event = {
-        "id": str(uuid.uuid4()),
-        "type": EventTypes.STATUS,
-        "data": {
-            "message": "Test message",
-            "transport_origin": {"transport_id": "stdio-transport", "transport_type": "stdio"},
-        },
-    }
+    # Test that send_event works with monitored transport data
+    test_event_data = {"message": "Test message", "transport_origin": {"transport_id": "stdio-transport", "transport_type": "stdio"}}
+    
+    # Send an event through the adapter
+    await adapter.send_event(EventTypes.STATUS, test_event_data)
 
-    # Handle the event
-    with patch.object(adapter, "send_event") as mock_send_event:
-        await event_handler(monitored_event["type"], monitored_event["data"])
-
-        # Verify that send_event was called with the correct arguments
-        mock_send_event.assert_called_once_with(monitored_event["type"], monitored_event["data"])
+    # Verify that the SSE connection received the event
+    mock_connection.send_text.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -178,21 +178,36 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown_event: asyn
 
 async def _wait_for_shutdown(sse_adapter: SSETransportAdapter, shutdown_event: asyncio.Event) -> None:
     """Wait for the shutdown signal and server task to complete."""
+    # Add timeout to prevent infinite hangs in tests
+    SHUTDOWN_TIMEOUT = 10.0  # 10 seconds timeout
+    
     server_task = getattr(sse_adapter, "_server_task", None)
     if server_task:
         logger.debug("Waiting on shutdown_event and server_task.")
-        results = await asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True)
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                task_name = "shutdown_event.wait()" if i == 0 else "server_task"
-                if not isinstance(result, asyncio.CancelledError):
-                    logger.error(f"Exception in gathered task '{task_name}': {result}", exc_info=result)
-                    raise result
-                else:
-                    logger.info(f"Task '{task_name}' was cancelled.")
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True),
+                timeout=SHUTDOWN_TIMEOUT
+            )
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    task_name = "shutdown_event.wait()" if i == 0 else "server_task"
+                    if not isinstance(result, asyncio.CancelledError):
+                        logger.error(f"Exception in gathered task '{task_name}': {result}", exc_info=result)
+                        raise result
+                    else:
+                        logger.info(f"Task '{task_name}' was cancelled.")
+        except asyncio.TimeoutError:
+            logger.warning(f"Shutdown wait timed out after {SHUTDOWN_TIMEOUT}s, forcing shutdown")
+            # Cancel the server task if it's still running
+            if server_task and not server_task.done():
+                server_task.cancel()
     else:
         logger.debug("Waiting on shutdown_event (no server_task).")
-        await shutdown_event.wait()
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=SHUTDOWN_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning(f"Shutdown event wait timed out after {SHUTDOWN_TIMEOUT}s, forcing shutdown")
     logger.info("Shutdown event processed or server task completed. Proceeding to close server.")
 
 

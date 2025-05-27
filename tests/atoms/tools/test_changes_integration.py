@@ -21,7 +21,7 @@ from aider_mcp_server.molecules.tools.changes_summarizer import (
 class TestChangesIntegration:
     """Integration tests for changes handling."""
 
-    @pytest.mark.skip(reason="Test needs to be updated for new implementation")
+    @pytest.mark.skip(reason="Test implementation needs updating - mock expectations not matching current flow")
     @pytest.mark.asyncio
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
