@@ -69,14 +69,16 @@ def mock_sse_adapter():
     adapter.initialize = AsyncMock()
     adapter.shutdown = AsyncMock()
     adapter.send_event = AsyncMock()
-    adapter.get_capabilities = MagicMock(return_value={
-        "transport_type": "sse",
-        "supports_events": True,
-        "supports_requests": True,
-        "protocol": "http",
-        "connection_type": "unidirectional",
-        "event_types": list(EventTypes), # Example: subscribe to all
-    })
+    adapter.get_capabilities = MagicMock(
+        return_value={
+            "transport_type": "sse",
+            "supports_events": True,
+            "supports_requests": True,
+            "protocol": "http",
+            "connection_type": "unidirectional",
+            "event_types": list(EventTypes),  # Example: subscribe to all
+        }
+    )
     adapter.get_transport_id = MagicMock(return_value=adapter.transport_id)
     adapter.should_receive_event = MagicMock(return_value=True)
     return adapter
@@ -91,7 +93,7 @@ def mock_stdio_adapter():
     adapter.initialize = AsyncMock()
     adapter.shutdown = AsyncMock()
     adapter.send_event = AsyncMock()
-    adapter._coordinator = None # Can be set by tests if needed
+    adapter._coordinator = None  # Can be set by tests if needed
     adapter._discovery = AsyncMock()
     return adapter
 
@@ -117,7 +119,7 @@ def mock_aider_request():
             "relative_editable_files": ["test.py"],
             "relative_readonly_files": [],
             "model": "test-model",
-            "working_dir": "/tmp/test_project",
+            "working_dir": "/tmp/test_project",  # noqa: S108
         },
         "request_id": "aider_req_123",
     }
