@@ -232,11 +232,11 @@ async def serve(
     # Create the MCP server instance for stdio
     server: Server[List[TextContent]] = Server("aider-mcp-server")
 
-    @server.list_tools()
+    @server.list_tools()  # type: ignore[no-untyped-call]
     async def list_tools() -> List[Tool]:
         return [AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL]
 
-    @server.call_tool()
+    @server.call_tool()  # type: ignore[no-untyped-call]
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         logger.info(f"Received Tool Call (stdio): Name='{name}'")
         # logger.debug(f"Arguments: {arguments}") # Log arguments only at debug level
