@@ -32,10 +32,9 @@ async def mock_coordinator():
     coordinator.__aexit__ = AsyncMock()
     # Mock the getInstance method if it's used to get the coordinator
     with patch(
-        "aider_mcp_server.organisms.coordinators.transport_coordinator.ApplicationCoordinator.getInstance",
-        new_callable=AsyncMock,
+        "aider_mcp_server.pages.application.coordinator.ApplicationCoordinator",
+        return_value=coordinator,
     ) as mock_get_instance:
-        mock_get_instance.return_value = coordinator
         yield coordinator
 
 
