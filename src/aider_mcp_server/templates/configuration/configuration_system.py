@@ -104,7 +104,7 @@ class ConfigurationSystem:
             with open(file_path, "r", encoding="utf-8") as f:
                 if file_path.suffix.lower() in [".yaml", ".yml"]:
                     try:
-                        import yaml  # type: ignore[import-untyped]
+                        import yaml
 
                         config = yaml.safe_load(f)
                     except ImportError as e:
