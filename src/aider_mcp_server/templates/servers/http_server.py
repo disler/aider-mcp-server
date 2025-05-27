@@ -1,5 +1,6 @@
 import asyncio
 import signal
+import socket
 from pathlib import Path
 from types import FrameType
 from typing import Any, Callable, Coroutine, Optional
@@ -140,6 +141,52 @@ async def _validate_working_directory(current_working_dir: str) -> None:
         logger.debug(f"Working directory '{current_working_dir}' for HTTP server is a valid git repository.")
 
 
+async def _check_port_availability(host: str, port: int) -> None:
+    """Check if the specified port is available for binding.
+
+    Args:
+        host: Host address to check
+        port: Port number to check
+
+    Raises:
+        ValueError: If the port is not available with a helpful error message
+    """
+    try:
+        # Test if port is available by attempting to bind to it
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow address reuse
+            s.bind((host, port))
+            logger.debug(f"HTTP server: Port {port} on {host} is available")
+    except OSError as e:
+        if e.errno == 98 or "Address already in use" in str(e):  # Address already in use
+            suggested_port = port + 1
+            # Try to find the next available port (up to 10 attempts)
+            for _attempt in range(10):
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_s:
+                        test_s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        test_s.bind((host, suggested_port))
+                        break  # Found available port
+                except OSError:
+                    suggested_port += 1
+
+            error_msg = (
+                f"HTTP server port {port} is already in use on {host}. Try using --http-port {suggested_port} instead."
+            )
+            logger.critical(error_msg)
+            raise ValueError(error_msg) from None
+        elif e.errno == 13 or "Permission denied" in str(e):  # Permission denied
+            error_msg = (
+                f"Permission denied binding to HTTP port {port} on {host}. Ports below 1024 require root privileges."
+            )
+            logger.critical(error_msg)
+            raise ValueError(error_msg) from None
+        else:
+            error_msg = f"Failed to bind HTTP server to {host}:{port}: {e}"
+            logger.critical(error_msg)
+            raise ValueError(error_msg) from e
+
+
 async def _setup_http_adapter(
     host: str,
     port: int,
@@ -252,6 +299,7 @@ async def run_http_server(
         current_working_dir: Working directory (must be a git repository).
     """
     await _validate_working_directory(current_working_dir)
+    await _check_port_availability(host, port)
 
     http_adapter: Optional[HttpStreamableTransportAdapter] = None
     adapter_initialize_succeeded = False
