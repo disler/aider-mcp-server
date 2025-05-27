@@ -212,7 +212,6 @@ def test_sse_mode_custom_host_port(monkeypatch: pytest.MonkeyPatch):
     mock_exit.assert_not_called()
 
 
-
 @pytest.mark.parametrize("extra_args", [["--host", "1.1.1.1"], ["--port", "1234"]])
 def test_stdio_mode_host_port_warning(monkeypatch: pytest.MonkeyPatch, extra_args: List[str]):
     """Test warning when host/port are used with stdio mode."""

@@ -30,8 +30,6 @@ def mock_serve_sse() -> Generator[AsyncMock, None, None]:
         yield mock
 
 
-
-
 # Remove mock_logger_warning, use mock_get_logger instead
 
 
@@ -141,7 +139,6 @@ def run_main_with_args(
 def test_stdio_mode_default(
     mock_serve: AsyncMock,
     mock_serve_sse: AsyncMock,
-    
     mock_is_git_repository: MagicMock,
     mock_os_makedirs: MagicMock,
     mock_get_logger: MagicMock,

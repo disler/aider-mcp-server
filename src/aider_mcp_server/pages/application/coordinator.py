@@ -60,7 +60,7 @@ class ApplicationCoordinator:
 
         # Health monitoring component (Phase 3.2)
         self._health_monitor: Optional[HealthMonitor] = None
-        
+
         # For backward compatibility with tests
         self._transports: Dict[str, ITransportAdapter] = {}
 
@@ -120,10 +120,10 @@ class ApplicationCoordinator:
         transport_id = transport_adapter.get_transport_id()
         transport_type = transport_adapter.get_transport_type()
         self._logger.info(f"Registering instantiated transport adapter: {transport_id} ({transport_type})")
-        
+
         # Add to _transports for backward compatibility
         self._transports[transport_id] = transport_adapter
-        
+
         await self._event_coordinator.register_transport_adapter(transport_adapter)
         self._logger.info(f"Transport adapter '{transport_id}' registered with EventCoordinator.")
 

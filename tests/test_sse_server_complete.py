@@ -52,6 +52,7 @@ class TestSSEServer:
             mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
             mock_coordinator.__aexit__ = AsyncMock()
             mock_coordinator_cls.getInstance = AsyncMock(return_value=mock_coordinator)
+            mock_coordinator_cls.return_value = mock_coordinator  # For direct constructor calls
 
             # Set up mock adapter instance that mock_adapter_cls will return
             mock_adapter = MagicMock(spec=SSETransportAdapter)
@@ -108,7 +109,7 @@ class TestSSEServer:
             await run_sse_server(host=host, port=port, editor_model=editor_model, current_working_dir=cwd)
 
             # Verify ApplicationCoordinator lifecycle
-            mock_coordinator_cls.getInstance.assert_awaited_once()
+            mock_coordinator_cls.assert_called_once()  # Constructor was called, not getInstance
 
             # Verify SSETransportAdapter instantiation - check the actual call arguments
             mock_adapter_cls.assert_called_once_with(
