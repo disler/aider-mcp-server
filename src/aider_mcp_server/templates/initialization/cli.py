@@ -156,6 +156,32 @@ def _validate_server_mode_args(log: LoggerProtocol, server_mode: str, host: str,
             log.warning("Warning: --host and --port arguments are ignored in 'stdio' mode.")
 
 
+def _validate_http_config(log: LoggerProtocol, host: str, port: int) -> None:
+    """Validate HTTP server configuration.
+
+    Args:
+        log: Logger instance for error reporting
+        host: The host to bind the HTTP server to
+        port: The port to bind the HTTP server to
+
+    Raises:
+        ValueError: If the configuration is invalid
+    """
+    # Validate port is in valid range (non-privileged ports)
+    if not (1024 <= port <= 65535):
+        error_msg = f"Invalid HTTP port number: {port}. Port must be between 1024 and 65535."
+        log.critical(error_msg)
+        raise ValueError(error_msg)
+
+    # Basic validation for host format
+    if not host or not host.strip():
+        error_msg = "HTTP host cannot be empty"
+        log.critical(error_msg)
+        raise ValueError(error_msg)
+
+    log.debug(f"HTTP configuration validated: host={host}, port={port}")
+
+
 def _setup_signal_handling(log: LoggerProtocol, server_mode: str) -> None:
     """Set up signal handling based on server mode."""
     try:
@@ -219,6 +245,7 @@ def _run_server_by_mode(log: LoggerProtocol, args: argparse.Namespace, abs_cwd_s
                 )
             )
         elif args.server_mode == "http":
+            _validate_http_config(log, args.http_host, args.http_port)
             # Log message for HTTP server is handled within serve_http/run_http_server
             asyncio.run(
                 serve_http(
