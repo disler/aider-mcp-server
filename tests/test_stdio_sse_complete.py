@@ -13,12 +13,12 @@ import pytest_asyncio
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.molecules.transport.discovery import CoordinatorInfo
-from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
 from aider_mcp_server.organisms.transports.stdio.stdio_transport_adapter import (
     AIDER_EVENT_TYPES_TO_RELAY,
     StdioTransportAdapter,
 )
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 
 @pytest_asyncio.fixture

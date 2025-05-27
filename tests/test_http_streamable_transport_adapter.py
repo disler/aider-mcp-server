@@ -11,10 +11,10 @@ import pytest_asyncio
 from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol  # Added LoggerProtocol
+from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import HttpStreamableTransportAdapter
 
 # Mocked dependencies
 from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
-from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import HttpStreamableTransportAdapter
 
 
 # Helper function to parse a line and append event

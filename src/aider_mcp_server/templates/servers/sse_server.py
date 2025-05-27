@@ -6,8 +6,8 @@ from typing import Any, Callable, Coroutine, Optional
 
 from ...atoms.logging.logger import Logger, get_logger
 from ...atoms.security.context import SecurityContext
-from ...pages.application.coordinator import ApplicationCoordinator
 from ...organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from ...pages.application.coordinator import ApplicationCoordinator
 from .server import is_git_repository
 
 logger: Logger = get_logger(__name__)
@@ -180,14 +180,13 @@ async def _wait_for_shutdown(sse_adapter: SSETransportAdapter, shutdown_event: a
     """Wait for the shutdown signal and server task to complete."""
     # Add timeout to prevent infinite hangs in tests
     SHUTDOWN_TIMEOUT = 10.0  # 10 seconds timeout
-    
+
     server_task = getattr(sse_adapter, "_server_task", None)
     if server_task:
         logger.debug("Waiting on shutdown_event and server_task.")
         try:
             results = await asyncio.wait_for(
-                asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True),
-                timeout=SHUTDOWN_TIMEOUT
+                asyncio.gather(shutdown_event.wait(), server_task, return_exceptions=True), timeout=SHUTDOWN_TIMEOUT
             )
             for i, result in enumerate(results):
                 if isinstance(result, Exception):

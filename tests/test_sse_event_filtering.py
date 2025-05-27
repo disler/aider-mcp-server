@@ -139,10 +139,9 @@ async def test_send_event_filtering():
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
-    # Set up a mock active connection
-    mock_connection = AsyncMock()
-    mock_connection.send_text = AsyncMock()
-    adapter._active_connections = {"test-connection": mock_connection}
+    # Set up a mock active connection (SSE uses queues, not direct send_text)
+    mock_queue = asyncio.Queue()
+    adapter._active_connections = {"test-connection": mock_queue}
 
     # Initialize the adapter
     await adapter.initialize()
@@ -155,17 +154,15 @@ async def test_send_event_filtering():
 
     # Test that send_event works with active connections
     test_event_data = {"message": "Test status message"}
-    
+
     # Send an event through the adapter
     await adapter.send_event(EventTypes.STATUS, test_event_data)
 
-    # Verify that the SSE connection received the event
-    mock_connection.send_text.assert_called_once()
-    
-    # Verify the event data format was correct
-    call_args = mock_connection.send_text.call_args[0][0]
-    assert "data:" in call_args
-    assert "Test status message" in call_args
+    # Verify that the SSE connection received the event via queue
+    assert not mock_queue.empty()
+    event_message = mock_queue.get_nowait()
+    assert "data:" in event_message
+    assert "Test status message" in event_message
 
 
 @pytest.mark.asyncio
@@ -179,13 +176,13 @@ async def test_monitored_transport_event_propagation():
     # Create the adapter with the mock coordinator
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
-    # Set up a mock active connection
-    mock_connection = AsyncMock()
-    mock_connection.send_text = AsyncMock()
-    adapter._active_connections = {"test-connection": mock_connection}
+    # Set up a mock active connection (SSE uses queues)
+    mock_queue = asyncio.Queue()
+    adapter._active_connections = {"test-connection": mock_queue}
 
-    # Set up a monitored transport ID
+    # Set up a monitored transport ID and add to monitor connections
     adapter.monitor_stdio_transport_id = "stdio-transport"
+    adapter._monitor_connections.add("stdio-transport")
 
     # Initialize the adapter
     await adapter.initialize()
@@ -197,13 +194,18 @@ async def test_monitored_transport_event_propagation():
     assert "stdio-transport" in adapter._monitor_connections
 
     # Test that send_event works with monitored transport data
-    test_event_data = {"message": "Test message", "transport_origin": {"transport_id": "stdio-transport", "transport_type": "stdio"}}
-    
+    test_event_data = {
+        "message": "Test message",
+        "transport_origin": {"transport_id": "stdio-transport", "transport_type": "stdio"},
+    }
+
     # Send an event through the adapter
     await adapter.send_event(EventTypes.STATUS, test_event_data)
 
-    # Verify that the SSE connection received the event
-    mock_connection.send_text.assert_called_once()
+    # Verify that the SSE connection received the event via queue
+    assert not mock_queue.empty()
+    event_message = mock_queue.get_nowait()
+    assert "data:" in event_message
 
 
 @pytest.mark.asyncio

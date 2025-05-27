@@ -420,7 +420,7 @@ def get_changes_diff_or_content(relative_editable_files: List[str], working_dir:
     except Exception as e:
         logger.error(f"Unexpected error getting git diff: {str(e)}")
         logger.warning("Falling back to reading file contents.")
-        
+
         # Step 3: Fall back to reading file contents
         return _read_file_contents(relative_editable_files, working_dir)
 

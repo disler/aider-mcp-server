@@ -46,6 +46,7 @@ dev = [
     "pytest-mock",
     "ruff>=0.11.6",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
+    "types-PyYAML",  # Type stubs for PyYAML
 ]
 
 test = [
