@@ -1,9 +1,8 @@
 import asyncio
 from typing import Any, Dict, Optional, Type, Union
 
-from aider_mcp_server.atoms.types.event_types import EventTypes
-
 from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.molecules.events.event_system import EventSystem
 from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor, HealthStatus

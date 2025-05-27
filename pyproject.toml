@@ -103,7 +103,7 @@ sync-all = [
 # Quality gates
 check-all = [
     "format",
-    "lint", 
+    "lint",
     "test",
 ]
 

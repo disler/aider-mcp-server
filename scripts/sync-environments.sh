@@ -13,7 +13,7 @@ uv lock --upgrade
 echo "🔄 Refreshing uv .venv environment..."
 uv sync --refresh --dev
 
-# Update hatch environments  
+# Update hatch environments
 echo "🏠 Updating hatch environments..."
 hatch env prune
 hatch -e dev run pip install --upgrade pip

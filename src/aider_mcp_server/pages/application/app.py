@@ -11,8 +11,8 @@ from sse_starlette.sse import EventSourceResponse
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 from aider_mcp_server.molecules.transport.discovery import CoordinatorDiscovery  # Import CoordinatorDiscovery
-from ...pages.application.coordinator import ApplicationCoordinator
 from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
 # Define global adapter variable for use in route handlers
 _adapter: Optional[SSETransportAdapter] = None
