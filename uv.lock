@@ -177,6 +177,11 @@ test = [
     { name = "pytest-mock" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "aider-mcp-server", extra = ["dev"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aider-chat", specifier = ">=0.83.1" },
@@ -212,6 +217,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
 provides-extras = ["dev", "test"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "aider-mcp-server", extras = ["dev"] }]
 
 [[package]]
 name = "aiohappyeyeballs"

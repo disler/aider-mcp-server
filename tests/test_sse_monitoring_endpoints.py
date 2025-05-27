@@ -22,8 +22,8 @@ from aider_mcp_server.pages.application.app import (
 @pytest_asyncio.fixture
 async def mock_coordinator():
     """Create a mock ApplicationCoordinator for testing."""
-    coordinator = AsyncMock(spec=ApplicationCoordinator)
-    coordinator.is_shutting_down.return_value = False
+    coordinator = AsyncMock()  # Remove spec to allow setting magic methods
+    coordinator.is_shutting_down = False  # Property, not method
     coordinator.broadcast_event = AsyncMock()
     coordinator.register_transport = AsyncMock()  # Use register_transport as in app.py
     coordinator.subscribe_to_event_type = AsyncMock()  # Use subscribe_to_event_type as in app.py

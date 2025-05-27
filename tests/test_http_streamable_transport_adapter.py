@@ -194,6 +194,10 @@ def mock_coordinator():
     coordinator.register_transport_adapter = mock.AsyncMock()  # Added
     coordinator.unregister_transport = mock.AsyncMock()
     coordinator.broadcast_event = mock.AsyncMock()
+    coordinator.subscribe_to_event_type = mock.AsyncMock()
+    coordinator.is_shutting_down = False
+    coordinator.start_request = mock.AsyncMock()
+    coordinator.fail_request = mock.AsyncMock()
     return coordinator
 
 

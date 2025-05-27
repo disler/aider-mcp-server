@@ -1,5 +1,7 @@
 import asyncio
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type, Union
+
+from aider_mcp_server.atoms.types.event_types import EventTypes
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
@@ -138,14 +140,20 @@ class ApplicationCoordinator:
         return await self._request_processor.process_request(request)
 
     async def broadcast_event(
-        self, event_type: str, event_data: Dict[str, Any], client_id: Optional[str] = None
+        self, event_type: Union[str, EventTypes], event_data: Optional[Dict[str, Any]] = None, client_id: Optional[str] = None, 
+        data: Optional[Dict[str, Any]] = None, exclude_transport_id: Optional[str] = None
     ) -> None:
         """Broadcast an event to all registered transports."""
-        self._logger.debug(f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{event_data}'")
-        # Convert string event_type to EventTypes enum if needed
         from aider_mcp_server.atoms.types.event_types import EventTypes
-
-        if isinstance(event_type, str):
+        
+        # Handle both 'event_data' and 'data' parameters for backward compatibility
+        actual_data = event_data or data or {}
+        self._logger.debug(f"Broadcasting event: Type='{event_type}', ClientID='{client_id}', Data='{actual_data}'")
+        
+        # Handle both EventTypes enum and string input
+        if isinstance(event_type, EventTypes):
+            event_type_enum = event_type
+        elif isinstance(event_type, str):
             # Try to convert string to EventTypes enum
             try:
                 event_type_enum = EventTypes(event_type)
@@ -153,10 +161,71 @@ class ApplicationCoordinator:
                 self._logger.warning(f"Unknown event type: {event_type}, using as-is")
                 event_type_enum = event_type  # type: ignore
         else:
-            event_type_enum = event_type  # type: ignore[unreachable]
+            event_type_enum = event_type
 
         # Use the EventCoordinator's broadcast_event method (without client_id)
-        await self._event_coordinator.broadcast_event(event_type_enum, event_data)
+        await self._event_coordinator.broadcast_event(event_type_enum, actual_data)
+
+    async def subscribe_to_event_type(self, transport_id: str, event_type: Union[str, EventTypes]) -> None:
+        """Subscribe a transport to an event type."""
+        from aider_mcp_server.atoms.types.event_types import EventTypes
+        
+        self._logger.debug(f"Subscribing transport {transport_id} to event type {event_type}")
+        # Convert EventTypes enum to string or handle string input
+        if isinstance(event_type, EventTypes):
+            event_type_enum = event_type
+        elif isinstance(event_type, str):
+            try:
+                event_type_enum = EventTypes(event_type)
+            except ValueError:
+                self._logger.warning(f"Unknown event type: {event_type}")
+                return
+        else:
+            event_type_enum = event_type
+            
+        # Delegate to event coordinator
+        await self._event_coordinator.subscribe_to_event_type(transport_id, event_type_enum)
+
+    async def unregister_transport(self, transport_id: str) -> None:
+        """Unregister a transport."""
+        self._logger.info(f"Unregistering transport: {transport_id}")
+        # Delegate to event coordinator
+        await self._event_coordinator.unregister_transport_adapter(transport_id)
+
+    async def start_request(self, request_id: str, transport_id: Optional[str] = None, 
+                           operation_name: Optional[str] = None, request_data: Optional[Dict[str, Any]] = None,
+                           context: Optional[Dict[str, Any]] = None) -> None:
+        """Start tracking a request."""
+        # Build context from all provided data
+        full_context = context or {}
+        if transport_id:
+            full_context["transport_id"] = transport_id
+        if operation_name:
+            full_context["operation_name"] = operation_name
+        if request_data:
+            full_context["request_data"] = request_data
+        await self.record_request_start(request_id, full_context)
+
+    async def fail_request(self, request_id: str, operation_name: Optional[str] = None,
+                          error: Optional[str] = None, error_details: Optional[str] = None,
+                          originating_transport_id: Optional[str] = None, error_type: Optional[str] = None) -> None:
+        """Mark a request as failed."""
+        # Use error or error_type as the error type for health monitoring
+        final_error_type = error_type or error or "unknown_error"
+        await self.record_request_completion(request_id, success=False, error_type=final_error_type)
+
+    @property
+    def is_shutting_down(self) -> bool:
+        """Check if the coordinator is shutting down."""
+        # For now, always return False - could be enhanced with a shutdown flag
+        return False
+
+    async def _initialize_coordinator(self, host: Optional[str] = None, port: Optional[int] = None, 
+                                     register_in_discovery: bool = False, **kwargs: Any) -> None:
+        """Initialize coordinator (alias for initialize method)."""
+        # Log the initialization parameters for debugging
+        self._logger.debug(f"Initializing coordinator with host={host}, port={port}, register_in_discovery={register_in_discovery}")
+        await self.initialize()
 
     async def shutdown(self) -> None:
         """Shut down the application coordinator and all components."""

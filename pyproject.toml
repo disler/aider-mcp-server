@@ -94,6 +94,18 @@ all = [
 # Pre-commit management
 install-hooks = "pre-commit install --install-hooks"
 update-hooks = "pre-commit autoupdate"
+# Environment synchronization
+sync-uv = "python -c \"import subprocess; subprocess.run(['uv', 'sync', '--refresh', '--dev'])\""
+sync-all = [
+    "sync-uv",
+    "install-hooks",
+]
+# Quality gates
+check-all = [
+    "format",
+    "lint", 
+    "test",
+]
 
 [tool.hatch.envs.test]
 dependencies = ["aider-mcp-server[test]"]
@@ -127,6 +139,12 @@ skip-magic-trailing-comma = false
 profile = "black"
 line_length = 120
 skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
+
+[tool.uv]
+dev-dependencies = [
+    "aider-mcp-server[dev]"
+]
+package = true
 
 [tool.mypy]
 python_version = "3.12"
