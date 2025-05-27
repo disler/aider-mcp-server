@@ -6,6 +6,7 @@ based on their origin and type, preventing event loops and ensuring proper
 event propagation between different transports.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
