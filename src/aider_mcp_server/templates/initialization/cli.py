@@ -12,6 +12,8 @@ from ...atoms.types.mcp_types import LoggerProtocol
 # Use relative imports within the package
 from ...atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
+    DEFAULT_HTTP_HOST,
+    DEFAULT_HTTP_PORT,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
@@ -62,9 +64,9 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--server-mode",
         type=str,
-        choices=["stdio", "sse"],
+        choices=["stdio", "sse", "http"],
         default="stdio",
-        help="Server communication mode (default: stdio).",
+        help="Server communication mode (stdio, sse, or http) (default: stdio).",
     )
     parser.add_argument(
         "--editor-model",
@@ -90,6 +92,19 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_WS_PORT,
         help=f"Port number for SSE/Multi server (default: {DEFAULT_WS_PORT}).",
+    )
+    http_group = parser.add_argument_group("HTTP Server Options")
+    http_group.add_argument(
+        "--http-host",
+        type=str,
+        default=DEFAULT_HTTP_HOST,
+        help=f"Host address for HTTP server (default: {DEFAULT_HTTP_HOST}).",
+    )
+    http_group.add_argument(
+        "--http-port",
+        type=int,
+        default=DEFAULT_HTTP_PORT,
+        help=f"Port number for HTTP server (default: {DEFAULT_HTTP_PORT}).",
     )
     parser.add_argument(
         "-v",
