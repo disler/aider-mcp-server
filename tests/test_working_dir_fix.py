@@ -104,7 +104,7 @@ async def test_sse_server_passes_config_to_adapter():
         mock_coordinator.get_logger = MagicMock()  # Add mock for get_logger
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock(return_value=None)
-        mock_coordinator_class.getInstance = AsyncMock(return_value=mock_coordinator)
+        mock_coordinator_class.return_value = mock_coordinator
 
         # Mock the SSETransportAdapter
         with patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter") as mock_adapter_class:
