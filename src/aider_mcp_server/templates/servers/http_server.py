@@ -116,7 +116,9 @@ def _create_shutdown_task_wrapper(
             try:
                 asyncio.create_task(async_handler(sig, signum, frame))
             except RuntimeError as e:
-                logger.error(f"Error calling asyncio.create_task directly for signal {sig} in HTTP server test mode: {e}")
+                logger.error(
+                    f"Error calling asyncio.create_task directly for signal {sig} in HTTP server test mode: {e}"
+                )
             except Exception as e:
                 logger.error(
                     f"Unexpected error scheduling async handler for signal {sig} without event for HTTP server: {e}",
@@ -132,9 +134,7 @@ async def _validate_working_directory(current_working_dir: str) -> None:
         logger.debug(f"Validating working directory for HTTP server: {current_working_dir}")
         is_repo, error_msg = is_git_repository(Path(current_working_dir))
         if not is_repo:
-            error_message = (
-                f"Error: The specified directory '{current_working_dir}' for HTTP server is not a valid git repository: {error_msg}"
-            )
+            error_message = f"Error: The specified directory '{current_working_dir}' for HTTP server is not a valid git repository: {error_msg}"
             logger.critical(error_message)
             raise ValueError(error_message)
         logger.debug(f"Working directory '{current_working_dir}' for HTTP server is a valid git repository.")
@@ -161,7 +161,7 @@ async def _setup_http_adapter(
         coordinator=coordinator,
         host=host,
         port=port,
-        get_logger=get_logger, # Pass the get_logger function from this module's scope
+        get_logger=get_logger,  # Pass the get_logger function from this module's scope
         editor_model=editor_model,
         current_working_dir=current_working_dir,
         # stream_queue_size uses its default in HttpStreamableTransportAdapter
@@ -205,15 +205,17 @@ async def _wait_for_shutdown(http_adapter: HttpStreamableTransportAdapter, shutd
                 if isinstance(result, Exception):
                     task_name = "shutdown_event.wait()" if i == 0 else "server_task"
                     if not isinstance(result, asyncio.CancelledError):
-                        logger.error(f"HTTP server: Exception in gathered task '{task_name}': {result}", exc_info=result)
-                        raise result # Propagate significant errors
+                        logger.error(
+                            f"HTTP server: Exception in gathered task '{task_name}': {result}", exc_info=result
+                        )
+                        raise result  # Propagate significant errors
                     else:
                         logger.info(f"HTTP server: Task '{task_name}' was cancelled.")
         except asyncio.TimeoutError:
             logger.warning(f"HTTP server: Shutdown wait timed out after {SHUTDOWN_TIMEOUT}s, forcing shutdown.")
             if server_task and not server_task.done():
                 server_task.cancel()
-                await asyncio.sleep(0.1) # Give cancellation a moment
+                await asyncio.sleep(0.1)  # Give cancellation a moment
     else:
         logger.debug("HTTP server: Waiting on shutdown_event (no server_task found).")
         try:
@@ -226,8 +228,8 @@ async def _wait_for_shutdown(http_adapter: HttpStreamableTransportAdapter, shutd
 async def run_http_server(
     host: str = DEFAULT_HTTP_HOST,
     port: int = DEFAULT_HTTP_PORT,
-    security_context: Optional[SecurityContext] = None, # Kept for structural consistency
-    log_level: str = "INFO", # Kept for structural consistency, actual logging level managed by logger config
+    security_context: Optional[SecurityContext] = None,  # Kept for structural consistency
+    log_level: str = "INFO",  # Kept for structural consistency, actual logging level managed by logger config
     editor_model: str = "",
     current_working_dir: str = "",
     # heartbeat_interval is not taken here, adapter uses its default.
@@ -257,7 +259,7 @@ async def run_http_server(
         adapter_initialize_succeeded = True
 
         await http_adapter.start_listening()
-        actual_port = http_adapter.get_actual_port() or port # Use actual port if available
+        actual_port = http_adapter.get_actual_port() or port  # Use actual port if available
         logger.info(f"HTTP Streamable server listening on http://{host}:{actual_port}")
 
         shutdown_event = asyncio.Event()
@@ -275,7 +277,7 @@ async def run_http_server(
 
     except Exception as e:
         logger.error(f"HTTP server: Unhandled exception in run_http_server: {e}", exc_info=True)
-        raise # Propagate critical startup errors
+        raise  # Propagate critical startup errors
     finally:
         if adapter_initialize_succeeded and http_adapter:
             logger.info("HTTP server: Adapter's initialize() was successful. Attempting shutdown...")
@@ -285,11 +287,13 @@ async def run_http_server(
             except Exception as e_shutdown:
                 logger.error(f"HTTP server: Error during adapter shutdown: {e_shutdown}", exc_info=True)
         elif http_adapter and not adapter_initialize_succeeded:
-             logger.info("HTTP server: Adapter's initialize() failed. Attempting shutdown of partially initialized adapter...")
-             try:
-                await http_adapter.shutdown() # Attempt shutdown even if initialize failed
+            logger.info(
+                "HTTP server: Adapter's initialize() failed. Attempting shutdown of partially initialized adapter..."
+            )
+            try:
+                await http_adapter.shutdown()  # Attempt shutdown even if initialize failed
                 logger.info("HTTP server: Partial adapter shutdown process completed.")
-             except Exception as e_shutdown:
+            except Exception as e_shutdown:
                 logger.error(f"HTTP server: Error during partial adapter shutdown: {e_shutdown}", exc_info=True)
         else:
             logger.info(
@@ -302,7 +306,7 @@ async def serve_http(
     port: int,
     editor_model: str,
     current_working_dir: str,
-    heartbeat_interval: float = 30.0, # Kept for structural consistency, but not used by run_http_server
+    heartbeat_interval: float = 30.0,  # Kept for structural consistency, but not used by run_http_server
 ) -> None:
     """
     Compatibility wrapper for running the HTTP server.
