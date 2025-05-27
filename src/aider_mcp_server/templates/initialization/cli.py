@@ -18,6 +18,7 @@ from ...atoms.utils.config_constants import (
     DEFAULT_WS_PORT,
 )
 from ...pages.application.coordinator import ApplicationCoordinator
+from ..servers.http_server import serve_http  # http mode
 from ..servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
@@ -213,6 +214,16 @@ def _run_server_by_mode(log: LoggerProtocol, args: argparse.Namespace, abs_cwd_s
                 serve_sse(
                     host=args.host,
                     port=args.port,
+                    editor_model=args.editor_model,
+                    current_working_dir=abs_cwd_str,
+                )
+            )
+        elif args.server_mode == "http":
+            # Log message for HTTP server is handled within serve_http/run_http_server
+            asyncio.run(
+                serve_http(
+                    host=args.http_host,
+                    port=args.http_port,
                     editor_model=args.editor_model,
                     current_working_dir=abs_cwd_str,
                 )
