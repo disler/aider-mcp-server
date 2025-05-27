@@ -232,8 +232,13 @@ class TestThrottlingDetection:
     """Test throttling detection functionality."""
 
     @pytest.mark.asyncio
-    async def test_throttling_warning_events(self, mock_coordinator):
+    @patch("aider_mcp_server.molecules.monitoring.request_monitor.asyncio.sleep", new_callable=AsyncMock)
+    async def test_throttling_warning_events(self, mock_rm_asyncio_sleep, mock_coordinator):
         """Test that warning and throttling events are emitted for long-running requests."""
+
+        # Patch asyncio.sleep within RequestMonitor to make its check loop run faster
+        mock_rm_asyncio_sleep.return_value = None
+
         # Create monitor with very short thresholds for testing
         monitor = RequestMonitor(
             coordinator=mock_coordinator,
@@ -241,11 +246,11 @@ class TestThrottlingDetection:
             throttling_threshold=0.2,  # 200ms
         )
 
-        # Track a request
+        # Track a request (time is 1000.0)
         request_id = await monitor.track_request(context={"test": "long_running"})
 
-        # Wait for warning threshold
-        await asyncio.sleep(0.15)  # Wait past warning threshold
+        # Wait for time to pass warning threshold
+        await asyncio.sleep(0.15)  # warning_threshold is 0.1
 
         # Check if warning event was emitted
         warning_calls = [
@@ -257,8 +262,10 @@ class TestThrottlingDetection:
         warning_event = warning_calls[0][0][1]
         assert warning_event["status"] == "long_running_warning"
 
-        # Wait for throttling threshold
-        await asyncio.sleep(0.1)  # Wait past throttling threshold
+        # Wait for time to pass throttling threshold
+        await asyncio.sleep(
+            0.1
+        )  # warning_threshold was 0.1, throttling_threshold is 0.2. Total sleep = 0.15 + 0.1 = 0.25
 
         # Check if throttling event was emitted
         throttling_calls = [

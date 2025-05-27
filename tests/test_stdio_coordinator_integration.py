@@ -1,6 +1,5 @@
 """Test STDIO transport coordinator integration for Phase 1.2."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 
@@ -91,9 +90,7 @@ async def test_stdio_coordinator_event_broadcasting(clean_coordinator):
             # Broadcast an AIDER event through the coordinator
             await coordinator.broadcast_event(event_type=EventTypes.AIDER_SESSION_STARTED, data=test_event_data)
 
-            # Give some time for event processing
-            await asyncio.sleep(0.1)
-
+            # Event processing is awaited by broadcast_event, so no sleep needed here.
             # The test passes if no exceptions are raised during event broadcasting
 
         finally:
@@ -144,8 +141,7 @@ async def test_stdio_cross_transport_communication(clean_coordinator):
             # Broadcast event from coordinator (simulating AIDER tool event)
             await coordinator.broadcast_event(event_type=EventTypes.AIDER_RATE_LIMIT_DETECTED, data=test_event_data)
 
-            # Give time for event processing
-            await asyncio.sleep(0.1)
+            # Event processing is awaited by broadcast_event, so no sleep needed here.
 
         finally:
             # Clean up

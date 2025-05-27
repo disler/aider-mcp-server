@@ -59,26 +59,6 @@ async def test_adapter_event_subscription():
 
 
 @pytest.mark.asyncio
-async def test_run_sse_server_coordinator_integration():
-    """Test that run_sse_server integrates properly with the coordinator."""
-    # Skip the actual running of the run_sse_server function
-    pytest.skip("This test requires further mocking of asyncio and signal handling.")
-
-    # Future implementation:
-    # This test should mock the following:
-    # 1. ApplicationCoordinator.getInstance
-    # 2. SSETransportAdapter constructor, initialize, start_listening, shutdown
-    # 3. Signal handlers (SIGTERM, SIGINT)
-    # 4. The asyncio event loop and wait functions
-    # 5. asyncio.gather to return immediately
-    #
-    # The test should verify:
-    # 1. SSETransportAdapter was constructed with the coordinator
-    # 2. Adapter methods were called in correct order
-    # 3. The shutdown process was executed properly
-
-
-@pytest.mark.asyncio
 async def test_coordinator_event_propagation_to_adapter():
     """Test that events from the coordinator are propagated to the SSE adapter."""
     # Skip the parent initialization methods to avoid awaiting MagicMock
@@ -171,18 +151,3 @@ async def test_run_sse_server_with_invalid_working_dir():
 
         # Verify that the correct error message was raised
         assert "not a valid git repository" in str(excinfo.value)
-
-
-@pytest.mark.asyncio
-async def test_adapter_handles_event_propagation_failure():
-    """Test that the adapter handles failures during event propagation."""
-    # Skip this test since our current understanding of the error handling is incomplete
-    pytest.skip("Need to investigate the SSETransportAdapter's error handling further")
-
-    # Future implementation:
-    # This test should:
-    # 1. Create a mock queue that raises an exception when put_nowait is called
-    # 2. Set up this mock queue in the adapter's _active_connections
-    # 3. Call send_event with a test event
-    # 4. Verify that the exception is caught and logged, but not propagated
-    # 5. Check that other queues still receive events if multiple connections exist
