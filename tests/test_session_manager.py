@@ -2,8 +2,8 @@ from datetime import timedelta  # Added import for timedelta
 
 import pytest
 
-from aider_mcp_server.security import Permissions
-from aider_mcp_server.session_manager import SessionManager
+from aider_mcp_server.atoms.security.context import Permissions
+from aider_mcp_server.templates.initialization.session_manager import SessionManager
 
 
 @pytest.fixture

@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.handlers import process_aider_ai_code_request
-from aider_mcp_server.security import SecurityContext
-from aider_mcp_server.sse_server import run_sse_server
-from aider_mcp_server.sse_transport_adapter import SSETransportAdapter
-from aider_mcp_server.transport_coordinator import ApplicationCoordinator
+from aider_mcp_server.atoms.security.context import SecurityContext
+from aider_mcp_server.organisms.processors.handlers import process_aider_ai_code_request
+from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
+from aider_mcp_server.templates.servers.sse_server import run_sse_server
 
 
 @pytest.mark.asyncio
@@ -18,6 +18,7 @@ async def test_sse_adapter_passes_config_to_handlers():
     """Test that SSE adapter correctly passes configuration to handlers."""
     # Create mock coordinator
     mock_coordinator = MagicMock(spec=ApplicationCoordinator)
+    mock_coordinator.get_logger = MagicMock()  # Add mock for get_logger if ApplicationCoordinator expects it
 
     # Create SSE adapter with configuration
     editor_model = "test-model"
@@ -36,7 +37,7 @@ async def test_sse_adapter_passes_config_to_handlers():
     assert adapter._current_working_dir == current_working_dir
 
     # Mock the handler function
-    with patch("aider_mcp_server.handlers.process_aider_ai_code_request") as mock_handler:
+    with patch("aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request") as mock_handler:
         mock_handler.return_value = {"success": True, "diff": "test diff"}
 
         # Initialize the adapter (creates FastMCP server)
@@ -97,14 +98,16 @@ async def test_sse_server_passes_config_to_adapter():
     current_working_dir = str(Path(__file__).parent.parent)  # Use actual project dir
 
     # Mock the ApplicationCoordinator
-    with patch("aider_mcp_server.sse_server.ApplicationCoordinator") as mock_coordinator_class:
+    with patch("aider_mcp_server.templates.servers.sse_server.ApplicationCoordinator") as mock_coordinator_class:
         mock_coordinator = MagicMock()  # Don't use AsyncMock here
+        mock_coordinator._initialize_coordinator = AsyncMock()
+        mock_coordinator.get_logger = MagicMock()  # Add mock for get_logger
         mock_coordinator.__aenter__ = AsyncMock(return_value=mock_coordinator)
         mock_coordinator.__aexit__ = AsyncMock(return_value=None)
-        mock_coordinator_class.getInstance = AsyncMock(return_value=mock_coordinator)
+        mock_coordinator_class.return_value = mock_coordinator
 
         # Mock the SSETransportAdapter
-        with patch("aider_mcp_server.sse_server.SSETransportAdapter") as mock_adapter_class:
+        with patch("aider_mcp_server.templates.servers.sse_server.SSETransportAdapter") as mock_adapter_class:
             mock_adapter = AsyncMock(spec=SSETransportAdapter)
             mock_adapter_class.return_value = mock_adapter
             mock_adapter._server_task = None  # Add this attribute
@@ -113,7 +116,8 @@ async def test_sse_server_passes_config_to_adapter():
             mock_adapter.wait_for_completion = AsyncMock()
 
             # Mock is_git_repository to return True
-            with patch("aider_mcp_server.sse_server.is_git_repository") as mock_is_git:
+            # Assuming is_git_repository is imported and used within the sse_server module's scope
+            with patch("aider_mcp_server.templates.servers.sse_server.is_git_repository") as mock_is_git:
                 mock_is_git.return_value = (True, None)
 
                 # Mock the event loop signal handling
@@ -160,7 +164,7 @@ async def test_sse_server_passes_config_to_adapter():
 @pytest.mark.asyncio
 async def test_aider_handler_receives_working_dir():
     """Test that the aider handler actually receives and uses working_dir."""
-    with patch("aider_mcp_server.handlers.code_with_aider") as mock_code_with_aider:
+    with patch("aider_mcp_server.organisms.processors.handlers.code_with_aider") as mock_code_with_aider:
         # Set up mock response
         mock_response = {"success": True, "diff": "test diff", "is_cached_diff": False}
         mock_code_with_aider.return_value = json.dumps(mock_response)

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.molecules.tools.aider_ai_code import code_with_aider
 
 # Import mock implementation
 from tests.atoms.tools.test_mock_api_keys import (
@@ -151,7 +151,7 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
     """Test that code_with_aider can create a file that adds two numbers."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -176,12 +176,12 @@ def test_addition(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -379,7 +379,7 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
     """Test that code_with_aider can create a file that subtracts two numbers."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -404,12 +404,12 @@ def test_subtraction(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -607,7 +607,7 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
     """Test that code_with_aider can create a file that multiplies two numbers."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -632,12 +632,12 @@ def test_multiplication(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -835,7 +835,7 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
     """Test that code_with_aider can create a file that divides two numbers."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -860,12 +860,12 @@ def test_division(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 
@@ -1064,7 +1064,7 @@ def test_failure_case(temp_dir: str) -> None:
     """Test that code_with_aider returns error information for a failure scenario."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -1150,7 +1150,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
     """Test that code_with_aider correctly implements more complex tasks."""
     import asyncio
 
-    from aider_mcp_server.atoms.tools.aider_ai_code import (
+    from aider_mcp_server.molecules.tools.aider_ai_code import (
         init_diff_cache,
         shutdown_diff_cache,
     )
@@ -1185,12 +1185,12 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
             # Apply patches for mocks
             patches.extend(
                 [
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel),
                     patch(
-                        "aider_mcp_server.atoms.tools.aider_ai_code.InputOutput",
+                        "aider_mcp_server.molecules.tools.aider_ai_code.InputOutput",
                         MockInputOutput,
                     ),
-                    patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder),
+                    patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder),
                 ]
             )
 

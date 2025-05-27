@@ -13,7 +13,7 @@ from typing import Generator
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import (
+from aider_mcp_server.molecules.tools.aider_ai_code import (
     _check_for_meaningful_changes,
     _configure_model,
     code_with_aider,

@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger
 
 
 def test_logger_creation_and_file_output(tmp_path: Path) -> None:

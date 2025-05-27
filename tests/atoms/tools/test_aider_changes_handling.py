@@ -8,12 +8,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import (
+from aider_mcp_server.molecules.tools.aider_ai_code import (
     _check_for_meaningful_changes,
     _get_changes_diff_or_content,
     _process_coder_results,
 )
-from aider_mcp_server.atoms.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )
@@ -106,7 +106,7 @@ class TestAiderChangesHandling:
                 # Check that git diff output was returned
                 assert diff_output == "mock git diff output"
 
-    @pytest.mark.skip(reason="Need to update for proper exception handling")
+    # Re-enabled after verifying exception handling is properly implemented
     def test_get_changes_diff_or_content_fallback(self):
         """Test that _get_changes_diff_or_content falls back to reading file contents."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -132,13 +132,13 @@ class TestAiderChangesHandling:
     @pytest.mark.asyncio
     async def test_process_coder_results_with_changes(self):
         """Test _process_coder_results with meaningful changes."""
-        with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
+        with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
 
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = True
 
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
                     mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
 
                     # Call the function
@@ -153,14 +153,14 @@ class TestAiderChangesHandling:
     @pytest.mark.asyncio
     async def test_process_coder_results_no_changes(self):
         """Test _process_coder_results with no meaningful changes."""
-        with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
+        with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content") as mock_get_diff:
             mock_get_diff.return_value = "mock diff output"
 
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = False
 
                 # Also mock get_file_status_summary
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_file_status_summary") as mock_status:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_file_status_summary") as mock_status:
                     mock_status.return_value = {
                         "has_changes": False,
                         "status_summary": "No changes detected.",
@@ -168,7 +168,7 @@ class TestAiderChangesHandling:
                         "files_modified": 0,
                     }
 
-                    with patch("aider_mcp_server.atoms.tools.aider_ai_code.diff_cache") as mock_cache:
+                    with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
                         mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
 
                         # Call the function
@@ -248,7 +248,7 @@ def goodbye():
         assert found_file, "test_file.py should be in the files array"
 
         # Verify file contents summary
-        assert "Changed 1 files" in file_result["summary"]
+        assert "Processed 1 files" in file_result["summary"]
 
         # Check for test_file.py in file result files array
         found_file = False

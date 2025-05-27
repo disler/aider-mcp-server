@@ -141,8 +141,8 @@ def patch_aider_modules() -> Tuple[patch, patch]:
     Returns:
         Tuple of (coder_patch, model_patch) that can be used for patching.
     """
-    coder_patch = patch("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder)
-    model_patch = patch("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel)
+    coder_patch = patch("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder)
+    model_patch = patch("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel)
     return coder_patch, model_patch
 
 
@@ -157,13 +157,13 @@ def setup_mock_aider(monkeypatch):
     mock_api_keys()
 
     # Mock aider.models.Model
-    monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.Model", MockModel)
+    monkeypatch.setattr("aider_mcp_server.molecules.tools.aider_ai_code.Model", MockModel)
 
     # Mock aider.io.InputOutput
-    monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.InputOutput", MockInputOutput)
+    monkeypatch.setattr("aider_mcp_server.molecules.tools.aider_ai_code.InputOutput", MockInputOutput)
 
     # Mock aider.coders.Coder
-    monkeypatch.setattr("aider_mcp_server.atoms.tools.aider_ai_code.Coder", MockCoder)
+    monkeypatch.setattr("aider_mcp_server.molecules.tools.aider_ai_code.Coder", MockCoder)
 
     # Patch the try/except block for importing GitRepo in the implementation
     # Use a modified __import__ to return our mock when it tries to import GitRepo from aider.repo

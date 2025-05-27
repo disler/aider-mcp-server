@@ -2,15 +2,14 @@ from typing import Any, Dict, Optional, Protocol, Set
 
 from typing_extensions import runtime_checkable
 
-from aider_mcp_server.atoms.event_types import EventTypes
-from aider_mcp_server.security import SecurityContext
+from aider_mcp_server.atoms.security.context import SecurityContext
+from aider_mcp_server.atoms.types.event_types import EventTypes
 
 
 @runtime_checkable
 class ITransportAdapter(Protocol):
     """Protocol defining the interface for transport adapters."""
 
-    # Include ShutdownContextProtocol methods
     def get_transport_id(self) -> str: ...
     async def shutdown(self) -> None: ...
 
@@ -26,8 +25,8 @@ class ITransportAdapter(Protocol):
     ) -> bool: ...
     async def initialize(self) -> None: ...
     async def start_listening(self) -> None: ...
-    async def handle_sse_request(self, request_details: Dict[str, Any]) -> None: ...
-    async def handle_message_request(self, request_details: Dict[str, Any]) -> None: ...
+    async def handle_sse_request(self, request_details: Any) -> Any: ...
+    async def handle_message_request(self, request_details: Any) -> Any: ...
     def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext: ...
 
 
@@ -68,10 +67,10 @@ class TransportAdapterBase(ITransportAdapter):
     async def start_listening(self) -> None:
         raise NotImplementedError
 
-    async def handle_sse_request(self, request_details: Dict[str, Any]) -> None:
+    async def handle_sse_request(self, request_details: Any) -> Any:
         raise NotImplementedError
 
-    async def handle_message_request(self, request_details: Dict[str, Any]) -> None:
+    async def handle_message_request(self, request_details: Any) -> Any:
         raise NotImplementedError
 
     def validate_request_security(self, request_details: Dict[str, Any]) -> SecurityContext:

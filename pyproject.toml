@@ -14,17 +14,15 @@ authors = [
 ]
 dependencies = [
     "aider-chat>=0.83.1",
-    "boto3>=1.37.27",
-    "fastapi>=0.110.0",  # Added for API endpoints
-    "httpx>=0.27.0",     # Added for testing SSE
-    "mcp>=1.6.0",
+    "fastapi>=0.115.0",  # Required for multi-transport server and app endpoints
+    "mcp>=1.9.1",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
+    "psutil>=5.9.0",  # Added for system resource monitoring
     "python-dotenv",
     "rich>=14.0.0",
     "sse-starlette>=2.0.0",  # Added for SSE specific functionality
     "starlette>=0.38.0",     # Added for SSE server
     "uvicorn[standard]>=0.30.0", # Added for running Starlette/SSE server
-    "uvloop>=0.17.0",
     "hatch",
     "toml>=0.10.2",  # Added for reading pyproject.toml in compatibility tests
     "packaging>=21.3",  # Added for version parsing in compatibility checks
@@ -48,6 +46,7 @@ dev = [
     "pytest-mock",
     "ruff>=0.11.6",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
+    "types-PyYAML",  # Type stubs for PyYAML
 ]
 
 test = [
@@ -96,6 +95,18 @@ all = [
 # Pre-commit management
 install-hooks = "pre-commit install --install-hooks"
 update-hooks = "pre-commit autoupdate"
+# Environment synchronization
+sync-uv = "python -c \"import subprocess; subprocess.run(['uv', 'sync', '--refresh', '--dev'])\""
+sync-all = [
+    "sync-uv",
+    "install-hooks",
+]
+# Quality gates
+check-all = [
+    "format",
+    "lint",
+    "test",
+]
 
 [tool.hatch.envs.test]
 dependencies = ["aider-mcp-server[test]"]
@@ -112,8 +123,8 @@ ignore = ["E501"]  # Ignore line length
 # Allow S108 (/tmp usage) in test files
 # Define file-specific rule ignores
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
-"test_*.py" = ["S101", "S108"]
+"tests/*" = ["S101", "S105", "S106", "S608"]
+"test_*.py" = ["S101", "S105", "S106", "S108", "S608"]
 "src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]
 "src/aider_mcp_server/atoms/tools/aider_ai_code.py" = ["C901"]
 "src/aider_mcp_server/atoms/tools/changes_summarizer.py" = ["C901"]
@@ -129,6 +140,12 @@ skip-magic-trailing-comma = false
 profile = "black"
 line_length = 120
 skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
+
+[tool.uv]
+dev-dependencies = [
+    "aider-mcp-server[dev]"
+]
+package = true
 
 [tool.mypy]
 python_version = "3.12"

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from aider_mcp_server.coordinator_discovery import (
+from aider_mcp_server.molecules.transport.discovery import (
     CoordinatorDiscovery,
     CoordinatorInfo,
 )
@@ -117,6 +117,84 @@ class TestCoordinatorInfo:
 
         assert info.last_heartbeat > old_heartbeat
 
+    def test_has_streaming_capability(self):
+        """Test checking for specific streaming capability."""
+        info_with_streaming = CoordinatorInfo(
+            coordinator_id="test_stream_1",
+            host="localhost",
+            port=8000,
+            streaming_capabilities={"aider_events": {"url": "/events", "event_types": ["message", "tool_code"]}},
+        )
+        info_without_streaming = CoordinatorInfo(
+            coordinator_id="test_stream_2",
+            host="localhost",
+            port=8001,
+        )
+
+        assert info_with_streaming.has_streaming_capability("aider_events")
+        assert not info_with_streaming.has_streaming_capability("health")
+        assert not info_without_streaming.has_streaming_capability("aider_events")
+
+    def test_get_streaming_endpoint(self):
+        """Test retrieving streaming endpoint details."""
+        capabilities = {
+            "aider_events": {"url": "/events", "event_types": ["message", "tool_code"]},
+            "health": {"url": "/healthz", "method": "GET"},
+        }
+        info = CoordinatorInfo(
+            coordinator_id="test_stream_1",
+            host="localhost",
+            port=8000,
+            streaming_capabilities=capabilities,
+        )
+
+        assert info.get_streaming_endpoint("aider_events") == capabilities["aider_events"]
+        assert info.get_streaming_endpoint("health") == capabilities["health"]
+        assert info.get_streaming_endpoint("non_existent") is None
+
+    def test_get_all_streaming_endpoints(self):
+        """Test retrieving all streaming capabilities."""
+        capabilities = {
+            "aider_events": {"url": "/events"},
+            "health": {"url": "/healthz"},
+        }
+        info = CoordinatorInfo(
+            coordinator_id="test_stream_1",
+            host="localhost",
+            port=8000,
+            streaming_capabilities=capabilities,
+        )
+
+        assert info.get_all_streaming_endpoints() == capabilities
+
+        info_no_streaming = CoordinatorInfo(
+            coordinator_id="test_stream_2",
+            host="localhost",
+            port=8001,
+        )
+        assert info_no_streaming.get_all_streaming_endpoints() == {}
+
+    def test_supports_event_type(self):
+        """Test checking if an endpoint supports a specific event type."""
+        capabilities = {
+            "aider_events": {"url": "/events", "event_types": ["message", "tool_code"]},
+            "health": {"url": "/healthz"},  # No event_types key
+            "status": {"url": "/status", "event_types": []},  # Empty event_types list
+        }
+        info = CoordinatorInfo(
+            coordinator_id="test_stream_1",
+            host="localhost",
+            port=8000,
+            streaming_capabilities=capabilities,
+        )
+
+        assert info.supports_event_type("aider_events", "message")
+        assert info.supports_event_type("aider_events", "tool_code")
+        assert not info.supports_event_type("aider_events", "other_event")
+        assert not info.supports_event_type("health", "any_event")  # Endpoint exists, but no event_types
+        assert not info.supports_event_type("status", "any_event")  # Endpoint exists, empty event_types
+        assert not info.supports_event_type("non_existent", "any_event")  # Endpoint does not exist
+
 
 class TestCoordinatorDiscovery:
     """Test the CoordinatorDiscovery class."""
@@ -163,10 +241,40 @@ class TestCoordinatorDiscovery:
         assert coord_data["port"] == 8000
         assert coord_data["transport_type"] == "sse"
         assert coord_data["metadata"] == {"test": True}
+        # Check that streaming_capabilities is saved (even if empty)
+        assert "streaming_capabilities" in coord_data
+        assert coord_data["streaming_capabilities"] == {}
+
+    @pytest.mark.asyncio
+    async def test_register_coordinator_with_streaming(self, temp_discovery_file):
+        """Test registering a coordinator with streaming capabilities."""
+        discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)
+        streaming_caps = {
+            "aider_events": {"url": "/events", "event_types": ["message"]},
+            "health": {"url": "/healthz"},
+        }
+
+        # Register a coordinator with streaming capabilities
+        coord_id = await discovery.register_coordinator(
+            host="localhost",
+            port=8000,
+            transport_type="sse",
+            streaming_capabilities=streaming_caps,
+        )
+
+        assert coord_id is not None
+
+        # Verify it's in the registry file with capabilities
+        registry_data = json.loads(temp_discovery_file.read_text())
+        assert len(registry_data) == 1
+
+        coord_data = registry_data[0]
+        assert coord_data["coordinator_id"] == coord_id
+        assert coord_data["streaming_capabilities"] == streaming_caps
 
     @pytest.mark.asyncio
     async def test_find_coordinators(self, temp_discovery_file):
-        """Test finding coordinators."""
+        """Test finding all coordinators."""
         discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)
 
         # Register some coordinators
@@ -190,6 +298,70 @@ class TestCoordinatorDiscovery:
         coord_ids = {coord.coordinator_id for coord in all_coords}
         assert coord1_id in coord_ids
         assert coord2_id in coord_ids
+
+    @pytest.mark.asyncio
+    async def test_find_streaming_coordinators(self, temp_discovery_file):
+        """Test finding only coordinators with streaming capabilities."""
+        discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)
+
+        # Register coordinators, some with streaming, some without
+        await discovery.register_coordinator(
+            host="localhost",
+            port=8000,
+            transport_type="sse",
+            streaming_capabilities={"aider_events": {"url": "/events"}},
+        )  # Has streaming
+
+        await discovery.register_coordinator(
+            host="localhost",
+            port=8001,
+            transport_type="stdio",
+        )  # No streaming
+
+        await discovery.register_coordinator(
+            host="localhost",
+            port=8002,
+            transport_type="sse",
+            streaming_capabilities={"health": {"url": "/healthz"}},
+        )  # Has streaming
+
+        # Discover only streaming coordinators
+        streaming_coords = await discovery.find_streaming_coordinators()
+        assert len(streaming_coords) == 2  # Should find the two with capabilities
+
+        # Check that the correct ones were found
+        ports = {coord.port for coord in streaming_coords}
+        assert 8000 in ports
+        assert 8002 in ports
+        assert 8001 not in ports
+
+    @pytest.mark.asyncio
+    async def test_backward_compatibility_no_streaming(self, temp_discovery_file):
+        """Test discovery works for coordinators registered without streaming capabilities."""
+        discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)
+
+        # Manually write a registry entry without the streaming_capabilities key
+        # This simulates an older version registering
+        old_coord_data = {
+            "coordinator_id": "old_coord",
+            "host": "localhost",
+            "port": 9000,
+            "transport_type": "legacy",
+            "start_time": time.time(),
+            "last_heartbeat": time.time(),
+            "metadata": {},
+        }
+        temp_discovery_file.write_text(json.dumps([old_coord_data]))
+
+        # Discover all coordinators - should find the old one
+        all_coords = await discovery.discover_coordinators()
+        assert len(all_coords) == 1
+        assert all_coords[0].coordinator_id == "old_coord"
+        assert all_coords[0].streaming_capabilities == {}  # Should default to empty dict
+
+        # Discover streaming coordinators - should NOT find the old one
+        streaming_coords = await discovery.find_streaming_coordinators()
+        assert len(streaming_coords) == 0
 
     @pytest.mark.asyncio
     async def test_update_heartbeat(self, temp_discovery_file):
@@ -283,6 +455,40 @@ class TestCoordinatorDiscovery:
         registered_ids = {coord["coordinator_id"] for coord in registry_data}
         for coord_id in coord_ids:
             assert coord_id in registered_ids
+
+    @pytest.mark.asyncio
+    async def test_streaming_capability_serialization(self, temp_discovery_file):
+        """Test that streaming capabilities are correctly serialized and deserialized."""
+        discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)
+        streaming_caps = {
+            "aider_events": {"url": "/events", "event_types": ["message", "tool_code"]},
+            "health": {"url": "/healthz", "method": "GET"},
+        }
+
+        # Register a coordinator with capabilities
+        coord_id = await discovery.register_coordinator(
+            host="localhost",
+            port=8000,
+            streaming_capabilities=streaming_caps,
+        )
+
+        # Read the file directly and check the raw data
+        registry_data = json.loads(temp_discovery_file.read_text())
+        assert len(registry_data) == 1
+        raw_data = registry_data[0]
+        assert raw_data["coordinator_id"] == coord_id
+        assert raw_data["streaming_capabilities"] == streaming_caps
+
+        # Discover coordinators and check the deserialized object
+        discovered_coords = await discovery.discover_coordinators()
+        assert len(discovered_coords) == 1
+        discovered_coord = discovered_coords[0]
+        assert discovered_coord.coordinator_id == coord_id
+        assert discovered_coord.streaming_capabilities == streaming_caps
+        assert discovered_coord.has_streaming_capability("aider_events")
+        assert discovered_coord.get_streaming_endpoint("health") == streaming_caps["health"]
+
+        await discovery.shutdown()
 
     @pytest.mark.asyncio
     async def test_auto_start_tasks(self, temp_discovery_file):
@@ -454,6 +660,44 @@ class TestIntegration:
 
         assert len(coords1) == 2
         assert len(coords2) == 2
+
+    @pytest.mark.asyncio
+    async def test_mixed_discovery_streaming(self, tmp_path):
+        """Test discovery with a mix of streaming and non-streaming coordinators."""
+        discovery_file = tmp_path / "mixed_discovery.json"
+
+        async with CoordinatorDiscovery(discovery_file=discovery_file) as discovery:
+            # Register a streaming coordinator
+            stream_coord_id = await discovery.register_coordinator(
+                host="localhost",
+                port=8000,
+                streaming_capabilities={"aider_events": {"url": "/events"}},
+            )
+
+            # Register a non-streaming coordinator
+            non_stream_coord_id = await discovery.register_coordinator(
+                host="localhost",
+                port=8001,
+            )
+
+            # Discover all - should find both
+            all_coords = await discovery.discover_coordinators()
+            assert len(all_coords) == 2
+            all_ids = {c.coordinator_id for c in all_coords}
+            assert stream_coord_id in all_ids
+            assert non_stream_coord_id in all_ids
+
+            # Discover streaming - should find only the streaming one
+            streaming_coords = await discovery.find_streaming_coordinators()
+            assert len(streaming_coords) == 1
+            assert streaming_coords[0].coordinator_id == stream_coord_id
+            assert streaming_coords[0].has_streaming_capability("aider_events")
+            assert not streaming_coords[0].has_streaming_capability("health")  # Check a non-existent cap
+
+            # Check the non-streaming one from the 'all' list
+            non_stream_obj = next(c for c in all_coords if c.coordinator_id == non_stream_coord_id)
+            assert non_stream_obj.streaming_capabilities == {}
+            assert not non_stream_obj.has_streaming_capability("any_key")
 
     @pytest.mark.asyncio
     async def test_coordinator_lifecycle(self, tmp_path):

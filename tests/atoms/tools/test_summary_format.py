@@ -5,14 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
-from aider_mcp_server.atoms.tools.changes_summarizer import summarize_changes
+from aider_mcp_server.molecules.tools.aider_ai_code import code_with_aider
+from aider_mcp_server.molecules.tools.changes_summarizer import summarize_changes
 
 
 @pytest.mark.asyncio
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-@patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+@patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
 async def test_format_includes_summary(mock_configure_model, mock_setup_coder, mock_run_aider):
     """Test that the response format includes changes summary."""
     with tempfile.TemporaryDirectory() as temp_dir:

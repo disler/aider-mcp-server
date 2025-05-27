@@ -139,12 +139,11 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aider-chat" },
-    { name = "boto3" },
     { name = "fastapi" },
     { name = "hatch" },
-    { name = "httpx" },
     { name = "mcp" },
     { name = "packaging" },
+    { name = "psutil" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "rich" },
@@ -152,7 +151,6 @@ dependencies = [
     { name = "starlette" },
     { name = "toml" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "uvloop" },
 ]
 
 [package.optional-dependencies]
@@ -169,6 +167,7 @@ dev = [
     { name = "pytest-json-report" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
 ]
 test = [
     { name = "httpx" },
@@ -179,21 +178,25 @@ test = [
     { name = "pytest-mock" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "aider-mcp-server", extra = ["dev"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aider-chat", specifier = ">=0.83.1" },
-    { name = "boto3", specifier = ">=1.37.27" },
-    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "hatch" },
-    { name = "httpx", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27.0" },
     { name = "isort", marker = "extra == 'dev'" },
-    { name = "mcp", specifier = ">=1.6.0" },
+    { name = "mcp", specifier = ">=1.9.1" },
     { name = "mkdocs", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.15.0" },
     { name = "packaging", specifier = ">=21.3" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pre-commit-hooks", marker = "extra == 'dev'" },
+    { name = "psutil", specifier = ">=5.9.0" },
     { name = "pydantic", specifier = ">=2.11.2" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.11.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
@@ -212,10 +215,13 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=2.0.0" },
     { name = "starlette", specifier = ">=0.38.0" },
     { name = "toml", specifier = ">=0.10.2" },
+    { name = "types-pyyaml", marker = "extra == 'dev'" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-    { name = "uvloop", specifier = ">=0.17.0" },
 ]
 provides-extras = ["dev", "test"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "aider-mcp-server", extras = ["dev"] }]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -339,34 +345,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d8/e4/0c4c39e18fd76d6a628d4dd8da40543d136ce2d1752bd6eeeab0791f4d6b/beautifulsoup4-4.13.4.tar.gz", hash = "sha256:dbb3c4e1ceae6aefebdaf2423247260cd062430a410e38c66f2baa50a8437195", size = 621067 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/50/cd/30110dc0ffcf3b131156077b90e9f60ed75711223f306da4db08eff8403b/beautifulsoup4-4.13.4-py3-none-any.whl", hash = "sha256:9bbbb14bfde9d79f38b8cd5f8c7c85f4b8f2523190ebed90e950a8dea4cb1c4b", size = 187285 },
-]
-
-[[package]]
-name = "boto3"
-version = "1.37.27"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "botocore" },
-    { name = "jmespath" },
-    { name = "s3transfer" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/3f/03033eaacd043e5c905c74f9067ebcf3a4a24fb852fa3f4745f87327f0e7/boto3-1.37.27.tar.gz", hash = "sha256:ccdeee590902e6f4fb30cec6d3a88668545817fccfd3e5cb9cbc166c4a0000d4", size = 111357 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/23/19fbca3ca1614c69b7bc1aa15839ef355b8ccf434e1ad8b190f7ebfdc261/boto3-1.37.27-py3-none-any.whl", hash = "sha256:439c2cd18c79386b1b9d5fdc4a4e7e418e57ac50431bdf9421c60f09807f40fb", size = 139560 },
-]
-
-[[package]]
-name = "botocore"
-version = "1.37.27"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "jmespath" },
-    { name = "python-dateutil" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/53/3f/597ca9de62d00556a2c387261293441d9e84fa196a7031ec656deffe8aee/botocore-1.37.27.tar.gz", hash = "sha256:143fd7cdb0d73f43aa1f14799124de7b857da7d7ab996af5c89a49e3032a9e66", size = 13800193 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c3/48/f2670866a36d2dd68f7c93897fb9ec6c693bca1bb73cb867a173c2ad92c3/botocore-1.37.27-py3-none-any.whl", hash = "sha256:a86d1ffbe344bfb183d9acc24de3428118fc166cb89d0f1ce1d412857edfacd7", size = 13467344 },
 ]
 
 [[package]]
@@ -1220,15 +1198,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jmespath"
-version = "1.0.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/00/2a/e867e8531cf3e36b41201936b7fa7ba7b5702dbef42922193f05c8976cd6/jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe", size = 25843 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/b4/b9b800c45527aadd64d5b442f9b932b00648617eb5d63d2c7a6587b7cafc/jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980", size = 20256 },
-]
-
-[[package]]
 name = "json5"
 version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1373,7 +1342,7 @@ wheels = [
 
 [[package]]
 name = "mcp"
-version = "1.6.0"
+version = "1.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1381,13 +1350,14 @@ dependencies = [
     { name = "httpx-sse" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "python-multipart" },
     { name = "sse-starlette" },
     { name = "starlette" },
-    { name = "uvicorn" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/d2/f587cb965a56e992634bebc8611c5b579af912b74e04eb9164bd49527d21/mcp-1.6.0.tar.gz", hash = "sha256:d9324876de2c5637369f43161cd71eebfd803df5a95e46225cab8d280e366723", size = 200031 }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/bc/54aec2c334698cc575ca3b3481eed627125fb66544152fa1af927b1a495c/mcp-1.9.1.tar.gz", hash = "sha256:19879cd6dde3d763297617242888c2f695a95dfa854386a6a68676a646ce75e4", size = 316247 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/30/20a7f33b0b884a9d14dd3aa94ff1ac9da1479fe2ad66dd9e2736075d2506/mcp-1.6.0-py3-none-any.whl", hash = "sha256:7bd24c6ea042dbec44c754f100984d186620d8b841ec30f1b19eda9b93a634d0", size = 76077 },
+    { url = "https://files.pythonhosted.org/packages/a6/c0/4ac795585a22a0a2d09cd2b1187b0252d2afcdebd01e10a68bbac4d34890/mcp-1.9.1-py3-none-any.whl", hash = "sha256:2900ded8ffafc3c8a7bfcfe8bc5204037e988e753ec398f371663e6a06ecd9a9", size = 130261 },
 ]
 
 [[package]]
@@ -2148,6 +2118,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-multipart"
+version = "0.0.20"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/87/f44d7c9f274c7ee665a29b885ec97089ec5dc034c7f3fafa03da9e39a09e/python_multipart-0.0.20.tar.gz", hash = "sha256:8dd0cab45b8e23064ae09147625994d090fa46f5b0d1e13af944c331a7fa9d13", size = 37158 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/58/38b5afbc1a800eeea951b9285d3912613f2603bdf897a4ab0f4bd7f405fc/python_multipart-0.0.20-py3-none-any.whl", hash = "sha256:8a62d3a8335e06589fe01f2a3e178cdcc632f3fbe0d492ad9ee0ec35aab1f104", size = 24546 },
+]
+
+[[package]]
 name = "pywin32-ctypes"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2394,18 +2373,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6f/4c/1cd5a84a412d3626335ae69f5f9de2bb554eea0faf46deb1f0cb48534042/ruff-0.11.6-py3-none-win32.whl", hash = "sha256:5151a871554be3036cd6e51d0ec6eef56334d74dfe1702de717a995ee3d5b287", size = 10485900 },
     { url = "https://files.pythonhosted.org/packages/42/46/8997872bc44d43df986491c18d4418f1caff03bc47b7f381261d62c23442/ruff-0.11.6-py3-none-win_amd64.whl", hash = "sha256:cce85721d09c51f3b782c331b0abd07e9d7d5f775840379c640606d3159cae0e", size = 11558592 },
     { url = "https://files.pythonhosted.org/packages/d7/6a/65fecd51a9ca19e1477c3879a7fda24f8904174d1275b419422ac00f6eee/ruff-0.11.6-py3-none-win_arm64.whl", hash = "sha256:3567ba0d07fb170b1b48d944715e3294b77f5b7679e8ba258199a250383ccb79", size = 10682766 },
-]
-
-[[package]]
-name = "s3transfer"
-version = "0.11.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "botocore" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/ec/aa1a215e5c126fe5decbee2e107468f51d9ce190b9763cb649f76bb45938/s3transfer-0.11.4.tar.gz", hash = "sha256:559f161658e1cf0a911f45940552c696735f5c74e64362e515f333ebed87d679", size = 148419 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/62/8d3fc3ec6640161a5649b2cddbbf2b9fa39c92541225b33f117c37c5a2eb/s3transfer-0.11.4-py3-none-any.whl", hash = "sha256:ac265fa68318763a03bf2dc4f39d5cbd6a9e178d81cc9483ad27da33637e320d", size = 84412 },
 ]
 
 [[package]]
@@ -2761,6 +2728,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/52/db/cd8510702ed0ac1215e960ab3511a7f5750d63b56f2ae94d94fb4a6425af/trove_classifiers-2025.4.11.15.tar.gz", hash = "sha256:634728aa6698dc1ae3db161da94d9e4c7597a9a5da2c4410211b36f15fed60fc", size = 16321 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/70/7d/a2271b98b833680561ab3fcd60ab682478dc4f7cc023fab24991601ac8ac/trove_classifiers-2025.4.11.15-py3-none-any.whl", hash = "sha256:e7d98983f004df35293caf954bdfe944b139eb402677a97115450e320f0bd855", size = 13710 },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20250516"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/22/59e2aeb48ceeee1f7cd4537db9568df80d62bdb44a7f9e743502ea8aab9c/types_pyyaml-6.0.12.20250516.tar.gz", hash = "sha256:9f21a70216fc0fa1b216a8176db5f9e0af6eb35d2f2932acb87689d03a5bf6ba", size = 17378 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/5f/e0af6f7f6a260d9af67e1db4f54d732abad514252a7a378a6c4d17dd1036/types_pyyaml-6.0.12.20250516-py3-none-any.whl", hash = "sha256:8478208feaeb53a34cb5d970c56a7cd76b72659442e733e268a94dc72b2d0530", size = 20312 },
 ]
 
 [[package]]

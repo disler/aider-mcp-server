@@ -6,34 +6,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-from aider_mcp_server.atoms.atoms_utils import (
+from aider_mcp_server.atoms.logging.logger import Logger  # Import Logger for spec
+from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
 )
-from aider_mcp_server.atoms.logging import Logger  # Import Logger for spec
 
 # Use absolute imports from the package root
 # Import main from cli instead of __main__ to prevent RuntimeWarning
-from aider_mcp_server.cli import main
+from aider_mcp_server.templates.initialization.cli import main
 
 
 @pytest.fixture
 def mock_serve() -> Generator[AsyncMock, None, None]:
     """Mock the serve function (for stdio mode)."""
-    with patch("aider_mcp_server.cli.serve", new_callable=AsyncMock) as mock:
+    with patch("aider_mcp_server.templates.initialization.cli.serve", new_callable=AsyncMock) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_serve_sse() -> Generator[AsyncMock, None, None]:
     """Mock the serve_sse function."""
-    with patch("aider_mcp_server.cli.serve_sse", new_callable=AsyncMock) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_serve_multi() -> Generator[AsyncMock, None, None]:
-    """Mock the serve_multi_transport function."""
-    with patch("aider_mcp_server.cli.serve_multi_transport", new_callable=AsyncMock) as mock:
+    with patch("aider_mcp_server.templates.initialization.cli.serve_sse", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -44,21 +37,21 @@ def mock_serve_multi() -> Generator[AsyncMock, None, None]:
 def mock_is_git_repository() -> Generator[MagicMock, None, None]:
     """Mock the is_git_repository check to always return True."""
     # Patch where it's used in cli
-    with patch("aider_mcp_server.cli.is_git_repository", return_value=(True, None)) as mock:
+    with patch("aider_mcp_server.templates.initialization.cli.is_git_repository", return_value=(True, None)) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_os_makedirs() -> Generator[MagicMock, None, None]:
     """Mock os.makedirs to avoid filesystem side effects."""
-    with patch("aider_mcp_server.cli.os.makedirs") as mock:  # Patch where it's used
+    with patch("aider_mcp_server.templates.initialization.cli.os.makedirs") as mock:  # Patch where it's used
         yield mock
 
 
 @pytest.fixture
 def mock_get_logger() -> Generator[MagicMock, None, None]:
     """Mock get_logger to return a mock logger with mocked methods."""
-    with patch("aider_mcp_server.cli.get_logger", autospec=True) as mock_get_logger_factory:
+    with patch("aider_mcp_server.templates.initialization.cli.get_logger", autospec=True) as mock_get_logger_factory:
         # Create a mock logger instance that conforms to the Logger protocol/class
         mock_logger_instance = MagicMock(spec=Logger)
         # Ensure all methods used in cli are mocked
@@ -117,7 +110,7 @@ def run_main_with_args(
     mock_loop = MagicMock()
     mock_loop.add_signal_handler = MagicMock()
     # Patch where get_event_loop is called (cli)
-    with patch("aider_mcp_server.cli.asyncio.get_event_loop", return_value=mock_loop):
+    with patch("aider_mcp_server.templates.initialization.cli.asyncio.get_event_loop", return_value=mock_loop):
         # Patch Path.resolve and Path.is_dir as cli uses them
         with (
             patch.object(Path, "resolve") as mock_resolve,
@@ -146,7 +139,6 @@ def run_main_with_args(
 def test_stdio_mode_default(
     mock_serve: AsyncMock,
     mock_serve_sse: AsyncMock,
-    mock_serve_multi: AsyncMock,
     mock_is_git_repository: MagicMock,
     mock_os_makedirs: MagicMock,
     mock_get_logger: MagicMock,
@@ -169,7 +161,6 @@ def test_stdio_mode_default(
     assert call_args["current_working_dir"] == abs_test_dir  # __main__ passes resolved string path
     assert call_args["editor_model"] == DEFAULT_EDITOR_MODEL
     mock_serve_sse.assert_not_called()
-    mock_serve_multi.assert_not_called()
     # Check is_git_repository was called with a Path object
     mock_is_git_repository.assert_called_once()
     assert isinstance(mock_is_git_repository.call_args[0][0], Path)
@@ -194,10 +185,10 @@ def test_invalid_cwd_not_git_repo(
     with patch.object(Path, "resolve", return_value=mock_resolved_path):
         # Mock is_git_repository to return False
         with patch(
-            "aider_mcp_server.cli.is_git_repository",
+            "aider_mcp_server.templates.initialization.cli.is_git_repository",
             return_value=(False, git_error_msg),
         ) as mock_git_check:
-            with patch("aider_mcp_server.cli.get_logger") as mock_get_logger:
+            with patch("aider_mcp_server.templates.initialization.cli.get_logger") as mock_get_logger:
                 mock_logger_instance = mock_get_logger.return_value
                 mock_logger_instance.critical = MagicMock()
 

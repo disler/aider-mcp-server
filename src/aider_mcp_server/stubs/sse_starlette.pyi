@@ -47,9 +47,7 @@ class EventSourceResponse:
         """Listen to the generator and yield bytes for the response."""
         pass
 
-    async def __call__(
-        self, scope: MutableMapping[str, Any], receive: Receive, send: Send
-    ) -> None:
+    async def __call__(self, scope: MutableMapping[str, Any], receive: Receive, send: Send) -> None:
         """
         ASGI application implementation for the EventSourceResponse.
 

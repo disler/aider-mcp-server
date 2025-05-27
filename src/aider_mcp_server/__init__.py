@@ -8,16 +8,16 @@ supporting multiple transport mechanisms like Standard I/O (stdio) and Server-Se
 import importlib.metadata
 import logging
 
-# Import main from cli.py instead of __main__.py to avoid circular imports
-from .cli import main  # Import main function for entry point
 from .interfaces.transport_adapter import ITransportAdapter, TransportAdapterBase
-from .multi_transport_server import serve_multi_transport
-from .server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
-from .sse_server import serve_sse
-from .sse_transport_adapter import SSETransportAdapter
-from .stdio_transport_adapter import StdioTransportAdapter
-from .transport_adapter import AbstractTransportAdapter
-from .transport_coordinator import ApplicationCoordinator
+from .molecules.transport.base_adapter import AbstractTransportAdapter
+from .organisms.transports.sse.sse_transport_adapter import SSETransportAdapter
+from .organisms.transports.stdio.stdio_transport_adapter import StdioTransportAdapter
+from .pages.application.coordinator import ApplicationCoordinator
+
+# Import main from cli.py instead of __main__.py to avoid circular imports
+from .templates.initialization.cli import main  # Import main function for entry point
+from .templates.servers.server import AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL  # Expose tool definitions
+from .templates.servers.sse_server import serve_sse
 
 # Get the package version dynamically from installed package metadata
 try:
@@ -35,7 +35,6 @@ except importlib.metadata.PackageNotFoundError:
 __all__ = [
     "main",  # Re-added to support entry points in setup.py
     "serve_sse",
-    "serve_multi_transport",
     "ApplicationCoordinator",
     "SSETransportAdapter",
     "StdioTransportAdapter",

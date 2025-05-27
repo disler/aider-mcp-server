@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aider_mcp_server.atoms.tools.aider_ai_code import (
+from aider_mcp_server.molecules.tools.aider_ai_code import (
     code_with_aider,
 )
-from aider_mcp_server.atoms.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )
@@ -21,11 +21,11 @@ from aider_mcp_server.atoms.tools.changes_summarizer import (
 class TestChangesIntegration:
     """Integration tests for changes handling."""
 
-    @pytest.mark.skip(reason="Test needs to be updated for new implementation")
+    @pytest.mark.skip(reason="Test implementation needs updating - mock expectations not matching current flow")
     @pytest.mark.asyncio
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
     async def test_integration_empty_file_creation(self, mock_configure_model, mock_setup_coder, mock_run_aider):
         """Test integration when a new empty file is created."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -61,7 +61,7 @@ class TestChangesIntegration:
                 }
 
             # Patch the process_coder_results function
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code._process_coder_results", mock_process):
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code._process_coder_results", mock_process):
                 # Set up path for a file that would be created (but we're mocking it)
                 # We don't need to actually create the file since we're mocking the relevant functions
 
@@ -85,11 +85,13 @@ class TestChangesIntegration:
 
                 # Mock the file status check to indicate file creation
                 # The patch needs to be where the function is imported, not where it's defined
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
+                with patch(
+                    "aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes"
+                ) as mock_check:
                     mock_check.return_value = False  # No meaningful content
 
                     # Need to patch the imported name, not the actual module
-                    with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_file_status_summary") as mock_status:
+                    with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_file_status_summary") as mock_status:
                         mock_status.return_value = {
                             "has_changes": True,
                             "status_summary": "Changes detected: 1 files created (new_file.py)",
@@ -121,9 +123,9 @@ class TestChangesIntegration:
                         assert len(process_calls) > 0, "process_coder_results should have been called"
 
     @pytest.mark.asyncio
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._run_aider_session")
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._setup_aider_coder")
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._configure_model")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._run_aider_session")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._setup_aider_coder")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._configure_model")
     async def test_integration_with_changes_summary(self, mock_configure_model, mock_setup_coder, mock_run_aider):
         """Test integration with changes summary."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -148,7 +150,7 @@ index 1234567..abcdef0 100644
      print("Goodbye")
 """
             # Setup mock diff result
-            with patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content") as mock_diff:
+            with patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content") as mock_diff:
                 mock_diff.return_value = git_diff
 
                 # Create summary and status for the mock
@@ -170,7 +172,7 @@ index 1234567..abcdef0 100644
                 }
 
                 # Mock summarize_changes to return a test summary
-                with patch("aider_mcp_server.atoms.tools.aider_ai_code.summarize_changes") as mock_summarize:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.summarize_changes") as mock_summarize:
                     mock_summary = {
                         "summary": "Changed 1 files: 0 created, 1 modified, 0 deleted. Added 1 lines, removed 0 lines.",
                         "files": {
@@ -262,8 +264,8 @@ index 1234567..abcdef0 100644
             print(f"Summary: {summary['summary']}")
 
     @pytest.mark.asyncio
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code.get_changes_diff_or_content")
-    @patch("aider_mcp_server.atoms.tools.aider_ai_code._check_for_meaningful_changes")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code.get_changes_diff_or_content")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes")
     async def test_fallback_for_git_failure(self, mock_check, mock_get_diff):
         """Test that file status check provides a fallback when git fails."""
         # Mock the prerequisite functions

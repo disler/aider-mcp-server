@@ -11,6 +11,12 @@ wheels/
 
 .env
 
+# Development and session-specific files (kept locally but not in PR)
+IMPLEMENTATION_TRACKING.md
+src/aider_mcp_server/SUMMARY_DI_CONTAINER.md
+src/aider_mcp_server/aider_mcp_server/
+src/aider_mcp_server/*example*.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -95,3 +101,12 @@ tasks/
 # Test files that shouldn't be checked in CI
 test_fix.py
 test_file.py
+
+# Session-specific files
+CLAUDE.md
+IMPLEMENTATION_TRACKING.md
+reference/
+
+# Local workflow and tracking files
+CLAUDE.md
+IMPLEMENTATION_TRACKING.md

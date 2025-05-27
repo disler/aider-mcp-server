@@ -1,0 +1,44 @@
+{
+      "mcpServers": {
+        "sequential-thinking": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-sequential-thinking"
+          ]
+        },
+        "taskmaster-ai": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "--package=task-master-ai",
+            "task-master-ai"
+          ],
+          "env": {
+            "MODEL": "gemini-pro-preview-05-06",
+            "PERPLEXITY_MODEL": "sonar-pro",
+            "MAX_TOKENS": "64000",
+            "TEMPERATURE": "0.2",
+            "DEFAULT_SUBTASKS": "5",
+            "DEFAULT_PRIORITY": "medium",
+            "DEBUG": "1"
+          }
+        },
+        "aider": {
+          "command": "uv",
+          "args": [
+            "--directory",
+            "/home/memento/ClaudeCode/aider-sse-worktree/feature-refactor-sse-coordinator",
+            "run",
+            "mcp-aider-server",
+            "--server-mode",
+            "stdio",
+            "--editor-model",
+            "gemini/gemini-2.5-pro-preview-05-06",
+            "--current-working-dir",
+            "/home/memento/ClaudeCode/aider-sse-worktree/feature-refactor-sse-coordinator"
+          ],
+          "env": {}
+        }
+      }
+}
