@@ -68,7 +68,7 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         choices=["stdio", "sse", "http"],
         default="stdio",
         help="Server communication mode: stdio (standard input/output), "
-             "sse (Server-Sent Events), or http (HTTP server) (default: stdio).",
+        "sse (Server-Sent Events), or http (HTTP server) (default: stdio).",
     )
     parser.add_argument(
         "--editor-model",
