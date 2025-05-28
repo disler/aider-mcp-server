@@ -381,7 +381,7 @@ async def serve_http(
     logger.info(f"Starting HTTP server on {host}:{port}")
     logger.debug(f"HTTP server configuration: editor_model='{editor_model}', cwd='{current_working_dir}'")
     logger.debug(f"Heartbeat interval parameter: {heartbeat_interval} (adapter uses internal default)")
-    
+
     try:
         await run_http_server(
             host=host,
