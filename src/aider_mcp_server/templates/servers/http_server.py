@@ -298,12 +298,15 @@ async def run_http_server(
         editor_model: Model identifier for editing operations.
         current_working_dir: Working directory (must be a git repository).
     """
+    logger.debug(f"HTTP server initializing with host={host}, port={port}, model={editor_model}")
     await _validate_working_directory(current_working_dir)
     await _check_port_availability(host, port)
+    logger.debug("HTTP server configuration validation completed")
 
     http_adapter: Optional[HttpStreamableTransportAdapter] = None
     adapter_initialize_succeeded = False
     try:
+        logger.debug("HTTP server: Setting up transport adapter")
         http_adapter = await _setup_http_adapter(
             host=host,
             port=port,
@@ -311,7 +314,9 @@ async def run_http_server(
             current_working_dir=current_working_dir,
         )
         adapter_initialize_succeeded = True
+        logger.debug("HTTP server: Transport adapter initialized successfully")
 
+        logger.debug("HTTP server: Starting listening on configured port")
         await http_adapter.start_listening()
         actual_port = http_adapter.get_actual_port() or port  # Use actual port if available
         logger.info(f"HTTP Streamable server listening on http://{host}:{actual_port}")
@@ -319,6 +324,7 @@ async def run_http_server(
         shutdown_event = asyncio.Event()
         loop = asyncio.get_event_loop()
         _setup_signal_handlers(loop, shutdown_event)
+        logger.debug("HTTP server: Signal handlers configured, waiting for connections")
 
         try:
             await _wait_for_shutdown(http_adapter, shutdown_event)
@@ -372,12 +378,18 @@ async def serve_http(
         current_working_dir: Current working directory.
         heartbeat_interval: Heartbeat interval (parameter kept for consistency, adapter uses its own default).
     """
-    logger.info(
-        f"serve_http called with host={host}, port={port}, editor_model='{editor_model}', cwd='{current_working_dir}'. Heartbeat interval param value {heartbeat_interval} is noted but HttpStreamableTransportAdapter will use its internal default."
-    )
-    await run_http_server(
-        host=host,
-        port=port,
-        editor_model=editor_model,
-        current_working_dir=current_working_dir,
-    )
+    logger.info(f"Starting HTTP server on {host}:{port}")
+    logger.debug(f"HTTP server configuration: editor_model='{editor_model}', cwd='{current_working_dir}'")
+    logger.debug(f"Heartbeat interval parameter: {heartbeat_interval} (adapter uses internal default)")
+    
+    try:
+        await run_http_server(
+            host=host,
+            port=port,
+            editor_model=editor_model,
+            current_working_dir=current_working_dir,
+        )
+        logger.info("HTTP server stopped")
+    except Exception as e:
+        logger.error(f"HTTP server failed: {e}", exc_info=True)
+        raise
