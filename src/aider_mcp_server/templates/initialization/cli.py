@@ -12,10 +12,13 @@ from ...atoms.types.mcp_types import LoggerProtocol
 # Use relative imports within the package
 from ...atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
+    DEFAULT_HTTP_HOST,
+    DEFAULT_HTTP_PORT,
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
 from ...pages.application.coordinator import ApplicationCoordinator
+from ..servers.http_server import serve_http  # http mode
 from ..servers.server import (  # stdio mode and validation
     is_git_repository,
     serve,
@@ -62,9 +65,10 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--server-mode",
         type=str,
-        choices=["stdio", "sse"],
+        choices=["stdio", "sse", "http"],
         default="stdio",
-        help="Server communication mode (default: stdio).",
+        help="Server communication mode: stdio (standard input/output), "
+        "sse (Server-Sent Events), or http (HTTP server) (default: stdio).",
     )
     parser.add_argument(
         "--editor-model",
@@ -90,6 +94,19 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_WS_PORT,
         help=f"Port number for SSE/Multi server (default: {DEFAULT_WS_PORT}).",
+    )
+    http_group = parser.add_argument_group("HTTP Server Options (when --server-mode=http)")
+    http_group.add_argument(
+        "--http-host",
+        type=str,
+        default=DEFAULT_HTTP_HOST,
+        help=f"HTTP server host address to bind to (default: {DEFAULT_HTTP_HOST}).",
+    )
+    http_group.add_argument(
+        "--http-port",
+        type=int,
+        default=DEFAULT_HTTP_PORT,
+        help=f"HTTP server port to listen on (default: {DEFAULT_HTTP_PORT}).",
     )
     parser.add_argument(
         "-v",
@@ -138,6 +155,32 @@ def _validate_server_mode_args(log: LoggerProtocol, server_mode: str, host: str,
     if server_mode == "stdio":
         if host != DEFAULT_WS_HOST or port != DEFAULT_WS_PORT:
             log.warning("Warning: --host and --port arguments are ignored in 'stdio' mode.")
+
+
+def _validate_http_config(log: LoggerProtocol, host: str, port: int) -> None:
+    """Validate HTTP server configuration.
+
+    Args:
+        log: Logger instance for error reporting
+        host: The host to bind the HTTP server to
+        port: The port to bind the HTTP server to
+
+    Raises:
+        ValueError: If the configuration is invalid
+    """
+    # Validate port is in valid range (non-privileged ports)
+    if not (1024 <= port <= 65535):
+        error_msg = f"Invalid HTTP port number: {port}. Port must be between 1024 and 65535."
+        log.critical(error_msg)
+        raise ValueError(error_msg)
+
+    # Basic validation for host format
+    if not host or not host.strip():
+        error_msg = "HTTP host cannot be empty"
+        log.critical(error_msg)
+        raise ValueError(error_msg)
+
+    log.debug(f"HTTP configuration validated: host={host}, port={port}")
 
 
 def _setup_signal_handling(log: LoggerProtocol, server_mode: str) -> None:
@@ -198,6 +241,17 @@ def _run_server_by_mode(log: LoggerProtocol, args: argparse.Namespace, abs_cwd_s
                 serve_sse(
                     host=args.host,
                     port=args.port,
+                    editor_model=args.editor_model,
+                    current_working_dir=abs_cwd_str,
+                )
+            )
+        elif args.server_mode == "http":
+            _validate_http_config(log, args.http_host, args.http_port)
+            # Log message for HTTP server is handled within serve_http/run_http_server
+            asyncio.run(
+                serve_http(
+                    host=args.http_host,
+                    port=args.http_port,
                     editor_model=args.editor_model,
                     current_working_dir=abs_cwd_str,
                 )
