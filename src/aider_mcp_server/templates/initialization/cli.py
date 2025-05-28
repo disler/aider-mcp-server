@@ -67,7 +67,8 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         type=str,
         choices=["stdio", "sse", "http"],
         default="stdio",
-        help="Server communication mode (stdio, sse, or http) (default: stdio).",
+        help="Server communication mode: stdio (standard input/output), "
+             "sse (Server-Sent Events), or http (HTTP server) (default: stdio).",
     )
     parser.add_argument(
         "--editor-model",
@@ -94,18 +95,18 @@ def _setup_argument_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WS_PORT,
         help=f"Port number for SSE/Multi server (default: {DEFAULT_WS_PORT}).",
     )
-    http_group = parser.add_argument_group("HTTP Server Options")
+    http_group = parser.add_argument_group("HTTP Server Options (when --server-mode=http)")
     http_group.add_argument(
         "--http-host",
         type=str,
         default=DEFAULT_HTTP_HOST,
-        help=f"Host address for HTTP server (default: {DEFAULT_HTTP_HOST}).",
+        help=f"HTTP server host address to bind to (default: {DEFAULT_HTTP_HOST}).",
     )
     http_group.add_argument(
         "--http-port",
         type=int,
         default=DEFAULT_HTTP_PORT,
-        help=f"Port number for HTTP server (default: {DEFAULT_HTTP_PORT}).",
+        help=f"HTTP server port to listen on (default: {DEFAULT_HTTP_PORT}).",
     )
     parser.add_argument(
         "-v",
