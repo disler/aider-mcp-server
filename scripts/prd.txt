@@ -1,230 +1,345 @@
-# Product Requirements Document: HTTP CLI Capability for Aider MCP Server
+# Product Requirements Document: Multi-Client HTTP Streamable Server Architecture
 
 ## Project Overview
 
-**Project Name**: HTTP CLI Transport Integration
-**Version**: 1.0
+**Project Name**: Multi-Client HTTP Streamable Server Architecture
+**Version**: 2.0
 **Target Release**: Feature branch completion
-**Project Type**: Transport extension and CLI enhancement
+**Project Type**: MCP-compliant multi-client architecture implementation
 
 ## Executive Summary
 
-Add command-line interface (CLI) capability to the existing HTTP Streamable Transport adapter in the Aider MCP Server project. This enhancement will allow users to start the HTTP transport server directly from the command line, complementing the existing stdio and SSE transport modes.
+Implement a multi-client HTTP server architecture for the Aider MCP Server that provides true client isolation and concurrent operations. This enhancement transforms the existing single-client HTTP transport into a scalable, MCP-compliant multi-client system where each Claude Code instance gets a dedicated server process with isolated workspace, port, and state.
 
 ## Business Objectives
 
 ### Primary Goals
-1. **CLI Accessibility**: Enable HTTP transport server launch via command-line interface
-2. **Mode Parity**: Achieve feature parity with existing stdio and SSE CLI modes
-3. **User Experience**: Provide intuitive command-line arguments for HTTP server configuration
-4. **Integration**: Seamlessly integrate with existing CLI infrastructure without breaking changes
+1. **MCP Compliance**: Implement proper 1:1 client-server relationships per MCP specification
+2. **Client Isolation**: Complete separation of clients (workspace, process, port, state)
+3. **Concurrent Operations**: Support multiple Claude Code instances simultaneously
+4. **Scalability**: Dynamic server instance management with resource allocation
+5. **Security**: Enforce security boundaries between different client sessions
 
 ### Success Criteria
-- HTTP server can be started via `--server-mode http` CLI argument
-- HTTP server accepts host/port configuration via CLI arguments
-- All existing CLI functionality remains intact
-- HTTP mode follows same patterns as stdio/SSE modes
-- Documentation reflects new HTTP CLI capability
+- Multiple Claude Code instances can connect concurrently without interference
+- Each client gets dedicated server instance with unique port (8000-9000 range)
+- Complete workspace isolation (separate git repositories, working directories)
+- Zero cross-client data contamination or state sharing
+- MCP-compliant session management and lifecycle handling
+- Graceful server instance spawning and cleanup
+- Discovery mechanism for client-to-server connection establishment
 
 ## Technical Context
 
-### Current Architecture
-- **Existing HTTP Transport**: `HttpStreamableTransportAdapter` fully implemented
-- **CLI Infrastructure**: Robust argument parsing and server mode selection
-- **Transport Registry**: Enhanced registry system for transport discovery
-- **Application Coordinator**: Central coordination for all transport types
+### Current Architecture Analysis
+- **Existing HTTP Transport**: `HttpStreamableTransportAdapter` supports single client only
+- **Shared State Problem**: ApplicationCoordinator singleton broadcasts to ALL clients
+- **Port Conflicts**: Static port allocation prevents multiple instances
+- **Workspace Contamination**: Single working directory shared across clients
 
-### Technical Constraints
-- Must not modify existing transport implementations
-- Must follow established CLI patterns and conventions
-- Must maintain backward compatibility with existing modes
-- Must integrate with current dependency injection system
+### MCP Architecture Requirements (Validated via Research)
+- **1:1 Connection Model**: Each MCP client maintains exactly one connection with one server instance
+- **Stateful Sessions**: Each client-server pair maintains its own session state
+- **Session Isolation**: Full conversation history and context stays with the host
+- **Security Boundaries**: Clients maintain security boundaries between different servers
+
+### Research Findings
+✅ **MCP Protocol Fundamentals**: Supports multiple clients connecting to different server instances
+✅ **Transport Support**: HTTP with streamable endpoints is the recommended modern approach
+✅ **Claude Code Integration**: Supports multiple MCP server connections simultaneously
+✅ **Port Management**: Dynamic port allocation with discovery is standard pattern
+✅ **Architecture Validation**: Dedicated server instances per client is MCP-compliant and recommended
 
 ## Functional Requirements
 
-### FR1: HTTP Server Mode Selection
-**Description**: Add HTTP as a third server mode option alongside stdio and SSE
+### FR1: Multi-Client Server Manager
+**Description**: Core orchestration layer that manages multiple HTTP server instances
 **Acceptance Criteria**:
-- CLI accepts `--server-mode http` argument
-- HTTP mode is listed in help documentation
-- Invalid mode selection shows appropriate error message
+- `HttpServerManager` class creates and manages dedicated server instances
+- Support for configurable server instance pool (default: 8000-9000 port range)
+- Automatic cleanup of terminated or idle server instances
+- Health monitoring and status reporting for all active instances
+- Integration with existing ApplicationCoordinator architecture
 
-### FR2: HTTP Server Configuration
-**Description**: Provide CLI arguments for HTTP server host and port configuration
+### FR2: Dynamic Port Allocation System
+**Description**: Intelligent port management system for conflict-free server spawning
 **Acceptance Criteria**:
-- `--http-host` argument accepts valid IP addresses (default: 127.0.0.1)
-- `--http-port` argument accepts valid port numbers (default: 8766)
-- Configuration validation with clear error messages for invalid inputs
-- Arguments only appear in help when HTTP mode context is relevant
+- `PortPool` class manages available ports in configured range
+- Automatic port acquisition and release with conflict detection
+- Port availability validation before server instance creation
+- Graceful handling of port exhaustion with clear error messages
+- Port recycling when server instances terminate
 
-### FR3: HTTP Server Initialization
-**Description**: Initialize and start HTTP server using existing transport adapter
+### FR3: Client Session Management
+**Description**: Complete lifecycle management for client sessions with isolation
 **Acceptance Criteria**:
-- HTTP server starts with specified host/port configuration
-- Server uses existing `HttpStreamableTransportAdapter` implementation
-- Proper integration with ApplicationCoordinator and event system
-- Graceful startup and shutdown handling
+- `ClientSessionManager` handles client registration, authentication, and cleanup
+- Each client gets unique session ID and isolated workspace
+- Session timeout and cleanup mechanisms
+- Client-specific security context and permissions
+- Integration with existing `SessionManager` patterns
 
-### FR4: CLI Integration Consistency
-**Description**: HTTP mode follows same patterns as existing stdio/SSE modes
+### FR4: Isolated Workspace Management
+**Description**: Client-specific workspace creation and management system
 **Acceptance Criteria**:
-- Same working directory validation (git repository requirement)
-- Same logging and verbose output support
-- Same signal handling for graceful shutdown
-- Same editor model configuration options
+- `WorkspaceManager` creates isolated working directories per client
+- Each workspace is a separate git repository or workspace clone
+- Complete file system isolation between clients
+- Automatic workspace cleanup when client sessions end
+- Working directory validation (git repository requirement) per workspace
 
-### FR5: Configuration Management
-**Description**: Proper configuration constant management for HTTP defaults
+### FR5: Server Instance Lifecycle Management
+**Description**: Process management for dedicated server instances
 **Acceptance Criteria**:
-- Default HTTP port and host defined in configuration constants
-- Configuration constants follow existing naming patterns
-- Easy customization of defaults for future maintenance
+- `ProcessManager` handles server process spawning, monitoring, and termination
+- Each server instance runs in isolated process with dedicated configuration
+- Graceful shutdown handling with resource cleanup
+- Process health monitoring and automatic recovery
+- Integration with system signal handling
+
+### FR6: Client Discovery and Connection Service
+**Description**: Service to help clients find and connect to their assigned servers
+**Acceptance Criteria**:
+- Discovery API endpoint for client-to-server mapping
+- Automatic server assignment when new clients connect
+- Connection details (host, port, session info) provided to clients
+- Support for both manual configuration and auto-discovery patterns
+- Claude Code MCP client integration compatibility
+
+### FR7: MCP-Compliant Transport Implementation
+**Description**: Ensure transport layer follows MCP specifications exactly
+**Acceptance Criteria**:
+- HTTP Streamable transport with proper message framing
+- Correct MCP message format handling (JSON-RPC 2.0)
+- Session initialization, message exchange, and termination protocols
+- Error handling and recovery following MCP patterns
+- Support for MCP capabilities negotiation
 
 ## Non-Functional Requirements
 
-### NFR1: Performance
-- HTTP server startup time: < 2 seconds
-- Memory overhead: < 10MB additional memory usage
-- No performance impact on existing stdio/SSE modes
+### NFR1: Performance and Scalability
+- Server instance startup time: < 3 seconds per instance
+- Support for minimum 10 concurrent clients (configurable)
+- Memory overhead: < 50MB per server instance
+- CPU overhead: < 5% per server instance under normal load
+- Port allocation time: < 100ms
 
-### NFR2: Reliability
-- HTTP server must handle network connectivity issues gracefully
-- Proper error handling for port conflicts and binding failures
-- Robust shutdown process that releases resources properly
+### NFR2: Reliability and Fault Tolerance
+- Graceful handling of client disconnections without affecting other clients
+- Automatic recovery from individual server instance failures
+- Robust resource cleanup on abnormal termination
+- Zero data loss during graceful shutdowns
+- Comprehensive error handling with clear error messages
 
-### NFR3: Maintainability
-- Code follows existing architectural patterns
-- Minimal code duplication between transport modes
-- Clear separation of concerns between CLI and transport layers
+### NFR3: Security and Isolation
+- Complete process isolation between server instances
+- File system permissions preventing cross-client access
+- Network isolation (each instance on different port)
+- Security context validation per client session
+- Audit logging for multi-client operations
 
-### NFR4: Usability
-- Intuitive command-line argument naming
-- Helpful error messages for configuration issues
-- Consistent behavior with existing CLI patterns
+### NFR4: Maintainability and Architecture
+- Clean separation of concerns between components
+- Minimal code duplication with existing single-client implementation
+- Comprehensive logging and monitoring capabilities
+- Clear interfaces for future extensibility
+- Documentation for multi-client architecture patterns
 
 ## Technical Specifications
 
-### TS1: CLI Argument Extensions
-```bash
-# New arguments to add
---server-mode {stdio,sse,http}  # Add 'http' option
---http-host HOST               # HTTP server host (default: 127.0.0.1)
---http-port PORT              # HTTP server port (default: 8766)
-```
+### TS1: Core Architecture Components
 
-### TS2: Configuration Constants
 ```python
-# Add to config_constants.py
-DEFAULT_HTTP_PORT = 8766
-DEFAULT_HTTP_HOST = "127.0.0.1"
+# HttpServerManager - Main orchestration
+class HttpServerManager:
+    async def create_client_session(self, client_request: ClientRequest) -> SessionInfo
+    async def destroy_client_session(self, client_id: str) -> None
+    async def get_client_server_info(self, client_id: str) -> Optional[ServerInfo]
+    async def list_active_sessions(self) -> List[SessionInfo]
+
+# PortPool - Dynamic port management
+class PortPool:
+    async def acquire_port(self) -> int
+    async def release_port(self, port: int) -> None
+    async def is_port_available(self, port: int) -> bool
+
+# ClientSessionManager - Session lifecycle
+class ClientSessionManager:
+    async def register_client(self, client_id: str) -> ClientSession
+    async def get_client_workspace(self, client_id: str) -> Path
+    async def cleanup_client_session(self, client_id: str) -> None
+
+# WorkspaceManager - Isolated workspaces
+class WorkspaceManager:
+    async def create_client_workspace(self, client_id: str) -> Path
+    async def validate_workspace(self, workspace_path: Path) -> bool
+    async def cleanup_workspace(self, client_id: str) -> None
 ```
 
-### TS3: Server Template Structure
-- Create `http_server.py` following `sse_server.py` pattern
-- Implement `serve_http()` function with same signature pattern
-- Use existing `HttpStreamableTransportAdapter` without modification
+### TS2: Multi-Client Server API Endpoints
 
-### TS4: Integration Points
-- Extend `_setup_argument_parser()` in cli.py
-- Extend `_run_server_by_mode()` in cli.py
-- Add HTTP group arguments for organized help display
+```python
+# Server Manager Endpoints
+POST /api/sessions/new           # Create new client session
+GET  /api/sessions/{client_id}   # Get client session info
+DELETE /api/sessions/{client_id} # Terminate client session
+GET  /api/sessions               # List all active sessions
+GET  /api/health                 # Overall system health
+
+# Discovery Endpoints
+GET  /api/discover/{client_id}   # Get server connection details
+POST /api/register               # Register new client for discovery
+```
+
+### TS3: Configuration Management
+
+```python
+# Multi-client configuration constants
+MULTI_CLIENT_PORT_RANGE_START = 8000
+MULTI_CLIENT_PORT_RANGE_END = 9000
+MAX_CONCURRENT_CLIENTS = 10
+CLIENT_SESSION_TIMEOUT = 3600  # 1 hour
+WORKSPACE_BASE_DIR = "/tmp/aider-mcp-workspaces"
+DEFAULT_MANAGER_PORT = 7999  # Manager discovery port
+```
+
+### TS4: Integration with Existing CLI
+
+```python
+# New CLI arguments for multi-client mode
+--server-mode multi-http              # Multi-client HTTP mode
+--manager-port PORT                   # Manager discovery port (default: 7999)
+--client-port-range START:END         # Port range for client instances
+--max-clients N                       # Maximum concurrent clients
+--workspace-base-dir PATH             # Base directory for client workspaces
+```
 
 ## Implementation Architecture
 
 ### Component Dependencies
-1. **CLI Parser** → **Configuration Constants**
-2. **CLI Runner** → **HTTP Server Template**
-3. **HTTP Server Template** → **HttpStreamableTransportAdapter**
-4. **HTTP Server Template** → **ApplicationCoordinator**
+1. **HttpServerManager** → **PortPool**, **ClientSessionManager**, **ProcessManager**
+2. **ClientSessionManager** → **WorkspaceManager**, **SecurityService** 
+3. **WorkspaceManager** → **Git Repository Management**, **File System Isolation**
+4. **PortPool** → **Network Socket Management**, **Conflict Detection**
+5. **ProcessManager** → **HttpStreamableTransportAdapter**, **ApplicationCoordinator**
 
-### File Modifications Required
-- `src/aider_mcp_server/templates/initialization/cli.py` (extend arguments)
-- `src/aider_mcp_server/atoms/utils/config_constants.py` (add constants)
-- `src/aider_mcp_server/templates/servers/http_server.py` (new file)
+### File Structure
+```
+src/aider_mcp_server/
+├── managers/
+│   ├── __init__.py
+│   ├── http_server_manager.py       # Main orchestration
+│   ├── client_session_manager.py    # Session lifecycle  
+│   ├── workspace_manager.py         # Workspace isolation
+│   └── process_manager.py           # Process lifecycle
+├── utils/
+│   ├── port_pool.py                 # Dynamic port allocation
+│   └── discovery_service.py         # Client discovery API
+├── templates/servers/
+│   └── multi_http_server.py         # Multi-client server entry point
+└── organisms/transports/http/
+    └── multi_client_adapter.py      # Multi-client transport wrapper
+```
 
 ### Integration Strategy
-- Follow exact patterns from existing SSE implementation
-- Reuse ApplicationCoordinator initialization logic
-- Maintain same error handling and logging patterns
+- Extend existing `HttpStreamableTransportAdapter` without modification
+- Reuse `ApplicationCoordinator` pattern with instance-per-client
+- Integrate with existing `SessionManager` and `SecurityContext` systems
+- Maintain compatibility with existing single-client HTTP mode
+- Follow established patterns from `sse_server.py` and `stdio` implementations
 
 ## Quality Assurance Requirements
 
-### QA1: Testing Requirements
-- Unit tests for CLI argument parsing with HTTP mode
-- Integration tests for HTTP server startup/shutdown
-- Configuration validation tests for host/port arguments
-- End-to-end tests for HTTP transport functionality
+### QA1: Multi-Client Testing Strategy
+- Unit tests for each component with comprehensive mocking
+- Integration tests for end-to-end multi-client scenarios
+- Stress testing with maximum concurrent clients
+- Security testing for client isolation validation
+- Performance testing for resource consumption
 
-### QA2: Code Quality Standards
+### QA2: MCP Compliance Validation
+- Validate 1:1 client-server relationship compliance
+- Test session isolation and state management
+- Verify message format and protocol compliance
+- Validate graceful connection handling and recovery
+- Test compatibility with Claude Code MCP client
+
+### QA3: Code Quality Standards
 - All tests must pass: `hatch -e dev run pytest`
 - Zero critical lint violations: `hatch -e dev run ruff check --select=F,E9`
 - Pre-commit hooks must pass: `hatch -e dev run pre-commit run --all-files`
-- Type checking compliance with existing standards
-
-### QA3: Documentation Requirements
-- CLI help text updates for new HTTP mode
-- Code comments following existing patterns
-- No additional documentation files required (CLI self-documents)
+- Type checking compliance with mypy
+- Comprehensive documentation and inline comments
 
 ## Risk Assessment and Mitigation
 
-### Risk 1: Port Conflicts
-**Risk**: HTTP server fails to bind to specified port
-**Mitigation**: Clear error messages, port availability validation, suggestion of alternative ports
+### Risk 1: Resource Exhaustion
+**Risk**: Multiple server instances consuming excessive system resources
+**Mitigation**: Configurable limits, resource monitoring, automatic cleanup, graceful degradation
 
-### Risk 2: Network Security
-**Risk**: HTTP server exposed without proper security considerations
-**Mitigation**: Default to localhost binding, clear documentation about security implications
+### Risk 2: Port Conflicts and Network Issues
+**Risk**: Port allocation conflicts or network binding failures
+**Mitigation**: Robust port pool management, conflict detection, alternative port suggestions
 
-### Risk 3: Integration Complexity
-**Risk**: HTTP mode integration breaks existing functionality
-**Mitigation**: Thorough testing of all modes, minimal invasive changes, follow established patterns
+### Risk 3: Client Isolation Breaches
+**Risk**: Cross-client data contamination or security boundary violations
+**Mitigation**: Comprehensive testing, file system permissions, process isolation validation
+
+### Risk 4: Complex State Management
+**Risk**: Difficult synchronization between multiple server instances and clients
+**Mitigation**: Clear state ownership, immutable data patterns, comprehensive logging
 
 ## Acceptance Criteria Summary
 
 ### Must Have
-1. `--server-mode http` functionality working
-2. HTTP host/port CLI configuration
-3. All existing CLI modes continue working
-4. HTTP server starts using existing transport adapter
-5. Proper error handling and validation
+1. **Multi-client server manager** with complete client isolation
+2. **Dynamic port allocation** system preventing conflicts
+3. **Client session management** with lifecycle handling
+4. **Isolated workspace creation** per client
+5. **MCP-compliant transport** implementation
+6. **Discovery service** for client-server connection
 
 ### Should Have
-1. Organized argument groups in CLI help
-2. Configuration constant management
-3. Consistent logging and verbose output
-4. Graceful shutdown handling
+1. **Performance monitoring** and health checks
+2. **Graceful shutdown and cleanup** handling
+3. **Comprehensive error handling** with recovery
+4. **Security context validation** per client
+5. **Integration testing** with Claude Code
 
 ### Could Have
-1. Enhanced error messages with suggestions
-2. Configuration file support for HTTP settings
-3. Additional HTTP-specific monitoring endpoints
+1. **Configuration management** improvements
+2. **Enhanced monitoring and metrics**
+3. **Load balancing** for server instance assignment
+4. **Administrative interface** for server management
 
 ## Timeline and Milestones
 
-### Phase 1: Core CLI Integration (Primary Focus)
-- CLI argument parsing extensions
-- HTTP server template creation
-- Basic server startup/shutdown functionality
+### Phase 1: Core Infrastructure (Priority: High)
+- HttpServerManager and PortPool implementation
+- ClientSessionManager and basic session handling
+- WorkspaceManager for client isolation
+- Basic multi-client server spawning
 
-### Phase 2: Enhancement and Polish
-- Enhanced error handling and validation
-- Improved documentation and help text
-- Comprehensive testing coverage
+### Phase 2: Advanced Features (Priority: Medium)
+- Discovery service and client connection handling
+- ProcessManager for robust lifecycle management
+- Enhanced error handling and recovery
+- Security context and permissions integration
 
-### Phase 3: Quality Assurance
-- Full test suite completion
-- Code quality validation
-- Integration testing with existing functionality
+### Phase 3: Integration and Polish (Priority: Medium)
+- CLI integration and configuration management
+- Comprehensive testing and validation
+- Performance optimization and monitoring
+- Documentation and deployment preparation
 
 ## Success Metrics
 
-1. **Functional**: HTTP server starts successfully via CLI
-2. **Integration**: All existing tests continue passing
-3. **Quality**: Zero critical lint violations, 100% test pass rate
-4. **Usability**: Clear, intuitive CLI interface for HTTP mode
-5. **Maintainability**: Code follows existing architectural patterns
+1. **Functional**: Multiple Claude Code instances connect concurrently without issues
+2. **Performance**: System handles 10+ concurrent clients with acceptable resource usage
+3. **Quality**: Zero critical violations, 100% test pass rate, full MCP compliance
+4. **Security**: Complete client isolation validated through security testing
+5. **Maintainability**: Clean architecture following established patterns
 
 ## Conclusion
 
-This enhancement adds valuable HTTP CLI capability to the Aider MCP Server while maintaining the high code quality and architectural integrity of the existing codebase. The implementation leverages existing infrastructure and follows established patterns, ensuring a robust and maintainable solution.
+This multi-client HTTP server architecture provides a robust, scalable, and MCP-compliant solution for supporting multiple concurrent Claude Code instances. The implementation leverages existing infrastructure while adding necessary isolation and management capabilities, ensuring both backward compatibility and future extensibility.
