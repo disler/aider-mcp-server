@@ -6,7 +6,7 @@ This command takes an optional argument:
 - ON/OFF: Turn concise mode on or off (default: toggle current state)
 - --code-only: Only apply concise mode to code generation (not explanations)
 
-Example usage: 
+Example usage:
 - `/concise_mode on` - Turn concise mode on
 - `/concise_mode off` - Turn concise mode off
 - `/concise_mode` - Toggle current state
@@ -53,7 +53,7 @@ if [ -z "$1" ]; then
 else
   # Use provided argument (convert to lowercase)
   new_mode=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-  
+
   # Validate input
   if [ "$new_mode" != "on" ] && [ "$new_mode" != "off" ]; then
     echo "Error: Invalid argument. Use 'on' or 'off'."
@@ -86,7 +86,7 @@ fi
 ```
 IF concise_mode is ON:
   - Remove explanatory preambles/postambles in responses
-  - Eliminate unnecessary acknowledgments 
+  - Eliminate unnecessary acknowledgments
   - Omit docstrings in generated code (unless explicitly requested)
   - Skip typing hints in generated code (unless required for functionality)
   - Remove comments in generated code (except critical ones)
@@ -94,7 +94,7 @@ IF concise_mode is ON:
   - Use abbreviated variable names in temporary code
   - Format output in the most token-efficient manner
   - Focus on direct answers and code solutions
-  
+
 IF concise_mode_scope is code-only:
   - Apply concise formatting only to code generation
   - Maintain normal explanation quality

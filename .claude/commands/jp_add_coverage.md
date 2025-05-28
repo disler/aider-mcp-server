@@ -102,7 +102,7 @@ PARAMETERS:
     - Review the coverage report
     - Assess the missing coverage from the report and the python module
     - Implement additional test cases to complement the coverage in the testfile
-    
+
     ## Python Guidelines
     - Use pytest as the testing framework
     - Add proper assertions to verify behavior
@@ -259,19 +259,19 @@ TOOL: mcp__just-prompt__prompt
 PARAMETERS:
   - text: |
       # Test Coverage Synthesis Task
-      
-      I have received multiple suggestions from different LLMs for improving test coverage 
+
+      I have received multiple suggestions from different LLMs for improving test coverage
       of a Python module. Please help me synthesize these into a cohesive solution:
-      
+
       [LLM_OUTPUTS]
-      
+
       ## Task
       - Identify the best test cases from each solution
       - Eliminate any redundancy
       - Ensure consistent style with the existing tests
       - Create a unified solution that maximizes code coverage
       - DO NOT INCLUDE CODE COMMENTS ABOUT THE SYNTHESIS PROCESS IN THE FINAL CODE
-      
+
       ## Output Format
       ```python
       # Test additions go here without any explanatory comments about the synthesis

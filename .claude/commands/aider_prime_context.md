@@ -24,7 +24,7 @@ PRIORITIES:
    - Use aider for both exploring/understanding AND modifying code
    - Aider has file context awareness that just-prompt lacks
    - Prefer aider over just-prompt for code-related tasks wherever possible
-   
+
 2. OPTIMIZE AIDER EFFECTIVENESS:
    - Give aider BOTH read-only context files AND editable files
    - Prefer using architect mode with gemini-2.5-pro-preview-05-06 and gemini-2.5-flash-preview-04-17
@@ -112,14 +112,14 @@ WORKFLOW:
    - Separate into:
      * EDITABLE files (will be modified)
      * READONLY files (provide context)
-   
+
 5. RUN AIDER WITH COMPREHENSIVE CONTEXT:
    - Use architect mode
    - Include ALL relevant files for context
    - Use relative_editable_files for files that will change
    - Use relative_readonly_files for context-only files
    - Provide clear, specific instructions to aider
-   
+
 6. REVIEW AND VALIDATE:
    - ALWAYS use BatchTool to show git diff immediately after aider operations:
      ```python
@@ -141,12 +141,12 @@ WORKFLOW:
    - If tests fail, give aider the test output
    - Let aider fix its own mistakes
    - Commit working changes: `git commit -m "Implement <feature> with aider"`
-   
+
 7. HANDLING PROBLEMATIC CHANGES:
    - For minor issues: Fix manually or give aider specific feedback
    - For major issues: Reset with `git reset --hard HEAD` and try again
    - If completely unsatisfactory: `git checkout <original-branch>` and restart
-   
+
 8. USE just-prompt SELECTIVELY:
    - Only for questions aider can't handle well
    - For second opinions on architecture/design
@@ -158,19 +158,19 @@ WORKFLOW:
 DECISION TREE:
 - IF task involves code creation or modification:
   → ALWAYS use aider with proper context files
-  
+
 - IF task involves understanding existing code:
   → Use aider with readonly files for full context
-  
+
 - IF task involves fixing bugs:
   → Use aider with test files AND implementation files
-  
+
 - IF task involves architecture or design decisions:
   → Use just-prompt first, then implement with aider
-  
+
 - IF task involves improving test coverage:
   → Use aider with both test and implementation files
-  
+
 - IF task involves exploring a large codebase:
   → Use dispatch_agent to identify relevant files
   → THEN use aider with those files in readonly mode
@@ -258,7 +258,7 @@ if [ -d "$LOCAL_CMD_DIR" ]; then
   else
     OUTPUT: "Note: Local aider_code command not found. Using global definition."
   fi
-  
+
   if [ -f "$LOCAL_CMD_DIR/reduce_python.md" ]; then
     OUTPUT: "Found local reduce_python command"
   else
@@ -287,11 +287,11 @@ GIT SAFETY:
 1. ALWAYS create a new git branch before running aider:
    - Use: `git checkout -b aider/<feature-name>` or `git switch -c aider/<feature-name>`
    - NEVER run aider on main/master branch directly
-   
+
 2. COMMIT current work before running aider:
    - Use: `git add . && git commit -m "WIP: Before aider"`
    - This ensures you have a clean recovery point
-   
+
 3. VERIFY branch status before/after:
    - Before: `git status` to ensure clean working tree
    - After: `git diff` to review all changes made by aider
@@ -307,12 +307,12 @@ GIT SAFETY:
      git status  # Now shows only relevant changes
      git diff    # Only shows diffs in the current project
      ```
-   
+
 5. RECOVERY options if changes are problematic:
    - Selective reversal: `git checkout -- <file>` to revert specific files
    - Complete reversal: `git reset --hard HEAD` to revert all changes
    - Return to pre-aider: `git checkout <original-branch>`
-   
+
 6. ISOLATE aider sessions:
    - Use different branches for different aider tasks
    - Commit meaningful increments during aider development

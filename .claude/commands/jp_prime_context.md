@@ -39,7 +39,7 @@ PRIORITIES:
 3. ALWAYS use the local conda environment for Python execution:
    - /home/memento/ClaudeCode/bin/conda run -n ClaudeCode python
    - /home/memento/ClaudeCode/bin/conda run -n ClaudeCode pytest
-   
+
    For projects using package managers, run them through conda:
    - /home/memento/ClaudeCode/bin/conda run -n ClaudeCode pixi run pytest
    - /home/memento/ClaudeCode/bin/conda run -n ClaudeCode hatch run pytest
@@ -110,21 +110,21 @@ WORKFLOW:
    - Gather code from relevant files
    - Include necessary context from related files
    - Structure information to maximize LLM comprehension
-   
+
 4. ITERATIVELY QUERY LLMs:
    - Start with simpler/cheaper LLMs for basic tasks
    - Escalate to more powerful LLMs for complex problems
    - Refine queries based on initial responses
    - Compare results from multiple LLMs when appropriate
-   
+
 5. IMPLEMENT with external tools:
    - Use aider for code implementation
    - Use just-prompt for code reviews
-   
+
 6. VALIDATE:
    - Run tests after changes
    - If tests fail, use just-prompt to analyze failures
-   
+
 7. COMMUNICATE clearly what was done
 ```
 
@@ -134,20 +134,20 @@ DECISION TREE:
 - IF task involves browsing/understanding code:
   → Use dispatch_agent to gather information
   → THEN use just-prompt to analyze the collected code
-  
+
 - IF task involves implementing new features/code:
   → Use aider_code command for implementation
   → Use just-prompt for code review
-  
+
 - IF task involves improving test coverage:
   → Use jp_add_coverage command
-  
+
 - IF task involves reducing code size:
   → Use reduce_python command
-  
+
 - IF task requires technical advice/information:
   → Use just-prompt with appropriate model(s)
-  
+
 - IF tests are failing:
   → Use just-prompt to analyze the failure
   → NEVER attempt complex debugging yourself
@@ -171,13 +171,13 @@ if [ -d "$LOCAL_CMD_DIR" ]; then
   else
     OUTPUT: "Note: Local aider_code command not found. Using global definition."
   fi
-  
+
   if [ -f "$LOCAL_CMD_DIR/reduce_python.md" ]; then
     OUTPUT: "Found local reduce_python command"
   else
     OUTPUT: "Note: Local reduce_python command not found. Using global definition."
   fi
-  
+
   if [ -f "$LOCAL_CMD_DIR/jp_add_coverage.md" ]; then
     OUTPUT: "Found local jp_add_coverage command"
   else
@@ -231,6 +231,6 @@ OUTPUT: "Context priming complete. I will now prioritize:
 1. Using just-prompt EXTENSIVELY to delegate reasoning and code tasks to external LLMs
 2. Conserving my tokens by focusing on orchestration and context-building
 3. Using local conda environment for Python execution
-4. Delegating implementation to aider when appropriate 
+4. Delegating implementation to aider when appropriate
 5. Using code-reducer before analyzing complex code
 6. Following the established workflow and safeguards"

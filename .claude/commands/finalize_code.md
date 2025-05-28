@@ -9,7 +9,7 @@ This command requires at least 2 arguments:
 Optional flags:
 - --model=MODEL_NAME: Specify a different AI model (default: gemini:gemini-2.5-pro-preview-03-25)
 
-Example usage: 
+Example usage:
 `/finalize_code "Fibonacci calculator implementation" src/math/fibonacci.py`
 
 ## TOOLS USED:

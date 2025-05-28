@@ -166,18 +166,18 @@ TOOL: mcp__just-prompt__prompt
 PARAMETERS:
   - text: |
       # Format Python Code Reduction Results
-      
+
       Please format the following code reduction summary and preview in a clean, readable format:
-      
+
       ## Summary
       [REDUCTION_SUMMARY]
-      
+
       ## Preview of Reduced Code
       ```python
       [CODE_PREVIEW]
       ```
-      
-      Format this as a nice markdown output that highlights the key statistics and shows the code preview 
+
+      Format this as a nice markdown output that highlights the key statistics and shows the code preview
       with proper formatting.
 ```
 

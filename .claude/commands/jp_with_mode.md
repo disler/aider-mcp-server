@@ -11,7 +11,7 @@ Optional flags:
 - --force-concise: Force concise mode even if globally disabled
 - --model=MODEL_NAME: Specify LLM model (defaults to appropriate tier based on task)
 
-Example usage: 
+Example usage:
 - `/jp_with_mode "Explain the visitor pattern"`
 
 ## TOOLS USED:
@@ -74,15 +74,15 @@ if [[ "$*" == *"--model="* ]]; then
   MODEL_SPECIFIED=true
 else
   MODEL_SPECIFIED=false
-  
+
   # Determine complexity of task
   PROMPT_LOWERCASE=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
-  
+
   # Check for keywords indicating complexity
-  if [[ "$PROMPT_LOWERCASE" == *"architect"* ]] || 
-     [[ "$PROMPT_LOWERCASE" == *"design"* ]] || 
-     [[ "$PROMPT_LOWERCASE" == *"complex"* ]] || 
-     [[ "$PROMPT_LOWERCASE" == *"explain"* ]] || 
+  if [[ "$PROMPT_LOWERCASE" == *"architect"* ]] ||
+     [[ "$PROMPT_LOWERCASE" == *"design"* ]] ||
+     [[ "$PROMPT_LOWERCASE" == *"complex"* ]] ||
+     [[ "$PROMPT_LOWERCASE" == *"explain"* ]] ||
      [[ "$PROMPT_LOWERCASE" == *"optimize"* ]]; then
     # Complex task detected, use smart LLM
     DEFAULT_MODEL="gemini:gemini-2.5-pro-preview-03-25"
