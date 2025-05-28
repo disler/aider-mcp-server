@@ -29,6 +29,7 @@ from aider_mcp_server.molecules.tools.aider_compatibility import (
     get_supported_coder_params,
 )
 
+
 # Create a subclass of InputOutput that overrides tool_error to do nothing
 class SilentInputOutput(InputOutput):  # type: ignore[misc]
     """A subclass of InputOutput that overrides tool_error to do nothing."""
@@ -43,9 +44,7 @@ class AskResponseDict(TypedDict, total=False):
 
     success: bool
     response: str  # The explanation/answer from Aider
-    rate_limit_info: Optional[
-        Dict[str, Any]
-    ]  # Optional - only included when rate limits are encountered
+    rate_limit_info: Optional[Dict[str, Any]]  # Optional - only included when rate limits are encountered
     api_key_status: Optional[Dict[str, Any]]  # Information about API key status
     warnings: Optional[List[str]]  # List of warnings to display to the user
 
@@ -402,11 +401,11 @@ async def _run_ask_session(
         logger.debug(f"Captured stderr from Aider Ask: {captured_stderr[:200]}...")
 
     logger.info(f"Ask session completed, result type: {type(result)}")
-    
+
     # The result should be the explanation text
     if result is None:
         return "Ask mode completed but no response was returned."
-    
+
     return str(result)
 
 
@@ -436,7 +435,7 @@ async def _execute_ask_with_retry(
             ai_model = _configure_model(current_model, architect_mode)
             coder = _setup_aider_ask_coder(ai_model, working_dir, abs_readonly_files, architect_mode)
             ask_response = await _run_ask_session(coder, ai_coding_prompt)
-            
+
             response["success"] = True
             response["response"] = ask_response
             break  # Successful execution, exit retry loop
@@ -528,6 +527,110 @@ async def _handle_ask_rate_limit_or_error(
         raise  # Re-raise the original exception
 
 
+def _validate_and_prepare_initial_ask_params(
+    working_dir: Optional[str], model: str
+) -> tuple[Optional[str], Dict[str, Any], Optional[str], Optional[str]]:
+    """
+    Validates working_dir, checks API keys, normalizes model name, and determines provider.
+
+    Returns:
+        A tuple containing:
+        - An error JSON string if validation fails, otherwise None.
+        - A dictionary with API key status.
+        - The normalized model name if validation succeeds, otherwise None.
+        - The determined provider if validation succeeds, otherwise None.
+    """
+    if not working_dir:
+        error_msg = "Error: working_dir is required for ask_with_aider"
+        logger.error(error_msg)
+        # Pass None to check_api_keys if working_dir is not available for consistent error reporting
+        api_key_status = check_api_keys(None)
+        return (
+            json.dumps(
+                {
+                    "success": False,
+                    "response": error_msg,
+                    "api_key_status": api_key_status,
+                }
+            ),
+            api_key_status,
+            None,
+            None,
+        )
+
+    key_status = check_api_keys(working_dir)
+    if not key_status["any_keys_found"]:
+        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
+        logger.error(error_msg)
+        return (
+            json.dumps(
+                {
+                    "success": False,
+                    "response": error_msg,
+                    "api_key_status": key_status,
+                    "warnings": [error_msg],
+                }
+            ),
+            key_status,
+            None,
+            None,
+        )
+
+    normalized_model_name = _normalize_model_name(model)
+    provider = _determine_provider(normalized_model_name)
+    return None, key_status, normalized_model_name, provider
+
+
+async def _broadcast_event_utility(
+    coordinator: Optional["IApplicationCoordinator"],
+    event_type: EventTypes,
+    payload: Dict[str, Any],
+    success_log_message: str,
+    failure_log_message: str,
+) -> None:
+    """Helper utility to broadcast an event if a coordinator is available."""
+    if coordinator:
+        try:
+            await coordinator.broadcast_event(event_type, payload)
+            logger.info(success_log_message)
+        except Exception as e:
+            logger.warning(f"{failure_log_message}: {e}")
+
+
+def _enrich_ask_response(
+    response_dict: AskResponseDict,
+    key_status: Dict[str, Any],
+    original_model: str,
+    actual_model_used: str,
+    initial_provider: str,
+) -> AskResponseDict:
+    """Enriches the Aider response with API key status and warnings."""
+    response_dict["api_key_status"] = {
+        "available_providers": key_status.get("available_providers", []),
+        "missing_providers": key_status.get("missing_providers", []),
+        "requested_provider": initial_provider,
+        "used_provider": _determine_provider(actual_model_used),
+        "original_model_requested": original_model,
+        "actual_model_used": actual_model_used,
+    }
+
+    # Add warning if requested provider's key was missing
+    actual_provider_used = _determine_provider(actual_model_used)
+    if initial_provider not in key_status.get("available_providers", []):
+        warning_msg = (
+            f"Warning: API key for the initially requested provider '{initial_provider}' was missing. "
+            f"The system used provider '{actual_provider_used}' with model '{actual_model_used}'."
+        )
+        if "warnings" not in response_dict:
+            response_dict["warnings"] = []
+
+        # Ensure warnings is a list before appending (it should be, based on AskResponseDict)
+        if isinstance(response_dict["warnings"], list) and warning_msg not in response_dict["warnings"]:
+            response_dict["warnings"].append(warning_msg)
+
+    return response_dict
+
+
 async def ask_with_aider(
     ai_coding_prompt: str,
     relative_readonly_files: Optional[List[str]] = None,
@@ -561,61 +664,49 @@ async def ask_with_aider(
     logger.info(f"Model: {model}")
     logger.info(f"Architect mode: {architect_mode}")
 
-    # Validate working directory
-    if not working_dir:
-        error_msg = "Error: working_dir is required for ask_with_aider"
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "response": error_msg,
-                "api_key_status": check_api_keys(None),
-            }
-        )
+    original_model = model  # Store for later use in response and events
 
-    original_model = model
-    normalized_model_name = _normalize_model_name(model)
-    provider = _determine_provider(normalized_model_name)
+    # Validate inputs, check API keys, and prepare initial model/provider info
+    error_json, key_status, normalized_model_name, provider = _validate_and_prepare_initial_ask_params(
+        working_dir, model
+    )
+    if error_json:
+        return error_json
 
-    # Check API keys
-    key_status = check_api_keys(working_dir)
-    if not key_status["any_keys_found"]:
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "response": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-            }
-        )
+    # Runtime checks after successful validation
+    if key_status is None:
+        raise ValueError("key_status should not be None after validation")
+    if normalized_model_name is None:
+        raise ValueError("normalized_model_name should not be None after validation")
+    if provider is None:
+        raise ValueError("provider should not be None after validation")
+    if working_dir is None:  # This was validated inside _validate_and_prepare_initial_ask_params
+        raise ValueError("working_dir should not be None after validation")
 
     # Convert to absolute paths
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
     try:
         # Broadcast session start event
-        if coordinator:
-            try:
-                await coordinator.broadcast_event(
-                    EventTypes.AIDER_SESSION_STARTED,
-                    {
-                        "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
-                        "readonly_files": relative_readonly_files,
-                        "model": original_model,
-                        "working_dir": working_dir,
-                        "architect_mode": architect_mode,
-                        "mode": "ask",
-                        "timestamp": time.time(),
-                    },
-                )
-                logger.info("Broadcasted aider.session_started event for Ask Mode")
-            except Exception as e:
-                logger.warning(f"Failed to broadcast session_started event: {e}")
+        session_start_payload = {
+            "prompt": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
+            "readonly_files": relative_readonly_files,
+            "model": original_model,
+            "working_dir": working_dir,
+            "architect_mode": architect_mode,
+            "mode": "ask",
+            "timestamp": time.time(),
+        }
+        await _broadcast_event_utility(
+            coordinator,
+            EventTypes.AIDER_SESSION_STARTED,
+            session_start_payload,
+            "Broadcasted aider.session_started event for Ask Mode",
+            "Failed to broadcast session_started event",
+        )
 
         # Execute Ask Mode
-        response = await _execute_ask_with_retry(
+        response_data = await _execute_ask_with_retry(
             ai_coding_prompt,
             abs_readonly_files,
             working_dir,
@@ -626,70 +717,52 @@ async def ask_with_aider(
         )
 
         # Determine actual model used
-        rate_limit_info = response.get("rate_limit_info")
+        rate_limit_info = response_data.get("rate_limit_info")
         fallback_model = None
         if isinstance(rate_limit_info, dict):
             fallback_model = rate_limit_info.get("fallback_model")
         actual_model_used = str(fallback_model) if fallback_model else normalized_model_name
 
         # Broadcast session completion event
-        if coordinator:
-            try:
-                # Prepare values for the event, handling possible None for rate_limit_info
-                rate_limit_info_dict = response.get("rate_limit_info")
-                rate_limit_encountered_for_event = False
-                fallback_used_for_event = False
-                if rate_limit_info_dict is not None:
-                    rate_limit_encountered_for_event = bool(rate_limit_info_dict.get("encountered", False))
-                    fallback_used_for_event = bool(rate_limit_info_dict.get("fallback_model"))
+        rate_limit_info_dict = response_data.get("rate_limit_info")
+        rate_limit_encountered_for_event = False
+        fallback_used_for_event = False
+        if rate_limit_info_dict is not None and isinstance(rate_limit_info_dict, dict):
+            rate_limit_encountered_for_event = bool(rate_limit_info_dict.get("encountered", False))
+            fallback_used_for_event = bool(rate_limit_info_dict.get("fallback_model"))
 
-                await coordinator.broadcast_event(
-                    EventTypes.AIDER_SESSION_COMPLETED,
-                    {
-                        "success": response.get("success", False),
-                        "model_used": actual_model_used,
-                        "original_model": original_model,
-                        "rate_limit_encountered": rate_limit_encountered_for_event,
-                        "fallback_used": fallback_used_for_event,
-                        "mode": "ask",
-                        "timestamp": time.time(),
-                    },
-                )
-                logger.info("Broadcasted aider.session_completed event for Ask Mode")
-            except Exception as e:
-                logger.warning(f"Failed to broadcast session_completed event: {e}")
-
-        # Add API key status to response
-        response["api_key_status"] = {
-            "available_providers": key_status.get("available_providers", []),
-            "missing_providers": key_status.get("missing_providers", []),
-            "requested_provider": provider,
-            "used_provider": _determine_provider(actual_model_used),
-            "original_model_requested": original_model,
-            "actual_model_used": actual_model_used,
+        session_completed_payload = {
+            "success": response_data.get("success", False),
+            "model_used": actual_model_used,
+            "original_model": original_model,
+            "rate_limit_encountered": rate_limit_encountered_for_event,
+            "fallback_used": fallback_used_for_event,
+            "mode": "ask",
+            "timestamp": time.time(),
         }
+        await _broadcast_event_utility(
+            coordinator,
+            EventTypes.AIDER_SESSION_COMPLETED,
+            session_completed_payload,
+            "Broadcasted aider.session_completed event for Ask Mode",
+            "Failed to broadcast session_completed event",
+        )
 
-        # Add warning if requested provider's key was missing
-        actual_provider_used = _determine_provider(actual_model_used)
-        if provider not in key_status.get("available_providers", []):
-            warning_msg = (
-                f"Warning: API key for the initially requested provider '{provider}' was missing. "
-                f"The system used provider '{actual_provider_used}' with model '{actual_model_used}'."
-            )
-            if "warnings" not in response:
-                response["warnings"] = []
-            if warning_msg not in response["warnings"]:  # type: ignore
-                response["warnings"].append(warning_msg)  # type: ignore
+        # Enrich response with API key status and warnings
+        final_response_data = _enrich_ask_response(
+            response_data, key_status, original_model, actual_model_used, provider
+        )
 
-        formatted_response = json.dumps(response, indent=4)
-        logger.info(f"ask_with_aider process completed. Success: {response.get('success', False)}")
+        formatted_response = json.dumps(final_response_data, indent=4)
+        logger.info(f"ask_with_aider process completed. Success: {final_response_data.get('success', False)}")
         return formatted_response
 
     except Exception as e:
         logger.error(f"Critical Error in ask_with_aider: {str(e)}", exc_info=True)
-        error_response = {
+        # key_status is guaranteed to be populated by _validate_and_prepare_initial_ask_params
+        error_response_dict = {
             "success": False,
             "response": f"Unhandled Error during Ask Mode execution: {str(e)}",
             "api_key_status": key_status,
         }
-        return json.dumps(error_response, indent=4)
+        return json.dumps(error_response_dict, indent=4)
