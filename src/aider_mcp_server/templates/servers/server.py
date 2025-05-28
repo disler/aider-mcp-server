@@ -15,6 +15,7 @@ from ...atoms.logging.logger import get_logger
 from ...atoms.security.context import ANONYMOUS_SECURITY_CONTEXT
 from ...atoms.utils.config_constants import DEFAULT_EDITOR_MODEL
 from ...organisms.processors.handlers import (
+    process_aider_ai_ask_request,
     process_aider_ai_code_request,
     process_list_models_request,
 )
@@ -68,6 +69,35 @@ AIDER_AI_CODE_TOOL = Tool(
             },
         },
         "required": ["ai_coding_prompt", "relative_editable_files"],
+    },
+)
+
+AIDER_AI_ASK_TOOL = Tool(
+    name="aider_ai_ask",
+    description="Run Aider in Ask Mode to explain code and answer questions without making any changes",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "ai_coding_prompt": {
+                "type": "string",
+                "description": "The question or explanation request for Aider",
+            },
+            "relative_readonly_files": {
+                "type": "array",
+                "description": "LIST of relative paths to files that can be read for context",
+                "items": {"type": "string"},
+            },
+            "model": {
+                "type": "string",
+                "description": "The AI model Aider should use for the explanation",
+            },
+            "architect_mode": {
+                "type": "boolean",
+                "description": "Enable architect mode if needed",
+                "default": False,
+            },
+        },
+        "required": ["ai_coding_prompt"],
     },
 )
 
@@ -191,6 +221,16 @@ async def handle_request(
                 current_working_dir=current_working_dir,
             )
             return result
+        elif request_type == "aider_ai_ask":
+            result = await process_aider_ai_ask_request(
+                request_id="stdio",  # Using fixed ID for stdio mode
+                transport_id="stdio",  # Using fixed ID for stdio mode
+                params=params,
+                security_context=ANONYMOUS_SECURITY_CONTEXT,
+                editor_model=editor_model,  # Pass editor_model as default for ask
+                current_working_dir=current_working_dir,
+            )
+            return result
         elif request_type == "list_models":
             result = await process_list_models_request(
                 request_id="stdio",  # Using fixed ID for stdio mode
@@ -234,7 +274,7 @@ async def serve(
 
     @server.list_tools()  # type: ignore[no-untyped-call,unused-ignore]
     async def list_tools() -> List[Tool]:
-        return [AIDER_AI_CODE_TOOL, LIST_MODELS_TOOL]
+        return [AIDER_AI_CODE_TOOL, AIDER_AI_ASK_TOOL, LIST_MODELS_TOOL]
 
     @server.call_tool()  # type: ignore[no-untyped-call,unused-ignore]
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:

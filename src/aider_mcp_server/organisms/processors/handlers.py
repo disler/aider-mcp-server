@@ -9,6 +9,7 @@ from ...atoms.types.mcp_types import (
     OperationResult,
     RequestParameters,
 )
+from ...molecules.tools.aider_ai_ask import ask_with_aider
 from ...molecules.tools.aider_ai_code import code_with_aider
 from ...molecules.tools.aider_list_models import list_models
 
@@ -125,7 +126,7 @@ async def _execute_aider_code(
             coordinator=coordinator,
         )
 
-        result = _parse_aider_result(request_id, result_json_str)
+        result = _parse_aider_code_result(request_id, result_json_str)
 
         # If there are warnings in the response related to API keys, log them
         if "warnings" in result:
@@ -152,7 +153,59 @@ async def _execute_aider_code(
         }
 
 
-def _parse_aider_result(request_id: str, result_json_str: str) -> OperationResult:
+async def _execute_aider_ask(
+    request_id: str,
+    ai_coding_prompt: str,
+    relative_readonly_files: List[str],
+    model_to_use: str,
+    current_working_dir: str,
+    params: RequestParameters,
+    coordinator: Optional["IApplicationCoordinator"] = None,
+) -> OperationResult:
+    """Execute the Aider Ask Mode and process the results."""
+    try:
+        # Extract additional optional parameters relevant to Ask Mode
+        # Note: architect_mode is supported by ask_with_aider but less common for simple questions
+        architect_mode = params.get("architect_mode", False)
+
+        # Call the underlying tool function which returns a JSON string
+        result_json_str = await ask_with_aider(
+            ai_coding_prompt=ai_coding_prompt,
+            relative_readonly_files=relative_readonly_files,
+            model=model_to_use,
+            working_dir=current_working_dir,
+            architect_mode=architect_mode,
+            coordinator=coordinator,
+        )
+
+        result = _parse_aider_ask_result(request_id, result_json_str)
+
+        # If there are warnings in the response related to API keys, log them
+        if "warnings" in result:
+            for warning in result["warnings"]:
+                if "API key" in warning or "api key" in warning.lower():
+                    logger.warning(f"Request {request_id}: API key warning: {warning}")
+
+            # Add a user-friendly message if there are API key warnings
+            if any("API key" in warning or "api key" in warning.lower() for warning in result["warnings"]):
+                result["user_message"] = "⚠️ API key issue detected. Some features may not work as expected."
+
+        # If there's API key information, log it at debug level
+        if "api_key_status" in result:
+            logger.debug(f"Request {request_id}: API key status: {result['api_key_status']}")
+
+        return result
+
+    except Exception as e:
+        logger.exception(f"Request {request_id}: Unhandled exception during ask_with_aider execution: {e}")
+        return {
+            "success": False,
+            "error": "An unexpected error occurred during AI asking",
+            "details": str(e),
+        }
+
+
+def _parse_aider_code_result(request_id: str, result_json_str: str) -> OperationResult:
     """Parse the JSON result from the Aider code generation."""
     try:
         result_dict = json.loads(result_json_str)
@@ -177,6 +230,38 @@ def _parse_aider_result(request_id: str, result_json_str: str) -> OperationResul
         return {
             "success": False,
             "error": "Failed to process AI coding result",
+            "details": str(e),
+        }
+
+
+def _parse_aider_ask_result(request_id: str, result_json_str: str) -> OperationResult:
+    """Parse the JSON result from the Aider Ask Mode execution."""
+    try:
+        result_dict = json.loads(result_json_str)
+
+        # Ensure the result is a dictionary
+        if not isinstance(result_dict, dict):
+            raise json.JSONDecodeError("Result is not a JSON object", result_json_str, 0)
+
+        # Ensure 'success' field exists in the final dictionary
+        if "success" not in result_dict:
+            logger.warning(f"Request {request_id}: 'success' field missing in ask_with_aider result. Assuming failure.")
+            result_dict["success"] = False
+
+        # Ensure 'response' field exists for Ask Mode results
+        if "response" not in result_dict:
+            logger.warning(f"Request {request_id}: 'response' field missing in ask_with_aider result.")
+            result_dict["response"] = "No explanation provided."
+
+        logger.info(f"Request {request_id}: AI Asking completed - Success: {result_dict.get('success')}")
+        return result_dict
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Request {request_id}: Failed to parse JSON response from ask_with_aider: {e}")
+        logger.error(f"Request {request_id}: Received raw response: {result_json_str}")
+        return {
+            "success": False,
+            "error": "Failed to process AI asking result",
             "details": str(e),
         }
 
@@ -252,6 +337,73 @@ async def process_aider_ai_code_request(
         model_to_use,
         current_working_dir,
         params,
+        coordinator,
+    )
+
+
+async def process_aider_ai_ask_request(
+    request_id: str,
+    transport_id: str,
+    params: RequestParameters,
+    security_context: SecurityContext,
+    editor_model: str = "",  # Default model for Ask Mode
+    current_working_dir: str = "",  # Validated working directory
+    coordinator: Optional["IApplicationCoordinator"] = None,  # For event broadcasting
+) -> Dict[str, Any]:
+    """
+    Process an aider_ai_ask request.
+
+    Args:
+        request_id (str): The unique ID for this request.
+        transport_id (str): The ID of the transport that initiated the request.
+        params (Dict[str, Any]): The request parameters.
+        security_context (SecurityContext): Security context for the request.
+        editor_model (str): The default editor model configured for the server instance (used as default for ask).
+        current_working_dir (str): The validated working directory for the server instance.
+        coordinator (IApplicationCoordinator, optional): Coordinator instance for event broadcasting.
+
+    Returns:
+        Dict[str, Any]: The response data including 'success' and 'response' fields.
+    """
+    logger.debug(
+        f"Handler 'process_aider_ai_ask_request' invoked for request_id: {request_id}, transport_id: {transport_id}"
+    )
+    logger.debug(f"Security Context: {security_context}")  # Log context at debug
+
+    # Validate AI coding prompt (required for Ask Mode)
+    ai_coding_prompt, error = _validate_ai_coding_prompt(request_id, params)
+    if error:
+        return error
+
+    # Process readonly files (editable files are not used in Ask Mode)
+    relative_readonly_files = _process_readonly_files(request_id, params)
+
+    # Determine which model to use (uses editor_model as default)
+    model_to_use = _determine_model(request_id, params, editor_model)
+
+    # Log request details
+    logger.debug(
+        f"Request {request_id}: AI Asking Request: Prompt='{ai_coding_prompt[:50] if ai_coding_prompt else ''}...'"
+    )
+    logger.debug(f"Request {request_id}: Readonly files: {relative_readonly_files}")
+    logger.debug(f"Request {request_id}: Model to use: {model_to_use} (Default: {editor_model})")
+    logger.debug(f"Request {request_id}: Working directory: {current_working_dir}")
+
+    # Execute the Aider Ask Mode
+    if ai_coding_prompt is None:
+        return {
+            "success": False,
+            "error": "Missing required parameter",
+            "details": "AI coding prompt is missing",
+        }
+
+    return await _execute_aider_ask(
+        request_id,
+        ai_coding_prompt,
+        relative_readonly_files,
+        model_to_use,
+        current_working_dir,
+        params,  # Pass params to _execute_aider_ask for optional args like architect_mode
         coordinator,
     )
 

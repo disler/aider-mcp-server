@@ -6,7 +6,7 @@ This is an atomic component containing only immutable constants.
 """
 
 # Default AI model for aider operations
-DEFAULT_EDITOR_MODEL = "gemini-2.5-flash-preview-04-17"
+DEFAULT_EDITOR_MODEL = "openai/gpt-4.1"
 
 # Default port for SSE server
 DEFAULT_WS_PORT = 8765
