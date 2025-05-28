@@ -25,5 +25,5 @@ MULTI_CLIENT_PORT_RANGE_START = 8000
 MULTI_CLIENT_PORT_RANGE_END = 9000
 MAX_CONCURRENT_CLIENTS = 10
 CLIENT_SESSION_TIMEOUT = 3600  # 1 hour in seconds
-WORKSPACE_BASE_DIR = "/tmp/aider-mcp-workspaces"
+WORKSPACE_BASE_DIR = "~/.local/share/aider-mcp-server/workspaces"  # User-specific workspace directory
 DEFAULT_MANAGER_PORT = 7999  # Manager discovery port

@@ -75,11 +75,11 @@ def main():
     config_ok = validate_configuration()
     
     if structure_ok and config_ok:
-        print(f"\n✅ Project structure validation PASSED")
-        print(f"🚀 Ready for multi-client implementation!")
+        print("\n✅ Project structure validation PASSED")
+        print("🚀 Ready for multi-client implementation!")
         return 0
     else:
-        print(f"\n❌ Project structure validation FAILED")
+        print("\n❌ Project structure validation FAILED")
         return 1
 
 if __name__ == "__main__":
