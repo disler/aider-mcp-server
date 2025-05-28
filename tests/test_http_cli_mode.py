@@ -324,17 +324,24 @@ def test_http_mode_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp
     mock_serve_http_local.assert_not_called()
 
 
-@pytest.mark.skip("Mock assertions need adjustment - will fix in next iteration")
 @pytest.mark.parametrize("invalid_port", [80, 0, 1023, 65536, 70000])
 def test_http_mode_invalid_port_range(monkeypatch: pytest.MonkeyPatch, invalid_port: int):
     """Test HTTP mode with invalid port numbers (outside 1024-65535)."""
     args = ["--server-mode", "http", "--http-port", str(invalid_port), "--current-working-dir", "."]
     (mock_serve_http, _, mock_logger_instance, _, _, mock_exit, _, _, _) = run_main_http(monkeypatch, args)
 
-    mock_logger_instance.critical.assert_called_once()
-    expected_error_msg = f"Invalid HTTP port number: {invalid_port}. Port must be between 1024 and 65535."
-    # _run_server_by_mode logs "Server configuration error: {e}"
-    assert mock_logger_instance.critical.call_args[0][0] == f"Server configuration error: {expected_error_msg}"
+    # _validate_http_config logs critical, then raises ValueError.
+    # _run_server_by_mode catches ValueError and logs critical again.
+    assert mock_logger_instance.critical.call_count == 2
+
+    expected_error_msg_direct = f"Invalid HTTP port number: {invalid_port}. Port must be between 1024 and 65535."
+    
+    expected_calls = [
+        mock.call(expected_error_msg_direct),  # First call from _validate_http_config
+        mock.call(f"Server configuration error: {expected_error_msg_direct}")  # Second call from _run_server_by_mode
+    ]
+    mock_logger_instance.critical.assert_has_calls(expected_calls, any_order=False)
+
     mock_exit.assert_called_once_with(1)
     mock_serve_http.assert_not_called()  # Server should not start
 
@@ -422,7 +429,6 @@ def test_http_mode_port_conflict(monkeypatch: pytest.MonkeyPatch):
     mock_exit_local.assert_called_once_with(1)
 
 
-@pytest.mark.skip("Mock assertions need adjustment - will fix in next iteration")
 def test_http_mode_empty_host(monkeypatch: pytest.MonkeyPatch):
     """Test HTTP mode with an empty host string."""
     args = [
@@ -435,10 +441,18 @@ def test_http_mode_empty_host(monkeypatch: pytest.MonkeyPatch):
     ]
     (mock_serve_http, _, mock_logger_instance, _, _, mock_exit, _, _, _) = run_main_http(monkeypatch, args)
 
-    mock_logger_instance.critical.assert_called_once()
-    expected_error_msg = "HTTP host cannot be empty"
-    # _run_server_by_mode logs "Server configuration error: {e}"
-    assert mock_logger_instance.critical.call_args[0][0] == f"Server configuration error: {expected_error_msg}"
+    # _validate_http_config logs critical, then raises ValueError.
+    # _run_server_by_mode catches ValueError and logs critical again.
+    assert mock_logger_instance.critical.call_count == 2
+
+    expected_error_msg_direct = "HTTP host cannot be empty"
+
+    expected_calls = [
+        mock.call(expected_error_msg_direct),  # First call from _validate_http_config
+        mock.call(f"Server configuration error: {expected_error_msg_direct}")  # Second call from _run_server_by_mode
+    ]
+    mock_logger_instance.critical.assert_has_calls(expected_calls, any_order=False)
+
     mock_exit.assert_called_once_with(1)
     mock_serve_http.assert_not_called()
 
