@@ -10,7 +10,7 @@ T = TypeVar("T")
 
 
 # MCP Protocol Base Types
-class MCPRequest(Generic[T], BaseModel):
+class MCPRequest(BaseModel, Generic[T]):
     """Base class for MCP protocol requests."""
 
     name: str
