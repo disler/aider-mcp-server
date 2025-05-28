@@ -335,10 +335,10 @@ def test_http_mode_invalid_port_range(monkeypatch: pytest.MonkeyPatch, invalid_p
     assert mock_logger_instance.critical.call_count == 2
 
     expected_error_msg_direct = f"Invalid HTTP port number: {invalid_port}. Port must be between 1024 and 65535."
-    
+
     expected_calls = [
         mock.call(expected_error_msg_direct),  # First call from _validate_http_config
-        mock.call(f"Server configuration error: {expected_error_msg_direct}")  # Second call from _run_server_by_mode
+        mock.call(f"Server configuration error: {expected_error_msg_direct}"),  # Second call from _run_server_by_mode
     ]
     mock_logger_instance.critical.assert_has_calls(expected_calls, any_order=False)
 
@@ -449,7 +449,7 @@ def test_http_mode_empty_host(monkeypatch: pytest.MonkeyPatch):
 
     expected_calls = [
         mock.call(expected_error_msg_direct),  # First call from _validate_http_config
-        mock.call(f"Server configuration error: {expected_error_msg_direct}")  # Second call from _run_server_by_mode
+        mock.call(f"Server configuration error: {expected_error_msg_direct}"),  # Second call from _run_server_by_mode
     ]
     mock_logger_instance.critical.assert_has_calls(expected_calls, any_order=False)
 
