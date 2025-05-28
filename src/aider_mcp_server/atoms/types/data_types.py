@@ -1,3 +1,5 @@
+import time
+from datetime import datetime
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, Field
@@ -108,3 +110,39 @@ class ListModelsRequest(MCPRequest[ListModelsParams]):
 
 # Union type for all possible MCP responses
 MCPToolResponse = Union[AICodeResponse, ListModelsResponse, MCPErrorResponse]
+
+
+# Multi-client HTTP server data types
+class ClientRequest(BaseModel):
+    """Request from a client to create or manage a session."""
+
+    client_id: str
+    workspace_id: Optional[str] = None
+    request_data: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: float = Field(default_factory=time.time)
+
+
+class SessionInfo(BaseModel):
+    """Information about an active client session."""
+
+    session_id: str
+    client_id: str
+    workspace_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_activity: datetime = Field(default_factory=datetime.now)
+    status: str = "active"  # "active", "idle", "disconnected"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ServerInfo(BaseModel):
+    """Information about a running HTTP server instance."""
+
+    server_id: str
+    host: str
+    port: int
+    actual_port: Optional[int] = None
+    status: str = "starting"  # "starting", "running", "stopping", "stopped"
+    workspace_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    active_clients: int = 0
+    transport_adapter_id: Optional[str] = None  # Reference to adapter instance
