@@ -105,6 +105,10 @@ CLAUDE.md
 .taskmasterconfig
 .windsurfrules
 
+# Project-specific PRD files (unique per sub-project)
+scripts/prd.txt
+scripts/example_prd.txt
+
 # Local workflow and tracking files
 /.roo/
 /.cursor/
