@@ -19,6 +19,17 @@ from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSET
 from aider_mcp_server.templates.servers.sse_server import run_sse_server
 
 
+class AsyncContextManagerRaisingOnEnter:
+    def __init__(self, exception_to_raise):
+        self.exception_to_raise = exception_to_raise
+
+    async def __aenter__(self):
+        raise self.exception_to_raise
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 @pytest.fixture
 def adapter():
     """Fixture providing a basic SSETransportAdapter instance."""
@@ -95,20 +106,23 @@ async def test_handle_sse_request_client_disconnect():
     mock_mcp_server = MagicMock()
 
     # Create a context manager for connect_sse that simulates a client disconnect
+    client_disconnect_exception = ConnectionResetError("Client disconnected")
+
     class DisconnectContextManager:
         async def __aenter__(self):
             return (MagicMock(), MagicMock())  # mock streams
 
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             # Simulate a client disconnect during processing
-            raise ConnectionResetError("Client disconnected")
+            raise client_disconnect_exception
 
     mock_mcp_transport.connect_sse.return_value = DisconnectContextManager()
     mock_mcp_server._mcp_server = MagicMock()
-    mock_mcp_server._mcp_server.run = AsyncMock()
+    mock_mcp_server._mcp_server.run = AsyncMock(return_value=None)
 
     adapter._mcp_transport = mock_mcp_transport
     adapter._mcp_server = mock_mcp_server
+    adapter._fastmcp_initialized = True  # Prevent _initialize_fastmcp from running
 
     # Create a mock request
     mock_request = MagicMock()
@@ -130,7 +144,9 @@ async def test_handle_sse_request_client_disconnect():
         assert "Error handling SSE connection" in log_message
 
         # Verify that a 500 error response was returned
-        mock_response_cls.assert_called_once_with(status_code=500)
+        mock_response_cls.assert_called_once_with(
+            f"Error handling SSE connection: {client_disconnect_exception}", status_code=500
+        )
         assert response == mock_response
 
 
@@ -144,14 +160,18 @@ async def test_handle_sse_request_http_exception():
     adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
     # Mock the MCP transport and server
-    mock_mcp_transport = MagicMock()
+    mock_mcp_transport = MagicMock()  # This mock represents the SseServerTransport instance
     mock_mcp_server = MagicMock()
 
-    # Mock connect_sse to raise an HTTP exception
-    mock_mcp_transport.connect_sse = AsyncMock(side_effect=HTTPException(status_code=403, detail="Forbidden"))
+    # Mock connect_sse to return a context manager that raises an HTTP exception on __aenter__
+    http_exception = HTTPException(status_code=403, detail="Forbidden")
+    # mock_mcp_transport.connect_sse is an attribute, by default a MagicMock.
+    # Its return_value should be the context manager.
+    mock_mcp_transport.connect_sse.return_value = AsyncContextManagerRaisingOnEnter(http_exception)
 
     adapter._mcp_transport = mock_mcp_transport
     adapter._mcp_server = mock_mcp_server
+    adapter._fastmcp_initialized = True  # Prevent _initialize_fastmcp from running
 
     # Create a mock request
     mock_request = MagicMock()
@@ -173,7 +193,7 @@ async def test_handle_sse_request_http_exception():
         assert "Error handling SSE connection" in log_message
 
         # Verify that a 500 error response was returned
-        mock_response_cls.assert_called_once_with(status_code=500)
+        mock_response_cls.assert_called_once_with(f"Error handling SSE connection: {http_exception}", status_code=500)
         assert response == mock_response
 
 
@@ -200,10 +220,12 @@ async def test_handle_sse_request_runtime_error():
 
     mock_mcp_transport.connect_sse.return_value = MockContextManager()
     mock_mcp_server._mcp_server = MagicMock()
-    mock_mcp_server._mcp_server.run = AsyncMock(side_effect=RuntimeError("Test runtime error"))
+    runtime_error_exception = RuntimeError("Test runtime error")
+    mock_mcp_server._mcp_server.run = AsyncMock(side_effect=runtime_error_exception)
 
     adapter._mcp_transport = mock_mcp_transport
     adapter._mcp_server = mock_mcp_server
+    adapter._fastmcp_initialized = True  # Prevent _initialize_fastmcp from running
 
     # Create a mock request
     mock_request = MagicMock()
@@ -222,11 +244,15 @@ async def test_handle_sse_request_runtime_error():
         # Verify that the error was logged
         mock_logger.error.assert_called_once()
         log_message = mock_logger.error.call_args[0][0]
+        # Ensure the actual exception object is logged for exc_info=True
+        assert mock_logger.error.call_args[1]["exc_info"] is True
         assert "Error handling SSE connection" in log_message
-        assert "Test runtime error" in log_message
+        assert "Test runtime error" in log_message  # Check the exception message part
 
         # Verify that a 500 error response was returned
-        mock_response_cls.assert_called_once_with(status_code=500)
+        mock_response_cls.assert_called_once_with(
+            f"Error handling SSE connection: {runtime_error_exception}", status_code=500
+        )
         assert response == mock_response
 
 
@@ -315,7 +341,7 @@ async def test_sse_server_partial_initialization_error():
 
     async def failing_create_app():
         # Call the first part of the original method
-        from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SseServerTransport
+        from mcp.server.sse import SseServerTransport
 
         adapter._mcp_transport = SseServerTransport("/messages/")
 

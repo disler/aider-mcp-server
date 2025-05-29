@@ -16,8 +16,8 @@ from aider_mcp_server.organisms.transports.sse.sse_transport_adapter import SSET
 @pytest.fixture
 def mock_mcp_transport():
     """Fixture providing a mock MCP SSE transport."""
-    mock = MagicMock()
-    mock.connect_sse = AsyncMock()
+    mock = MagicMock()  # mock is for the SseServerTransport instance
+    # mock.connect_sse is implicitly a MagicMock attribute.
 
     # Create a context manager for connect_sse
     class MockContextManager:
@@ -49,40 +49,55 @@ async def test_adapter_initializes_fastmcp():
     mock_coordinator = AsyncMock()
 
     # Create the adapter with the mock coordinator
-    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
-        mock_fastmcp = MagicMock()
-        mock_fastmcp.tool = MagicMock(return_value=lambda func: func)
-        mock_fastmcp_class.return_value = mock_fastmcp
+    with patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class:
+        mock_fastmcp_instance = MagicMock()
+        mock_fastmcp_instance.tool = MagicMock(return_value=lambda func: func)  # Ensure tool decorator is chainable
+        mock_fastmcp_class.return_value = mock_fastmcp_instance
 
         adapter = SSETransportAdapter(coordinator=mock_coordinator)
-
-        # Initialize the adapter
-        await adapter.initialize()
+        # adapter.initialize() only creates the app, doesn't init FastMCP by itself.
+        # Call _initialize_fastmcp directly to test its behavior.
+        adapter._initialize_fastmcp()
 
         # Verify that FastMCP was initialized
         mock_fastmcp_class.assert_called_once_with("aider-sse")
-        assert adapter._mcp_server == mock_fastmcp
+        assert adapter._mcp_server == mock_fastmcp_instance
         assert adapter._fastmcp_initialized is True
 
 
 @pytest.mark.asyncio
 async def test_adapter_skips_fastmcp_init_without_coordinator():
     """Test that the adapter skips FastMCP initialization when no coordinator is provided."""
-    # Create the adapter without a coordinator
-    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
-        adapter = SSETransportAdapter(coordinator=None)
+    adapter = SSETransportAdapter(coordinator=None)
+    # Initialize the adapter (creates Starlette app)
+    await adapter.initialize()
 
-        # Initialize the adapter
+    # Patch FastMCP import location and uvicorn to prevent actual server start
+    with (
+        patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class,
+        patch("uvicorn.Config"),  # Removed mock_uvicorn_config assignment
+        patch("uvicorn.Server") as mock_uvicorn_server,
+    ):
+        mock_uvicorn_server_instance = MagicMock()
+        mock_uvicorn_server_instance.serve = AsyncMock()  # Mock the serve method
+        mock_uvicorn_server.return_value = mock_uvicorn_server_instance
+
         with patch.object(adapter, "logger") as mock_logger:
-            await adapter.initialize()
+            # Call start_listening, which contains the conditional logic for _initialize_fastmcp
+            await adapter.start_listening()
 
             # Verify that FastMCP was not initialized
             mock_fastmcp_class.assert_not_called()
             assert adapter._mcp_server is None
             assert adapter._fastmcp_initialized is False
 
-            # Verify that a warning was logged
-            mock_logger.warning.assert_any_call("No coordinator available, FastMCP will not be initialized")
+            # Verify the warning log message
+            found_warning = False
+            for call_args in mock_logger.warning.call_args_list:
+                if "FastMCP initialization skipped in start_listening" in call_args[0][0]:
+                    found_warning = True
+                    break
+            assert found_warning, "Expected warning log for skipped FastMCP initialization not found"
 
 
 @pytest.mark.asyncio
@@ -92,26 +107,25 @@ async def test_adapter_registers_tools_with_fastmcp():
     mock_coordinator = AsyncMock()
 
     # Create the adapter with the mock coordinator
-    with patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class:
-        mock_fastmcp = MagicMock()
+    with patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class:
+        mock_fastmcp_instance = MagicMock()
         # Create a list to capture the decorated functions
         registered_tools = []
 
         # Mock the tool decorator to capture the registered functions
         def mock_tool_decorator(func):
             registered_tools.append(func.__name__)
-            return func
+            return func  # Return the original function so it can be stored if needed
 
-        mock_fastmcp.tool = MagicMock(return_value=mock_tool_decorator)
-        mock_fastmcp_class.return_value = mock_fastmcp
+        mock_fastmcp_instance.tool = MagicMock(return_value=mock_tool_decorator)
+        mock_fastmcp_class.return_value = mock_fastmcp_instance
 
         adapter = SSETransportAdapter(coordinator=mock_coordinator)
-
-        # Initialize the adapter
-        await adapter.initialize()
+        # Call _initialize_fastmcp directly to test its tool registration behavior.
+        adapter._initialize_fastmcp()
 
         # Verify that tools were registered with FastMCP
-        assert mock_fastmcp.tool.call_count >= 2
+        assert mock_fastmcp_instance.tool.call_count >= 2
         assert "aider_ai_code" in registered_tools
         assert "list_models" in registered_tools
 
@@ -124,7 +138,7 @@ async def test_adapter_integrates_with_mcp_transport(mock_mcp_transport, mock_fa
 
     # Create the adapter with the mock coordinator
     with (
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP", return_value=mock_fastmcp),
+        patch("mcp.server.fastmcp.FastMCP", return_value=mock_fastmcp),
         patch(
             "mcp.server.sse.SseServerTransport",  # Corrected patch target
             return_value=mock_mcp_transport,
@@ -132,7 +146,8 @@ async def test_adapter_integrates_with_mcp_transport(mock_mcp_transport, mock_fa
     ):
         adapter = SSETransportAdapter(coordinator=mock_coordinator)
 
-        # Initialize the adapter
+        # Initialize the adapter (this calls _create_app which initializes _mcp_transport)
+        # _initialize_fastmcp is not called by adapter.initialize()
         await adapter.initialize()
 
         # Verify that the MCP transport was initialized
@@ -161,10 +176,14 @@ async def test_adapter_handle_sse_request_without_mcp(mock_mcp_transport, mock_f
             response = await adapter.handle_sse_request(mock_request)
 
             # Verify that an error was logged
-            mock_logger.error.assert_called_once_with("SSE transport or MCP server not initialized")
+            mock_logger.error.assert_called_once_with(
+                "SSE transport or MCP server not initialized for handling request."
+            )
 
             # Verify that a 500 error response was returned
-            mock_response_cls.assert_called_once_with("Server not properly initialized", status_code=500)
+            mock_response_cls.assert_called_once_with(
+                "Server not properly initialized to handle SSE request", status_code=500
+            )
             assert response == mock_response
 
 
@@ -182,7 +201,7 @@ async def test_aider_ai_code_tool_integration():
     # Mock the process_aider_ai_code_request function
     with (
         patch("aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request") as mock_process_request,
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger"),
     ):
         # Configure the mock FastMCP to capture and execute the tool function
@@ -202,8 +221,8 @@ async def test_aider_ai_code_tool_integration():
         mock_result.result = {"output": "Test output"}
         mock_process_request.return_value = mock_result
 
-        # Initialize the adapter
-        await adapter.initialize()
+        # Initialize FastMCP to register tools
+        adapter._initialize_fastmcp()
 
         # Get the decorated function by name
         aider_ai_code_func = mock_fastmcp._tool_functions.get("aider_ai_code")
@@ -248,7 +267,7 @@ async def test_list_models_tool_integration():
     # Mock the process_list_models_request function
     with (
         patch("aider_mcp_server.organisms.processors.handlers.process_list_models_request") as mock_process_request,
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger"),
     ):
         # Configure the mock FastMCP to capture and execute the tool function
@@ -267,8 +286,8 @@ async def test_list_models_tool_integration():
         mock_result = {"models": ["model1", "model2"]}
         mock_process_request.return_value = mock_result
 
-        # Initialize the adapter
-        await adapter.initialize()
+        # Initialize FastMCP to register tools
+        adapter._initialize_fastmcp()
 
         # Get the decorated function
         list_models_func = mock_fastmcp._list_models_func
@@ -303,7 +322,7 @@ async def test_tool_error_handling():
             "aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request",
             side_effect=Exception("Test exception"),
         ),
-        patch("aider_mcp_server.organisms.transports.sse.sse_transport_adapter.FastMCP") as mock_fastmcp_class,
+        patch("mcp.server.fastmcp.FastMCP") as mock_fastmcp_class,
         patch.object(adapter, "logger") as mock_logger,
     ):
         # Configure the mock FastMCP to capture and execute the tool function
@@ -318,8 +337,8 @@ async def test_tool_error_handling():
         mock_fastmcp.tool = MagicMock(return_value=mock_tool_decorator)
         mock_fastmcp_class.return_value = mock_fastmcp
 
-        # Initialize the adapter
-        await adapter.initialize()
+        # Initialize FastMCP to register tools
+        adapter._initialize_fastmcp()
 
         # Get the decorated function by name
         aider_ai_code_func = mock_fastmcp._tool_functions.get("aider_ai_code")

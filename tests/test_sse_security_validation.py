@@ -299,6 +299,7 @@ async def test_security_in_handle_sse_request():
 
     adapter._mcp_transport = mock_mcp_transport
     adapter._mcp_server = mock_mcp_server
+    adapter._fastmcp_initialized = True  # Prevent _initialize_fastmcp from running
 
     # Mock the starlette Response
     with patch("starlette.responses.Response") as mock_response_cls:
@@ -320,7 +321,11 @@ async def test_security_in_handle_sse_request():
             security_context = adapter.validate_request_security(request_details)
 
             # Check if the request is allowed
-            if not security_context.is_anonymous or Permissions.READ in security_context.permissions:
+            if (
+                not security_context.is_anonymous
+                or Permissions.READ.value in security_context.permissions
+                or Permissions.READ in security_context.permissions
+            ):  # Check for string or enum
                 # Allow the request to proceed
                 return await original_handle_sse(request)
             else:
@@ -335,8 +340,8 @@ async def test_security_in_handle_sse_request():
 
         # Verify that the security validation was performed
         adapter.validate_request_security.assert_called_once()
-        request_details = adapter.validate_request_security.call_args[0][0]
-        assert request_details["client_ip"] == "127.0.0.1"
+        request_details_call = adapter.validate_request_security.call_args[0][0]
+        assert request_details_call["client_ip"] == "127.0.0.1"
 
         # Verify that the MCP transport's connect_sse method was called
         mock_mcp_transport.connect_sse.assert_called_once_with(
