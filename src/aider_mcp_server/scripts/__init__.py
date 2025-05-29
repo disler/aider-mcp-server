@@ -1,0 +1,1 @@
+"""Command-line scripts package for aider-mcp-server."""

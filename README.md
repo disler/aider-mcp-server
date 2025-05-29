@@ -5,7 +5,27 @@
 
 This server allows Claude Code to offload AI coding tasks to Aider, the best open source AI coding assistant. By delegating certain coding tasks to Aider, we can reduce costs, gain control over our coding model and operate Claude Code in a more orchestrative way to review and revise code.
 
-## Setup
+## Quick Setup with setup-aider-mcp
+
+Use the `setup-aider-mcp` utility for easy configuration:
+
+```bash
+# Basic setup
+setup-aider-mcp
+
+# With just-prompt integration
+setup-aider-mcp --also-just-prompt
+
+# List available models
+setup-aider-mcp list-models
+
+# Change model in existing configuration
+setup-aider-mcp change-model --model "openai/gpt-4o"
+```
+
+See [docs/setup-aider-mcp-commands.md](docs/setup-aider-mcp-commands.md) for detailed usage.
+
+## Manual Setup
 
 0. Clone the repository:
 
@@ -86,7 +106,105 @@ Note: The AI coding tests require a valid API key for the Gemini model. Make sur
 
 ## Add this MCP server to Claude Code
 
-### Add with `gemini-2.5-pro-exp-03-25`
+### Using the Setup Script (Recommended)
+
+#### Making the Script Globally Available
+
+You have two options to make the setup script globally available:
+
+##### Option 1: Using npm (Recommended)
+
+Install the script globally using npm:
+
+```bash
+# Install globally via npm from the aider-mcp-server directory
+cd "<path to the aider mcp server project>"
+npm install -g .
+```
+
+This will install the `setup-aider-mcp` command globally in your npm binaries, making it available from any directory.
+
+##### Option 2: Using Python Symlink
+
+Alternatively, you can create a symlink using the Python script:
+
+```bash
+# Install the script globally from the aider-mcp-server directory
+cd "<path to the aider mcp server project>"
+uv run python3 -m aider_mcp_server.setup_aider_mcp --install-global
+```
+
+This will create a symlink in one of your PATH directories (typically `~/.local/bin`), allowing you to run the `setup-aider-mcp` command from anywhere.
+
+#### Using the Script
+
+The easiest way to set up the MCP server is to use the setup script in your project directory:
+
+```bash
+# Navigate to your project
+cd "<path to your project>"
+
+# Run the setup script with default settings
+setup-aider-mcp
+
+# Or set up both aider-mcp and just-prompt together
+setup-aider-mcp --also-just-prompt
+```
+
+By default, the script will:
+1. Use the current directory as the target project
+2. Automatically locate the aider-mcp-server installation (and just-prompt if --also-just-prompt is used)
+3. Ask you to select a model from available options
+
+If you need more control, you can use these options:
+
+```bash
+# Specify paths manually
+setup-aider-mcp --aider-dir "<path to the aider mcp server project>" --current-dir "<path to your project>"
+
+# Specify a model directly (skips the interactive selection)
+setup-aider-mcp --model "gemini/gemini-2.5-pro-exp-03-25"
+
+# Set up with just-prompt integration
+setup-aider-mcp --also-just-prompt --just-prompt-models "o:gpt-4o,a:claude-3-5-haiku"
+```
+
+**Tip**: You can set paths in a `.env` file in your project directory:
+```
+AIDER_MCP_SERVER_PATH=/path/to/aider-mcp-server
+JUST_PROMPT_PATH=/path/to/just-prompt
+```
+
+The script will automatically read these variables, so you can simply run:
+```bash
+setup-aider-mcp setup --also-just-prompt
+```
+
+See [docs/setup-aider-mcp-env-var.md](docs/setup-aider-mcp-env-var.md) for more details on environment variable usage.
+
+For more details on the just-prompt integration, see [just-prompt-integration.md](just-prompt-integration.md).
+
+The script will:
+1. Verify your project is a git repository (required by Aider)
+2. Find the aider-mcp-server installation (automatically if not specified)
+3. Read API keys from the .env file
+4. Present available models based on configured API keys (or use the specified model)
+5. Create a .mcp.json file in your project directory
+
+**Important Note**: If your project is not already a git repository, you'll receive a clear error message with instructions to initialize one:
+```
+git init
+```
+
+Then run the setup script again.
+
+After setup, you can add the server to Claude Code using the command shown in the script output.
+
+### Manual Configuration
+
+You can also manually add the server using these commands:
+
+#### Add with `gemini-2.5-pro-exp-03-25`
 
 ```bash
 claude mcp add aider-mcp-server -s local \
@@ -97,7 +215,7 @@ claude mcp add aider-mcp-server -s local \
   --current-working-dir "<path to your project>"
 ```
 
-### Add with `gemini-2.5-pro-preview-03-25`
+#### Add with `gemini-2.5-pro-preview-03-25`
 
 ```bash
 claude mcp add aider-mcp-server -s local \
@@ -108,7 +226,7 @@ claude mcp add aider-mcp-server -s local \
   --current-working-dir "<path to your project>"
 ```
 
-### Add with `quasar-alpha`
+#### Add with `quasar-alpha`
 
 ```bash
 claude mcp add aider-mcp-server -s local \
@@ -119,7 +237,7 @@ claude mcp add aider-mcp-server -s local \
   --current-working-dir "<path to your project>"
 ```
 
-### Add with `llama4-maverick-instruct-basic`
+#### Add with `llama4-maverick-instruct-basic`
 
 ```bash
 claude mcp add aider-mcp-server -s local \
