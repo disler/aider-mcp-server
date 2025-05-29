@@ -12,8 +12,8 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, TextIO, Union
 
-import aiohttp
-import aiohttp.client_exceptions
+if TYPE_CHECKING:
+    import aiohttp
 
 from aider_mcp_server.atoms.security.context import ANONYMOUS_SECURITY_CONTEXT, SecurityContext
 
@@ -93,7 +93,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
     _discovery: Optional[CoordinatorDiscovery] = None
     _discovery_file: Optional[Path] = None
     _streaming_coordinators: List[CoordinatorInfo] = []
-    _client_session: Optional[aiohttp.ClientSession] = None
+    _client_session: Optional["aiohttp.ClientSession"] = None
 
     def __init__(
         self,
@@ -371,6 +371,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         # Create a client session for relaying events if streaming coordinators were found
         if self._streaming_coordinators and self._client_session is None:
             self.logger.info("Creating aiohttp ClientSession for event relaying.")
+            import aiohttp
             self._client_session = aiohttp.ClientSession()
 
         self.logger.info(f"Stdio transport {self.transport_id} initialized.")
@@ -459,20 +460,23 @@ class StdioTransportAdapter(AbstractTransportAdapter):
                     f"Successfully relayed event {event_type.value} to "
                     f"{coord_info.coordinator_id} at {url} (Status: {response.status})"
                 )
-        except aiohttp.client_exceptions.ClientConnectorError as e:
-            self.logger.warning(
-                f"Failed to connect to streaming endpoint for {coord_info.coordinator_id} "
-                f"at {url} to relay event {event_type.value}: {e}"
-            )
-        except aiohttp.client_exceptions.ClientResponseError as e:
-            self.logger.warning(
-                f"Received error response from streaming endpoint for {coord_info.coordinator_id} "
-                f"at {url} while relaying event {event_type.value}: {e.status} - {e.message}"
-            )
         except Exception as e:
-            self.logger.error(
-                f"Unexpected error relaying event {event_type.value} to {coord_info.coordinator_id} at {url}: {e}"
-            )
+            # Import aiohttp exceptions locally to handle them
+            import aiohttp.client_exceptions
+            if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
+                self.logger.warning(
+                    f"Failed to connect to streaming endpoint for {coord_info.coordinator_id} "
+                    f"at {url} to relay event {event_type.value}: {e}"
+                )
+            elif isinstance(e, aiohttp.client_exceptions.ClientResponseError):
+                self.logger.warning(
+                    f"Received error response from streaming endpoint for {coord_info.coordinator_id} "
+                    f"at {url} while relaying event {event_type.value}: {e.status} - {e.message}"
+                )
+            else:
+                self.logger.error(
+                    f"Unexpected error relaying event {event_type.value} to {coord_info.coordinator_id} at {url}: {e}"
+                )
 
     async def send_event(self, event_type: EventTypes, data: EventData) -> None:
         """
