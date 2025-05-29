@@ -111,31 +111,44 @@ class HttpServerManager:
             ValueError: If client session does not exist
         """
         async with self._lock:
-            if client_id not in self._active_sessions:
-                raise ValueError(f"No active session found for client {client_id}")
+            await self._destroy_client_session_internal(client_id)
 
-            # Get associated server
-            server_id = self._client_to_server.get(client_id)
+    async def _destroy_client_session_internal(self, client_id: str) -> None:
+        """
+        Internal method to destroy a client session without acquiring the lock.
+        This method assumes the caller already holds self._lock.
 
-            # Remove session
-            session_info = self._active_sessions.pop(client_id)
+        Args:
+            client_id: ID of the client session to destroy
 
-            # Remove client-to-server mapping
-            if client_id in self._client_to_server:
-                del self._client_to_server[client_id]
+        Raises:
+            ValueError: If client session does not exist
+        """
+        if client_id not in self._active_sessions:
+            raise ValueError(f"No active session found for client {client_id}")
 
-            # Update or remove server info
-            if server_id and server_id in self._active_servers:
-                server_info = self._active_servers[server_id]
-                server_info.active_clients -= 1
+        # Get associated server
+        server_id = self._client_to_server.get(client_id)
 
-                # If no more clients, mark server for cleanup
-                if server_info.active_clients <= 0:
-                    server_info.status = "stopping"
-                    # TODO: Actual server cleanup will be implemented with ProcessManager
-                    del self._active_servers[server_id]
+        # Remove session
+        session_info = self._active_sessions.pop(client_id)
 
-            self.logger.info(f"Destroyed client session: {session_info.session_id} for client {client_id}")
+        # Remove client-to-server mapping
+        if client_id in self._client_to_server:
+            del self._client_to_server[client_id]
+
+        # Update or remove server info
+        if server_id and server_id in self._active_servers:
+            server_info = self._active_servers[server_id]
+            server_info.active_clients -= 1
+
+            # If no more clients, mark server for cleanup
+            if server_info.active_clients <= 0:
+                server_info.status = "stopping"
+                # TODO: Actual server cleanup will be implemented with ProcessManager
+                del self._active_servers[server_id]
+
+        self.logger.info(f"Destroyed client session: {session_info.session_id} for client {client_id}")
 
     async def get_client_server_info(self, client_id: str) -> Optional[ServerInfo]:
         """
@@ -228,7 +241,7 @@ class HttpServerManager:
             # Clean up expired sessions
             for client_id in expired_clients:
                 try:
-                    await self.destroy_client_session(client_id)
+                    await self._destroy_client_session_internal(client_id)
                     self.logger.info(f"Cleaned up expired session for client {client_id}")
                 except Exception as e:
                     self.logger.error(f"Error cleaning up session for client {client_id}: {e}")
@@ -248,7 +261,7 @@ class HttpServerManager:
             # Destroy all active sessions
             for client_id in active_clients:
                 try:
-                    await self.destroy_client_session(client_id)
+                    await self._destroy_client_session_internal(client_id)
                 except Exception as e:
                     self.logger.error(f"Error destroying session for client {client_id}: {e}")
 
