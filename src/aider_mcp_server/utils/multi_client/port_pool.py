@@ -7,24 +7,24 @@ ports for multi-client HTTP server instances.
 
 import asyncio
 import socket
-from typing import Set
+from typing import Optional, Set
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.atoms.utils.config_constants import (
-    MULTI_CLIENT_PORT_RANGE_START,
     MULTI_CLIENT_PORT_RANGE_END,
+    MULTI_CLIENT_PORT_RANGE_START,
 )
 
 
 class PortPool:
     """
     Manages a pool of available ports for dynamic allocation.
-    
+
     This class handles port allocation and deallocation with proper
     thread safety and port availability checking.
     """
 
-    def __init__(self, start_port: int = None, end_port: int = None) -> None:
+    def __init__(self, start_port: Optional[int] = None, end_port: Optional[int] = None) -> None:
         """
         Initialize the PortPool.
 
@@ -38,15 +38,16 @@ class PortPool:
         self.logger = get_logger(f"{__name__}.{self.__class__.__name__}")
         self._lock = asyncio.Lock()
 
+        self._available_ports: Set[int]  # Declare type here
         if self.start_port > self.end_port:
             self.logger.warning(
                 f"PortPool initialized with invalid range: start_port ({self.start_port}) > end_port ({self.end_port}). "
                 "No ports will be available."
             )
-            self._available_ports: Set[int] = set()
+            self._available_ports = set()
         else:
-            self._available_ports: Set[int] = set(range(self.start_port, self.end_port + 1))
-        
+            self._available_ports = set(range(self.start_port, self.end_port + 1))
+
         self._allocated_ports: Set[int] = set()
 
         self.logger.info(
@@ -63,7 +64,7 @@ class PortPool:
 
         Returns:
             An available port number.
-        
+
         Raises:
             RuntimeError: If no ports are available in the pool or if all
                           ports in the pool are currently in use on the system.
@@ -75,7 +76,7 @@ class PortPool:
 
             # Iterate through a list copy of available ports to allow modification of the set
             ports_to_check = list(self._available_ports)
-            
+
             for port in ports_to_check:
                 if await self.is_port_available(port):
                     self._available_ports.remove(port)
@@ -89,15 +90,17 @@ class PortPool:
                         f"Port {port} from pool is already in use on the system. "
                         "Removing from available set for this session."
                     )
-                    if port in self._available_ports: # ensure it hasn't been removed by another concurrent check (though lock prevents this)
+                    if (
+                        port in self._available_ports
+                    ):  # ensure it hasn't been removed by another concurrent check (though lock prevents this)
                         self._available_ports.remove(port)
-            
+
             self.logger.error(
                 "No system-available ports found in the configured range. "
                 "All potentially available ports were occupied by other processes."
             )
             raise RuntimeError("No system-available ports found in the configured range.")
-        
+
     async def release_port(self, port: int) -> None:
         """
         Release a port back to the pool.
@@ -137,25 +140,25 @@ class PortPool:
                     f"Attempted to release port {port}, which is outside the configured pool range "
                     f"({self.start_port}-{self.end_port}) and was not in the allocated set."
                 )
-        
+
     async def is_port_available(self, port: int) -> bool:
         """
         Check if a port is available on the system for binding on host "127.0.0.1".
 
         Args:
             port: The port number to check.
-        
+
         Returns:
             True if the port is available for binding, False otherwise.
         """
         host_to_check = "127.0.0.1"  # Standard host for local services
 
-        if not (0 < port < 65536): # Ports are 1-65535. Port 0 has special meaning.
+        if not (0 < port < 65536):  # Ports are 1-65535. Port 0 has special meaning.
             self.logger.debug(f"Port {port} is outside the valid range (1-65535). Considered unavailable.")
             return False
 
         # This is a blocking synchronous function
-        def _check_socket_binding_sync():
+        def _check_socket_binding_sync() -> bool:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     # Set SO_REUSEADDR to allow reuse of local addresses in TIME_WAIT state
@@ -166,17 +169,13 @@ class PortPool:
                 # Common errors: EADDRINUSE (Address already in use)
                 self.logger.debug(f"Port {port} on {host_to_check} is not available for binding. Error: {e}")
                 return False
-            except Exception as e: # Catch any other unexpected errors during socket operations
-                self.logger.warning(
-                    f"Unexpected error while checking port {port} on {host_to_check} via socket: {e}"
-                )
+            except Exception as e:  # Catch any other unexpected errors during socket operations
+                self.logger.warning(f"Unexpected error while checking port {port} on {host_to_check} via socket: {e}")
                 return False
 
         try:
             # Run the blocking socket check in a separate thread
             return await asyncio.to_thread(_check_socket_binding_sync)
-        except Exception as e: # Catch errors from asyncio.to_thread itself
-            self.logger.error(
-                f"Error executing port check for {port} on {host_to_check} using asyncio.to_thread: {e}"
-            )
+        except Exception as e:  # Catch errors from asyncio.to_thread itself
+            self.logger.error(f"Error executing port check for {port} on {host_to_check} using asyncio.to_thread: {e}")
             return False

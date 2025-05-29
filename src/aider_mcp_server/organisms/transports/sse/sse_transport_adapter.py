@@ -31,10 +31,12 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 )
 
 if TYPE_CHECKING:
-    from ...pages.application.coordinator import ApplicationCoordinator
     # Add imports for official MCP SDK
     from mcp.server.fastmcp import FastMCP
     from mcp.server.sse import SseServerTransport
+
+    from ...pages.application.coordinator import ApplicationCoordinator
+
     # from starlette.applications import Starlette # Not needed for class-level hints here
     # from starlette.routing import Mount, Route # Not needed for class-level hints here
     # from starlette.responses import Response # Not needed for class-level hints here
@@ -242,9 +244,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
             # This should ideally not happen if initialize() was called, which calls _create_app()
             self.logger.warning("Starlette app not initialized. Creating app now.")
             await self._create_app()
-            if self._app is None: # Still None after attempt
-                 raise RuntimeError("App not initialized. Call _create_app() first.")
-
+            if self._app is None:  # Still None after attempt
+                raise RuntimeError("App not initialized. Call _create_app() first.")
 
         config = uvicorn.Config(
             app=self._app,
@@ -389,7 +390,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         except asyncio.CancelledError:
             self.logger.debug("SSE connection cancelled (client disconnect)")
-            return Response() # Return a default response for cancellation
+            return Response()  # Return a default response for cancellation
         except Exception as e:
             self.logger.error(f"Error handling SSE connection: {e}", exc_info=True)
             return Response(f"Error handling SSE connection: {e}", status_code=500)
