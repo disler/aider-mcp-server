@@ -372,6 +372,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         if self._streaming_coordinators and self._client_session is None:
             self.logger.info("Creating aiohttp ClientSession for event relaying.")
             import aiohttp
+
             self._client_session = aiohttp.ClientSession()
 
         self.logger.info(f"Stdio transport {self.transport_id} initialized.")
@@ -463,6 +464,7 @@ class StdioTransportAdapter(AbstractTransportAdapter):
         except Exception as e:
             # Import aiohttp exceptions locally to handle them
             import aiohttp.client_exceptions
+
             if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
                 self.logger.warning(
                     f"Failed to connect to streaming endpoint for {coord_info.coordinator_id} "
