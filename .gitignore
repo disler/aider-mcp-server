@@ -112,3 +112,4 @@ scripts/example_prd.txt
 # Local workflow and tracking files
 /.roo/
 /.cursor/
+/.claude/
