@@ -1,0 +1,177 @@
+{
+  "authorized_commands": {
+    "description": "Authorized commands for TaskMaster AI Development Workflow",
+    "quality_validation": {
+      "pixi": [
+        "pixi run -e dev pytest",
+        "pixi run -e dev pytest -x",
+        "pixi run -e dev pytest tests/**/test_*.py -v",
+        "pixi run -e dev ruff check --select=F,E9",
+        "pixi run -e dev ruff check --select=F,E9 --fix",
+        "pixi run -e dev ruff format",
+        "pixi run -e dev mypy src/",
+        "pixi run -e dev pre-commit run --all-files"
+      ],
+      "poetry": [
+        "poetry run pytest",
+        "poetry run pytest -x",
+        "poetry run pytest tests/**/test_*.py -v",
+        "poetry run ruff check --select=F,E9",
+        "poetry run ruff check --select=F,E9 --fix",
+        "poetry run ruff format",
+        "poetry run mypy src/",
+        "poetry run pre-commit run --all-files"
+      ],
+      "hatch": [
+        "hatch run dev:pytest",
+        "hatch run dev:pytest -x",
+        "hatch run dev:pytest tests/**/test_*.py -v",
+        "hatch run dev:ruff check --select=F,E9",
+        "hatch run dev:ruff check --select=F,E9 --fix",
+        "hatch run dev:ruff format",
+        "hatch run dev:mypy src/",
+        "hatch run dev:pre-commit run --all-files"
+      ],
+      "direct": [
+        "pytest",
+        "pytest -x",
+        "pytest tests/**/test_*.py -v",
+        "ruff check --select=F,E9",
+        "ruff check --select=F,E9 --fix",
+        "ruff format",
+        "mypy src/",
+        "pre-commit run --all-files"
+      ]
+    },
+    "git_workflow": [
+      "git status",
+      "git log --oneline -5",
+      "git log --oneline -10",
+      "git diff",
+      "git diff --staged",
+      "git commit -m \"FEAT: implement Task X - [Task Title]\"",
+      "git push origin feature/environment-manager-integration",
+      "git push origin main"
+    ],
+    "pr_management": [
+      "gh pr view --json number,title,url",
+      "gh pr view --json commits",
+      "gh pr checks",
+      "gh pr edit 28 --body",
+      "gh pr create --title",
+      "gh api repos/owner/repo/pulls/123/comments"
+    ],
+    "project_utilities": [
+      "ls -la scripts/",
+      "chmod +x scripts/task-workflow.sh",
+      "./scripts/task-workflow.sh",
+      "./scripts/task-workflow.sh 8 quality",
+      "./scripts/task-workflow.sh 9 completion",
+      "./scripts/task-workflow.sh - check",
+      "find . -name '*.py' -type f | head -10",
+      "grep -r 'TestExecutor' src/",
+      "rg 'TestExecutor' src/"
+    ],
+    "environment_detection": [
+      "test -f pixi.toml && echo 'pixi' || echo 'other'",
+      "test -f pyproject.toml && grep -q 'tool.poetry' pyproject.toml && echo 'poetry' || echo 'other'",
+      "test -f pyproject.toml && grep -q 'tool.hatch' pyproject.toml && echo 'hatch' || echo 'other'"
+    ]
+  },
+  "taskmaster_integration": {
+    "description": "TaskMaster AI commands are handled through MCP tools, not bash commands",
+    "mcp_tools": [
+      "mcp__taskmaster-ai__get_tasks",
+      "mcp__taskmaster-ai__next_task",
+      "mcp__taskmaster-ai__set_task_status",
+      "mcp__taskmaster-ai__get_task",
+      "mcp__taskmaster-ai__add_task",
+      "mcp__taskmaster-ai__update_task",
+      "mcp__taskmaster-ai__complexity_report",
+      "mcp__taskmaster-ai__expand_task"
+    ]
+  },
+  "claude_code_tools": {
+    "description": "Primary development tools available in Claude Code",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "TodoRead",
+      "TodoWrite"
+    ]
+  },
+  "workflow_phases": {
+    "phase_1_planning": {
+      "description": "Task Status and Planning",
+      "primary_tools": ["mcp__taskmaster-ai__get_tasks", "mcp__taskmaster-ai__next_task", "TodoWrite"],
+      "commands": ["git status", "git log --oneline -5"]
+    },
+    "phase_2_analysis": {
+      "description": "Implementation Analysis",
+      "primary_tools": ["Glob", "Grep", "Read", "Task"],
+      "commands": ["find . -name '*.py'", "grep -r 'pattern' src/"]
+    },
+    "phase_3_implementation": {
+      "description": "Core Implementation",
+      "primary_tools": ["mcp__aider__aider_ai_code"],
+      "commands": []
+    },
+    "phase_4_quality": {
+      "description": "Quality Validation Sequence",
+      "primary_tools": ["Bash"],
+      "commands": [
+        "pixi run -e dev pytest tests/path/to/new_tests.py -v",
+        "pixi run -e dev pytest -x",
+        "pixi run -e dev ruff check --select=F,E9",
+        "pixi run -e dev pre-commit run --all-files",
+        "git status"
+      ]
+    },
+    "phase_5_completion": {
+      "description": "Task Completion and Git Workflow",
+      "primary_tools": ["mcp__taskmaster-ai__set_task_status", "TodoWrite", "Bash"],
+      "commands": [
+        "git add [selective staging]",
+        "git commit -m \"FEAT: implement Task X\"",
+        "git push origin [branch]"
+      ]
+    },
+    "phase_6_pr_management": {
+      "description": "PR Management and Documentation",
+      "primary_tools": ["Bash"],
+      "commands": [
+        "gh pr checks",
+        "gh pr edit [PR_NUMBER] --body"
+      ]
+    }
+  },
+  "success_metrics": {
+    "quality_indicators": [
+      "All tests pass (typically 600+ tests)",
+      "Zero critical lint violations (F,E9)",
+      "All pre-commit hooks pass",
+      "CI checks green",
+      "TaskMaster status updated",
+      "Clean git status"
+    ],
+    "development_velocity": {
+      "task_implementation": "20-30 minutes per moderate complexity task",
+      "testing": "Comprehensive test suites with 15-25 tests per module",
+      "quality_validation": "Full pipeline under 2 minutes",
+      "integration": "Zero regressions across 600+ existing tests"
+    }
+  },
+  "project_specific": {
+    "environment_manager": "pixi",
+    "test_command": "pixi run -e dev pytest",
+    "lint_command": "pixi run -e dev ruff check --select=F,E9",
+    "format_command": "pixi run -e dev ruff format",
+    "precommit_command": "pixi run -e dev pre-commit run --all-files",
+    "branch": "feature/environment-manager-integration",
+    "pr_number": 28
+  }
+}

@@ -65,7 +65,7 @@ class ClientSessionManager:
                 raise ValueError(f"Client {client_id} already has an active session.")
 
             session_id = f"session_{uuid.uuid4().hex[:8]}"
-            
+
             base_workspace_dir = Path(WORKSPACE_BASE_DIR).expanduser().resolve()
             workspace_path = base_workspace_dir / client_id
 
@@ -168,7 +168,7 @@ class ClientSessionManager:
                         f" Timeout: {CLIENT_SESSION_TIMEOUT}s"
                     )
                     expired_client_ids.append(client_id)
-            
+
             for client_id in expired_client_ids:
                 try:
                     await self._cleanup_client_session_internal(client_id)
@@ -179,7 +179,9 @@ class ClientSessionManager:
                     )
                 except Exception as e:
                     self.logger.error(f"Error cleaning up expired session for client {client_id}: {e}")
-            
+
             if expired_client_ids:
-                self.logger.info(f"Attempted cleanup for {len(expired_client_ids)} expired sessions: {expired_client_ids}")
+                self.logger.info(
+                    f"Attempted cleanup for {len(expired_client_ids)} expired sessions: {expired_client_ids}"
+                )
             return expired_client_ids
