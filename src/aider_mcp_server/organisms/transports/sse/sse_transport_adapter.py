@@ -32,10 +32,14 @@ from aider_mcp_server.molecules.transport.base_adapter import (
 
 if TYPE_CHECKING:
     from ...pages.application.coordinator import ApplicationCoordinator
+    # Add imports for official MCP SDK
+    from mcp.server.fastmcp import FastMCP
+    from mcp.server.sse import SseServerTransport
+    # from starlette.applications import Starlette # Not needed for class-level hints here
+    # from starlette.routing import Mount, Route # Not needed for class-level hints here
+    # from starlette.responses import Response # Not needed for class-level hints here
 
 # Add imports for official MCP SDK
-from mcp.server.fastmcp import FastMCP
-from mcp.server.sse import SseServerTransport
 
 
 class SSETransportAdapter(AbstractTransportAdapter):
@@ -110,6 +114,8 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
     def _initialize_fastmcp(self) -> None:
         """Initialize the FastMCP server with tools from the coordinator."""
+        from mcp.server.fastmcp import FastMCP
+
         if self._fastmcp_initialized:
             return
 
