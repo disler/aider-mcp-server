@@ -99,17 +99,13 @@ class SSETransportAdapter(AbstractTransportAdapter):
         Initialize the SSE transport adapter.
 
         Sets up the Starlette app with SSE endpoints and prepares it for serving.
+        FastMCP initialization is deferred until actually needed.
         """
         # Call parent initialization
         await super().initialize()
 
-        # Initialize FastMCP if coordinator is available
-        if hasattr(self, "_coordinator") and self._coordinator:
-            self._initialize_fastmcp()
-        else:
-            self.logger.warning("No coordinator available, FastMCP will not be initialized")
-
         # Create the Starlette app with SSE endpoints
+        # This is lightweight and doesn't initialize FastMCP itself.
         await self._create_app()
 
     def _initialize_fastmcp(self) -> None:
@@ -117,6 +113,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
         if self._fastmcp_initialized:
             return
 
+        self.logger.debug("Initializing FastMCP server and tools...")
         # Create the FastMCP instance
         self._mcp_server = FastMCP("aider-sse")
 
@@ -196,6 +193,7 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 return []
 
         self._fastmcp_initialized = True
+        self.logger.debug("FastMCP server and tools initialized.")
 
     async def _create_app(self) -> None:
         """Create the Starlette application with SSE endpoints."""
@@ -220,13 +218,27 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
     async def start_listening(self) -> None:
         """Start listening for SSE connections."""
+        # Ensure FastMCP is initialized if not already, and a coordinator is available.
+        if not self._fastmcp_initialized:
+            if hasattr(self, "_coordinator") and self._coordinator:
+                self.logger.debug("Initializing FastMCP from start_listening...")
+                self._initialize_fastmcp()
+            else:
+                self.logger.warning(
+                    "FastMCP initialization skipped in start_listening: No coordinator available or already initialized."
+                )
 
         # Import here to avoid circular dependency issues
         import uvicorn
 
         # Create server configuration
         if self._app is None:
-            raise RuntimeError("App not initialized. Call _create_app() first.")
+            # This should ideally not happen if initialize() was called, which calls _create_app()
+            self.logger.warning("Starlette app not initialized. Creating app now.")
+            await self._create_app()
+            if self._app is None: # Still None after attempt
+                 raise RuntimeError("App not initialized. Call _create_app() first.")
+
 
         config = uvicorn.Config(
             app=self._app,
@@ -345,6 +357,16 @@ class SSETransportAdapter(AbstractTransportAdapter):
 
         self.logger.debug("Handling SSE connection")
         try:
+            # Ensure FastMCP is initialized if not already, and a coordinator is available.
+            if not self._fastmcp_initialized:
+                if hasattr(self, "_coordinator") and self._coordinator:
+                    self.logger.debug("Initializing FastMCP from handle_sse_request...")
+                    self._initialize_fastmcp()
+                else:
+                    self.logger.warning(
+                        "FastMCP initialization skipped in handle_sse_request: No coordinator available or already initialized."
+                    )
+
             if self._mcp_transport and self._mcp_server:
                 async with self._mcp_transport.connect_sse(request.scope, request.receive, request._send) as streams:
                     self.logger.debug("Running MCP server for SSE connection")
@@ -356,15 +378,15 @@ class SSETransportAdapter(AbstractTransportAdapter):
                 # Return empty response after successful handling
                 return Response()
             else:
-                self.logger.error("SSE transport or MCP server not initialized")
-                return Response("Server not properly initialized", status_code=500)
+                self.logger.error("SSE transport or MCP server not initialized for handling request.")
+                return Response("Server not properly initialized to handle SSE request", status_code=500)
 
         except asyncio.CancelledError:
             self.logger.debug("SSE connection cancelled (client disconnect)")
-            return Response()
+            return Response() # Return a default response for cancellation
         except Exception as e:
-            self.logger.error(f"Error handling SSE connection: {e}")
-            return Response(status_code=500)
+            self.logger.error(f"Error handling SSE connection: {e}", exc_info=True)
+            return Response(f"Error handling SSE connection: {e}", status_code=500)
 
     async def handle_message_request(self, request: Any) -> Any:
         """Handle incoming message requests."""
