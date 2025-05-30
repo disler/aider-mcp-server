@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.atoms.types.data_types import ProcessInfo
+
 # Assuming PortPool will be available from this path
 from aider_mcp_server.utils.multi_client.port_pool import PortPool
 
@@ -31,7 +32,7 @@ class ProcessManager:
 
     def __init__(
         self,
-        port_pool: PortPool, # Type hint for PortPool
+        port_pool: PortPool,  # Type hint for PortPool
         max_restarts: int = MAX_RESTARTS_DEFAULT,
         health_check_interval: int = DEFAULT_HEALTH_CHECK_INTERVAL,
         termination_timeout: int = DEFAULT_TERMINATION_TIMEOUT,
@@ -89,7 +90,7 @@ class ProcessManager:
             acquired_port = -1
             try:
                 acquired_port = await self.port_pool.acquire_port()
-                if acquired_port == -1: # Assuming -1 means failure from PortPool
+                if acquired_port == -1:  # Assuming -1 means failure from PortPool
                     raise RuntimeError("Failed to acquire a port from PortPool.")
                 self.logger.info(f"Acquired port {acquired_port} for process {process_id}")
 
@@ -106,10 +107,12 @@ class ProcessManager:
                     *command,
                     cwd=str(workspace_path),
                     env=env,
-                    stdout=asyncio.subprocess.PIPE, # Capture stdout/stderr for logging/debugging
+                    stdout=asyncio.subprocess.PIPE,  # Capture stdout/stderr for logging/debugging
                     stderr=asyncio.subprocess.PIPE,
                 )
-                self.logger.info(f"Spawned process {process_id} (PID: {sub_process.pid}) on port {acquired_port} with command: {' '.join(command)}")
+                self.logger.info(
+                    f"Spawned process {process_id} (PID: {sub_process.pid}) on port {acquired_port} with command: {' '.join(command)}"
+                )
 
                 process_info = ProcessInfo(
                     process_id=process_id,
@@ -152,37 +155,38 @@ class ProcessManager:
             if process_info.status in ["stopping", "stopped", "failed"]:
                 self.logger.info(f"Process {process_id} is already {process_info.status}.")
                 # Ensure port is released if it was somehow left acquired
-                if process_info.port != -1 and process_info.status != "stopped": # 'stopped' status implies port released
-                     # Check if port is still held by this process_info before releasing
-                    pass # Port release is handled in _cleanup_process_resources
+                if (
+                    process_info.port != -1 and process_info.status != "stopped"
+                ):  # 'stopped' status implies port released
+                    # Check if port is still held by this process_info before releasing
+                    pass  # Port release is handled in _cleanup_process_resources
                 return
 
             await self._terminate_process_object(process_info)
             await self._cleanup_process_resources(process_id, process_info, "stopped")
 
-
     async def _terminate_process_object(self, process_info: ProcessInfo) -> None:
         """Helper to terminate the actual OS process."""
         self.logger.info(f"Terminating process {process_info.process_id} (PID: {process_info.process.pid})...")
         process_info.status = "stopping"
-        
-        if process_info.process.returncode is None: # Process is running
+
+        if process_info.process.returncode is None:  # Process is running
             try:
-                process_info.process.terminate() # Send SIGTERM
+                process_info.process.terminate()  # Send SIGTERM
                 await asyncio.wait_for(process_info.process.wait(), timeout=self.termination_timeout)
                 self.logger.info(f"Process {process_info.process_id} terminated gracefully (SIGTERM).")
             except asyncio.TimeoutError:
                 self.logger.warning(
                     f"Process {process_info.process_id} did not terminate gracefully within {self.termination_timeout}s. Sending SIGKILL."
                 )
-                if process_info.process.returncode is None: # Check again before kill
+                if process_info.process.returncode is None:  # Check again before kill
                     process_info.process.kill()
-                    await process_info.process.wait() # Ensure it's killed
+                    await process_info.process.wait()  # Ensure it's killed
                 self.logger.info(f"Process {process_info.process_id} killed (SIGKILL).")
-            except Exception as e: # Catch other potential errors during termination
+            except Exception as e:  # Catch other potential errors during termination
                 self.logger.error(f"Error during process termination for {process_info.process_id}: {e}")
-                if process_info.process.returncode is None: # If still running after error
-                    process_info.process.kill() # Ensure it's killed
+                if process_info.process.returncode is None:  # If still running after error
+                    process_info.process.kill()  # Ensure it's killed
                     await process_info.process.wait()
 
         # Log stdout/stderr if available
@@ -195,17 +199,16 @@ class ProcessManager:
         if process_info.port != -1:
             await self.port_pool.release_port(process_info.port)
             self.logger.info(f"Released port {process_info.port} for process {process_id}")
-            process_info.port = -1 # Mark port as released in ProcessInfo
+            process_info.port = -1  # Mark port as released in ProcessInfo
 
         process_info.status = final_status
         # Keep failed processes in the list for inspection, but they are effectively "stopped"
         if final_status == "stopped":
-            if process_id in self._active_processes: # It might have been removed by respawn logic
+            if process_id in self._active_processes:  # It might have been removed by respawn logic
                 del self._active_processes[process_id]
             if process_id in self._process_metadata:
                 del self._process_metadata[process_id]
             self.logger.info(f"Process {process_id} removed from active tracking.")
-
 
     async def get_process_info(self, process_id: str) -> Optional[ProcessInfo]:
         """Get information about a specific process."""
@@ -216,7 +219,7 @@ class ProcessManager:
         """List all currently managed processes."""
         async with self._lock:
             return list(self._active_processes.values())
-            
+
     async def get_process_by_client_id(self, client_id: str) -> Optional[ProcessInfo]:
         """Get process information for a given client ID."""
         async with self._lock:
@@ -235,11 +238,11 @@ class ProcessManager:
             # Re-acquire lock for modifications or sensitive reads if necessary,
             # but basic returncode check can be outside.
             # For this iteration, we'll lock per process modification.
-            
+
             proc = process_info.process
             if proc.returncode is None:
                 # Process is still running (or thinks it is)
-                if process_info.status == "starting": # First successful check after starting
+                if process_info.status == "starting":  # First successful check after starting
                     process_info.status = "running"
                 process_info.last_health_check = datetime.now(timezone.utc)
                 # self.logger.debug(f"Process {process_id} is healthy (PID: {proc.pid}).")
@@ -255,7 +258,6 @@ class ProcessManager:
                     current_process_info = self._active_processes.get(process_id)
                     if current_process_info and current_process_info.status not in ["stopping", "stopped", "failed"]:
                         await self._handle_process_completion(process_id, proc.returncode)
-
 
     async def _handle_process_completion(self, process_id: str, return_code: int) -> None:
         """
@@ -273,11 +275,10 @@ class ProcessManager:
         if process_info.port != -1:
             await self.port_pool.release_port(process_info.port)
             self.logger.info(f"Released port {process_info.port} for completed process {process_id}")
-            original_port = process_info.port # Keep for respawn attempt if needed
-            process_info.port = -1 # Mark as released
-        else: # Should not happen if port was properly managed
-            original_port = -1 
-
+            original_port = process_info.port  # Keep for respawn attempt if needed
+            process_info.port = -1  # Mark as released
+        else:  # Should not happen if port was properly managed
+            original_port = -1
 
         if process_info.restart_count < self.max_restarts:
             process_info.restart_count += 1
@@ -285,7 +286,7 @@ class ProcessManager:
             self.logger.info(
                 f"Attempting to restart process {process_id} (attempt {process_info.restart_count}/{self.max_restarts})."
             )
-            
+
             # Retrieve metadata for respawn
             metadata = self._process_metadata.get(process_id, {})
             port_env_var = metadata.get("port_env_var", PORT_ENV_VAR_DEFAULT)
@@ -305,7 +306,7 @@ class ProcessManager:
                     env.update(extra_env)
 
                 new_sub_process = await asyncio.create_subprocess_exec(
-                    *process_info.command, # Use original command
+                    *process_info.command,  # Use original command
                     cwd=str(process_info.workspace_path),
                     env=env,
                     stdout=asyncio.subprocess.PIPE,
@@ -314,19 +315,19 @@ class ProcessManager:
                 self.logger.info(
                     f"Respawned process {process_id} as new PID {new_sub_process.pid} on port {new_acquired_port}."
                 )
-                
+
                 # Update ProcessInfo with new process and port
                 process_info.process = new_sub_process
-                process_info.port = new_acquired_port # Update to the new port
-                process_info.status = "starting" # Or "running" if health check is immediate
+                process_info.port = new_acquired_port  # Update to the new port
+                process_info.status = "starting"  # Or "running" if health check is immediate
                 process_info.created_at = datetime.now(timezone.utc)
                 process_info.last_health_check = datetime.now(timezone.utc)
                 # _active_processes already holds this process_info, just updated
             except Exception as e:
                 self.logger.error(f"Failed to restart process {process_id}: {e}")
-                process_info.status = "failed" # Mark as failed if restart fails
+                process_info.status = "failed"  # Mark as failed if restart fails
                 # Ensure the newly acquired port (if any) is released if restart fails mid-way
-                if new_acquired_port != -1 and new_acquired_port != original_port : # original_port already released
+                if new_acquired_port != -1 and new_acquired_port != original_port:  # original_port already released
                     await self.port_pool.release_port(new_acquired_port)
                 # If original_port was re-acquired and failed, it should be released.
                 # This logic assumes new_acquired_port is different or managed correctly by PortPool.
@@ -336,7 +337,6 @@ class ProcessManager:
                 f"Process {process_id} reached max restart attempts ({self.max_restarts}). Marking as failed."
             )
             await self._cleanup_process_resources(process_id, process_info, "failed")
-
 
     async def start_monitoring(self) -> None:
         """Start the periodic health check task."""
@@ -356,13 +356,12 @@ class ProcessManager:
                 break
             except Exception as e:
                 self.logger.error(f"Error in periodic health check loop: {e}", exc_info=True)
-            
+
             try:
                 await asyncio.sleep(self.health_check_interval)
-            except asyncio.CancelledError: # Handle cancellation during sleep
+            except asyncio.CancelledError:  # Handle cancellation during sleep
                 self.logger.info("Health check task cancelled during sleep.")
                 break
-
 
     async def shutdown(self) -> None:
         """Shutdown the ProcessManager and terminate all managed processes."""
@@ -374,33 +373,31 @@ class ProcessManager:
                 await self._health_check_task
             except asyncio.CancelledError:
                 self.logger.info("Health check task successfully cancelled during shutdown.")
-            except Exception as e: # Should not happen if task handles CancelledError
+            except Exception as e:  # Should not happen if task handles CancelledError
                 self.logger.error(f"Error waiting for health check task to cancel: {e}")
             self._health_check_task = None
-        
+
         async with self._lock:
             # Create a list of process IDs to avoid issues with dict size changes during iteration
             process_ids = list(self._active_processes.keys())
-            
+
             termination_tasks = []
             for process_id in process_ids:
                 process_info = self._active_processes.get(process_id)
-                if process_info: # Should always be true here
+                if process_info:  # Should always be true here
                     self.logger.info(f"Initiating shutdown for process {process_id}.")
                     # Create task for termination to run them concurrently
-                    termination_tasks.append(
-                        asyncio.create_task(self._terminate_process_object(process_info))
-                    )
-            
+                    termination_tasks.append(asyncio.create_task(self._terminate_process_object(process_info)))
+
             if termination_tasks:
                 await asyncio.gather(*termination_tasks, return_exceptions=True)
                 self.logger.info("All process termination tasks completed.")
 
             # Final cleanup of resources
             for process_id in process_ids:
-                process_info = self._active_processes.get(process_id) # Get potentially updated info
+                process_info = self._active_processes.get(process_id)  # Get potentially updated info
                 if process_info:
-                     # Status might be "stopping", "stopped", or still "running" if termination failed
+                    # Status might be "stopping", "stopped", or still "running" if termination failed
                     await self._cleanup_process_resources(process_id, process_info, "stopped")
 
             self._active_processes.clear()
