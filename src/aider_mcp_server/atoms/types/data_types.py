@@ -1,5 +1,7 @@
 import time
-from datetime import datetime
+from asyncio.subprocess import Process as AsyncioProcess
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, Field
@@ -146,3 +148,23 @@ class ServerInfo(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     active_clients: int = 0
     transport_adapter_id: Optional[str] = None  # Reference to adapter instance
+
+
+# Process Manager data types
+class ProcessInfo(BaseModel):
+    """Information about a managed server process."""
+
+    process_id: str
+    client_id: Optional[str] = None
+    port: int
+    workspace_path: Path
+    process: AsyncioProcess  # The actual asyncio.subprocess.Process object
+    status: str  # e.g., "starting", "running", "stopping", "stopped", "failed"
+    command: List[str]  # The command used to start the process
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_health_check: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    restart_count: int = 0
+
+    class Config:
+        arbitrary_types_allowed = True
