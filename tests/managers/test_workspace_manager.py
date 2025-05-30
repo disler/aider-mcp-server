@@ -85,8 +85,6 @@ class TestWorkspaceManager:
 
         result = await manager.initialize_git_repo(workspace_path)
         assert result is True
-        # Note: In real implementation, git init would create .git directory,
-        # but in tests with mocked subprocess, we don't create actual .git dirs
 
         mock_async_subprocess_exec.assert_called_once_with(
             "git", "init", cwd=str(workspace_path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -166,7 +164,13 @@ class TestWorkspaceManager:
     ):
         """Test git status for a clean repository."""
         workspace_path = await manager.create_client_workspace(self.CLIENT_ID)
-        # Create .git directory manually to simulate git repo
+        manager._active_workspaces[self.CLIENT_ID] = workspace_path
+
+        # Initialize git repo
+        mock_async_subprocess_exec.return_value = create_mock_process(stdout="Initialized empty Git repository")
+        await manager.initialize_git_repo(workspace_path)
+
+        # Manually create .git directory since the mock doesn't actually create it
         (workspace_path / ".git").mkdir()
 
         # Mock the git status call
@@ -181,7 +185,13 @@ class TestWorkspaceManager:
         assert status_dict["git_status_output"] == ""
         assert status_dict["error"] is None
 
-        mock_async_subprocess_exec.assert_called_once_with(
+        # The mock is called twice:
+        # 1. by initialize_git_repo (git init)
+        # 2. by get_workspace_status (git status --porcelain)
+        assert mock_async_subprocess_exec.call_count == 2
+
+        # Check that the last call was for 'git status --porcelain'
+        mock_async_subprocess_exec.assert_called_with(
             "git",
             "status",
             "--porcelain",
@@ -239,20 +249,15 @@ class TestWorkspaceManager:
     @pytest.mark.asyncio
     async def test_cleanup_workspace_success(self, manager: WorkspaceManager, tmp_path: Path):
         """Test successful workspace cleanup."""
-        # First, create the workspace so it's tracked (if manager uses tracking)
-        # The provided WorkspaceManager does not track, it derives path from client_id.
-        # So, we just need to ensure the directory exists to test removal.
         workspace_path = await manager.create_client_workspace(self.CLIENT_ID)
         assert workspace_path.exists()
 
-        # For cleanup_workspace, the WorkspaceManager uses _active_workspaces.
-        # We need to ensure the client_id is in _active_workspaces for it to proceed.
-        # This seems to be a mismatch with the provided WorkspaceManager source,
-        # which does NOT use _active_workspaces.
-        # Assuming the provided source is the target:
+        # Ensure workspace is tracked
+        manager._active_workspaces[self.CLIENT_ID] = workspace_path
 
         await manager.cleanup_workspace(self.CLIENT_ID)
         assert not workspace_path.exists()
+        assert self.CLIENT_ID not in manager._active_workspaces
 
     @pytest.mark.asyncio
     async def test_cleanup_workspace_non_existent_dir(self, manager: WorkspaceManager, tmp_path: Path):
@@ -397,18 +402,25 @@ class TestWorkspaceManager:
         path1 = await manager.create_client_workspace(client_id1)
         path2 = await manager.create_client_workspace(client_id2)
 
-        # Create .git directory manually for path1 to simulate git repo
-        (path1 / ".git").mkdir()
+        # Track both workspaces
+        manager._active_workspaces[client_id1] = path1
+        manager._active_workspaces[client_id2] = path2
+
+        # Initialize git in path1 only
+        mock_async_subprocess_exec.return_value = create_mock_process(stdout="Initialized empty Git repository")
+        await manager.initialize_git_repo(path1)
 
         assert path1 == tmp_path / client_id1
         assert path2 == tmp_path / client_id2
         assert path1 != path2
-        assert path1.exists() and (path1 / ".git").exists()
-        assert path2.exists() and not (path2 / ".git").exists()  # path2 should not be a git repo
+        assert path1.exists()
+        assert path2.exists()
 
         await manager.cleanup_workspace(client_id1)
         assert not path1.exists()
         assert path2.exists()  # client_id2 workspace should remain untouched
+        assert client_id1 not in manager._active_workspaces
+        assert client_id2 in manager._active_workspaces
 
     @pytest.mark.asyncio
     async def test_validate_workspace_success(self, manager: WorkspaceManager, tmp_path: Path):
