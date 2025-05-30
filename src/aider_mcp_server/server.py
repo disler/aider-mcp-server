@@ -45,8 +45,12 @@ AIDER_AI_CODE_TOOL = Tool(
                 "type": "string",
                 "description": "The primary AI model Aider should use for generating code, leave blank unless model is specified in the request",
             },
+            "current_working_dir": {
+                "type": "string",
+                "description": "Current working directory (absolute path to project directory)",
+            },
         },
-        "required": ["ai_coding_prompt", "relative_editable_files"],
+        "required": ["ai_coding_prompt", "relative_editable_files", "current_working_dir"],
     },
 )
 
@@ -69,8 +73,12 @@ AIDER_AI_ASK_TOOL = Tool(
                 "type": "string",
                 "description": "The primary AI model Aider should use for the explanation, leave blank unless model is specified in the request",
             },
+            "current_working_dir": {
+                "type": "string",
+                "description": "Current working directory (absolute path to project directory)",
+            },
         },
-        "required": ["ai_coding_prompt"],
+        "required": ["ai_coding_prompt", "current_working_dir"],
     },
 )
 
@@ -83,7 +91,7 @@ LIST_MODELS_TOOL = Tool(
             "substring": {
                 "type": "string",
                 "description": "Substring to match against available models",
-            }
+            },
         },
     },
 )
@@ -128,7 +136,6 @@ def is_git_repository(directory: str) -> Tuple[bool, Union[str, None]]:
 def process_aider_ai_code_request(
     params: Dict[str, Any],
     editor_model: str,
-    current_working_dir: str,
 ) -> Dict[str, Any]:
     """
     Process an aider_ai_code request.
@@ -144,6 +151,7 @@ def process_aider_ai_code_request(
     ai_coding_prompt = params.get("ai_coding_prompt", "")
     relative_editable_files = params.get("relative_editable_files", [])
     relative_readonly_files = params.get("relative_readonly_files", [])
+    current_working_dir = params.get("current_working_dir", "")
 
     # Ensure relative_editable_files is a list
     if isinstance(relative_editable_files, str):
@@ -172,6 +180,23 @@ def process_aider_ai_code_request(
 
     # Use the model specified in the request if provided, otherwise use the editor model
     model_to_use = request_model if request_model else editor_model
+
+    # Validate current_working_dir is provided and is a git repository
+    if not current_working_dir:
+        error_msg = "Error: current_working_dir is required. Please provide a valid git repository path."
+        logger.error(error_msg)
+        return {"error": error_msg}
+
+    # Validate that the current_working_dir is a git repository
+    is_git_repo, error_message = is_git_repository(current_working_dir)
+    if not is_git_repo:
+        error_msg = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
+        logger.error(error_msg)
+        return {"error": error_msg}
+
+    # Set working directory
+    logger.info(f"Changing working directory to: {current_working_dir}")
+    os.chdir(current_working_dir)
 
     # Use the passed-in current_working_dir parameter
     logger.info(f"Using working directory for code_with_aider: {current_working_dir}")
@@ -204,7 +229,6 @@ def process_aider_ai_code_request(
 def process_aider_ai_ask_request(
     params: Dict[str, Any],
     editor_model: str,
-    current_working_dir: str,
 ) -> Dict[str, Any]:
     """
     Process an aider_ai_ask request.
@@ -219,6 +243,7 @@ def process_aider_ai_ask_request(
     """
     ai_coding_prompt = params.get("ai_coding_prompt", "")
     relative_readonly_files = params.get("relative_readonly_files", [])
+    current_working_dir = params.get("current_working_dir", "")
 
     # Ensure relative_readonly_files is a list
     if isinstance(relative_readonly_files, str):
@@ -239,6 +264,23 @@ def process_aider_ai_ask_request(
 
     # Use the model specified in the request if provided, otherwise use the editor model
     model_to_use = request_model if request_model else editor_model
+
+    # Validate current_working_dir is provided and is a git repository
+    if not current_working_dir:
+        error_msg = "Error: current_working_dir is required. Please provide a valid git repository path."
+        logger.error(error_msg)
+        return {"error": error_msg}
+
+    # Validate that the current_working_dir is a git repository
+    is_git_repo, error_message = is_git_repository(current_working_dir)
+    if not is_git_repo:
+        error_msg = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
+        logger.error(error_msg)
+        return {"error": error_msg}
+
+    # Set working directory
+    logger.info(f"Changing working directory to: {current_working_dir}")
+    os.chdir(current_working_dir)
 
     # Use the passed-in current_working_dir parameter
     logger.info(f"Using working directory for ask_aider: {current_working_dir}")
@@ -290,7 +332,6 @@ def process_list_models_request(params: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_request(
     request: Dict[str, Any],
-    current_working_dir: str,
     editor_model: str,
 ) -> Dict[str, Any]:
     """
@@ -298,19 +339,12 @@ def handle_request(
 
     Args:
         request (Dict[str, Any]): The request JSON.
-        current_working_dir (str): The current working directory. Must be a valid git repository.
         editor_model (str): The editor model to use.
 
     Returns:
         Dict[str, Any]: The response JSON.
     """
     try:
-        # Validate current_working_dir is provided and is a git repository
-        if not current_working_dir:
-            error_msg = "Error: current_working_dir is required. Please provide a valid git repository path."
-            logger.error(error_msg)
-            return {"error": error_msg}
-
         # MCP protocol requires 'name' and 'parameters' fields
         if "name" not in request:
             logger.error("Error: Received request missing 'name' field.")
@@ -320,29 +354,18 @@ def handle_request(
         params = request.get("parameters", {})
 
         logger.info(
-            f"Received request: Type='{request_type}', CWD='{current_working_dir}'"
+            f"Received request: Type='{request_type}'"
         )
-
-        # Validate that the current_working_dir is a git repository before changing to it
-        is_git_repo, error_message = is_git_repository(current_working_dir)
-        if not is_git_repo:
-            error_msg = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
-            logger.error(error_msg)
-            return {"error": error_msg}
-
-        # Set working directory
-        logger.info(f"Changing working directory to: {current_working_dir}")
-        os.chdir(current_working_dir)
 
         # Route to the appropriate handler based on request type
         if request_type == "aider_ai_code":
             return process_aider_ai_code_request(
-                params, editor_model, current_working_dir
+                params, editor_model
             )
         
         elif request_type == "aider_ai_ask":
             return process_aider_ai_ask_request(
-                params, editor_model, current_working_dir
+                params, editor_model
             )
 
         elif request_type == "list_models":
@@ -363,7 +386,6 @@ def handle_request(
 
 async def serve(
     editor_model: str = DEFAULT_EDITOR_MODEL,
-    current_working_dir: str = None,
 ) -> None:
     """
     Start the MCP server following the Model Context Protocol.
@@ -374,34 +396,9 @@ async def serve(
 
     Args:
         editor_model (str, optional): The editor model to use. Defaults to DEFAULT_EDITOR_MODEL.
-        current_working_dir (str, required): The current working directory. Must be a valid git repository.
-
-    Raises:
-        ValueError: If current_working_dir is not provided or is not a git repository.
     """
     logger.info(f"Starting Aider MCP Server")
     logger.info(f"Editor Model: {editor_model}")
-
-    # Validate current_working_dir is provided
-    if not current_working_dir:
-        error_msg = "Error: current_working_dir is required. Please provide a valid git repository path."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-
-    logger.info(f"Initial Working Directory: {current_working_dir}")
-
-    # Validate that the current_working_dir is a git repository
-    is_git_repo, error_message = is_git_repository(current_working_dir)
-    if not is_git_repo:
-        error_msg = f"Error: The specified directory '{current_working_dir}' is not a valid git repository: {error_message}"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-
-    logger.info(f"Validated git repository at: {current_working_dir}")
-
-    # Set working directory
-    logger.info(f"Setting working directory to: {current_working_dir}")
-    os.chdir(current_working_dir)
 
     # Create the MCP server
     server = Server("aider-mcp-server")
@@ -421,14 +418,14 @@ async def serve(
             if name == "aider_ai_code":
                 logger.info(f"Processing 'aider_ai_code' tool call...")
                 result = process_aider_ai_code_request(
-                    arguments, editor_model, current_working_dir
+                    arguments, editor_model
                 )
                 return [TextContent(type="text", text=json.dumps(result))]
             
             elif name == "aider_ai_ask":
                 logger.info(f"Processing 'aider_ai_ask' tool call...")
                 result = process_aider_ai_ask_request(
-                    arguments, editor_model, current_working_dir
+                    arguments, editor_model
                 )
                 return [TextContent(type="text", text=json.dumps(result))]
 

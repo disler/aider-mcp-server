@@ -14,19 +14,12 @@ def main():
         default=DEFAULT_EDITOR_MODEL,
         help=f"Editor model to use (default: {DEFAULT_EDITOR_MODEL})"
     )
-    parser.add_argument(
-        "--current-working-dir", 
-        type=str, 
-        required=True,
-        help="Current working directory (must be a valid git repository)"
-    )
     
     args = parser.parse_args()
     
     # Run the server asynchronously
     asyncio.run(serve(
-        editor_model=args.editor_model,
-        current_working_dir=args.current_working_dir
+        editor_model=args.editor_model
     ))
 
 if __name__ == "__main__":
