@@ -113,15 +113,13 @@ class WorkspaceManager:
                 elif not workspace_path.exists():
                     self.logger.info(f"Workspace directory {workspace_path} does not exist. No removal needed.")
                 else:
-                    self.logger.warning(
-                        f"Workspace path {workspace_path} is not a directory. Cannot remove."
-                    )
+                    self.logger.warning(f"Workspace path {workspace_path} is not a directory. Cannot remove.")
             except OSError as e:
                 self.logger.error(f"Failed to remove workspace directory {workspace_path}: {e}")
                 # Re-add to _active_workspaces if removal failed and we want to retry?
                 # For now, it remains removed from tracking, and we raise an error.
                 raise RuntimeError(f"Failed to remove workspace directory for client {client_id}") from e
-            
+
             self.logger.info(f"Cleaned up and untracked workspace for client {client_id}.")
 
     async def initialize_git_repo(self, workspace_path: Path) -> bool:
@@ -146,16 +144,15 @@ class WorkspaceManager:
         try:
             self.logger.info(f"Initializing Git repository in {workspace_path}...")
             process = await asyncio.create_subprocess_exec(
-                'git', 'init',
-                cwd=str(workspace_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                "git", "init", cwd=str(workspace_path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
                 decoded_stdout = stdout.decode().strip() if stdout else ""
-                self.logger.info(f"Successfully initialized Git repository in {workspace_path}. Output: {decoded_stdout}")
+                self.logger.info(
+                    f"Successfully initialized Git repository in {workspace_path}. Output: {decoded_stdout}"
+                )
                 return True
             else:
                 decoded_stderr = stderr.decode().strip() if stderr else ""
@@ -191,14 +188,14 @@ class WorkspaceManager:
             status["error"] = "Workspace path does not exist."
             self.logger.warning(f"Workspace path {workspace_path} does not exist for status check.")
             return status
-        
+
         status["exists"] = True
 
         if not workspace_path.is_dir():
             status["error"] = "Workspace path is not a directory."
             self.logger.warning(f"Workspace path {workspace_path} is not a directory for status check.")
             return status
-        
+
         status["is_directory"] = True
 
         git_dir = workspace_path / ".git"
@@ -207,10 +204,12 @@ class WorkspaceManager:
             try:
                 self.logger.debug(f"Fetching Git status for {workspace_path}...")
                 process = await asyncio.create_subprocess_exec(
-                    'git', 'status', '--porcelain',
+                    "git",
+                    "status",
+                    "--porcelain",
                     cwd=str(workspace_path),
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, stderr = await process.communicate()
 
