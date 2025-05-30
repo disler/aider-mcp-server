@@ -18,6 +18,7 @@ dependencies = [
     "mcp>=1.9.1",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "psutil>=5.9.0",  # Added for system resource monitoring
+    "pyjwt>=2.8.0",  # Added for JWT token generation and validation
     "python-dotenv",
     "rich>=14.0.0",
     "sse-starlette>=2.0.0",  # Added for SSE specific functionality

@@ -39,6 +39,30 @@ class ISecurityService(Protocol):
         """
         ...
 
+    async def generate_session_token(self, client_id: str) -> str:
+        """
+        Generate a JWT session token for a given client ID.
+
+        Args:
+            client_id: The unique identifier for the client.
+
+        Returns:
+            A JWT string.
+        """
+        ...
+
+    async def validate_session_token(self, token: str) -> Optional[str]:
+        """
+        Validate a JWT session token and extract the client ID.
+
+        Args:
+            token: The JWT string to validate.
+
+        Returns:
+            The client_id if the token is valid, None otherwise.
+        """
+        ...
+
     async def log_security_event(self, event_type: str, details: Dict[str, Any]) -> None:
         """
         Log a security-related event.
