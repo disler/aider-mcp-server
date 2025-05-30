@@ -1,0 +1,6 @@
+aider-chat==0.81.0
+boto3==1.37.27
+mcp==1.6.0
+pydantic==2.11.2
+pytest==8.3.5
+rich==14.0.0
