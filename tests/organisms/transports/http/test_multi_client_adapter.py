@@ -1,15 +1,14 @@
 import uuid
+from typing import Optional  # Added Optional
 from unittest import mock
-from typing import Optional # Added Optional
 
 import pytest
 import pytest_asyncio
 
-from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 from aider_mcp_server.atoms.security.context import SecurityContext
 from aider_mcp_server.atoms.types.data_types import ClientRequest, ServerInfo, SessionInfo
 from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.atoms.types.mcp_types import EventData
+from aider_mcp_server.atoms.types.mcp_types import EventData, LoggerProtocol
 from aider_mcp_server.managers.http_server_manager import HttpServerManager
 from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapter import (
     HttpStreamableTransportAdapter,
@@ -32,6 +31,7 @@ def mock_logger_factory():
     factory = mock.MagicMock(return_value=mock_logger)
     return factory, mock_logger
 
+
 @pytest.fixture
 def mock_coordinator():
     coordinator = mock.AsyncMock(spec=ApplicationCoordinator)
@@ -41,6 +41,7 @@ def mock_coordinator():
     coordinator.is_shutting_down = False
     return coordinator
 
+
 @pytest.fixture
 def mock_server_manager():
     manager = mock.AsyncMock(spec=HttpServerManager)
@@ -48,7 +49,7 @@ def mock_server_manager():
     manager._mock_session_infos = {}
 
     async def _create_client_session(client_request: ClientRequest):
-        if client_request.client_id in manager._mock_session_infos: # pragma: no cover
+        if client_request.client_id in manager._mock_session_infos:  # pragma: no cover
             # This case is typically handled by HttpServerManager itself,
             # but good for mock robustness if MultiClientHttpAdapter relies on this check.
             # The adapter's logic seems to call get_client_server_info first,
@@ -62,18 +63,18 @@ def mock_server_manager():
             client_id=client_request.client_id,
             workspace_id=client_request.workspace_id,
             metadata=client_request.request_data,
-            status="active"
+            status="active",
         )
         manager._mock_session_infos[client_request.client_id] = session_info
 
         server_id = f"server_{uuid.uuid4().hex[:8]}"
         server_info = ServerInfo(
             server_id=server_id,
-            host="0.0.0.0",
+            host="127.0.0.1",  # noqa: S104 - Changed from "0.0.0.0"
             port=0,
-            status="starting", # HttpServerManager sets this initially
+            status="starting",  # HttpServerManager sets this initially
             workspace_id=client_request.workspace_id,
-            active_clients=1
+            active_clients=1,
         )
         manager._mock_server_infos[client_request.client_id] = server_info
         return session_info
@@ -82,7 +83,9 @@ def mock_server_manager():
         return manager._mock_server_infos.get(client_id)
 
     async def _destroy_client_session(client_id: str):
-        if client_id not in manager._mock_session_infos and client_id not in manager._mock_server_infos: # pragma: no cover
+        if (
+            client_id not in manager._mock_session_infos and client_id not in manager._mock_server_infos
+        ):  # pragma: no cover
             # HttpServerManager raises if no session found.
             raise ValueError(f"No active session found for client {client_id}")
         manager._mock_session_infos.pop(client_id, None)
@@ -94,12 +97,14 @@ def mock_server_manager():
     manager.destroy_client_session = mock.MagicMock(side_effect=_destroy_client_session)
     return manager
 
+
 @pytest.fixture
 def mock_port_pool():
     pool = mock.AsyncMock(spec=PortPool)
     pool.acquire_port = mock.AsyncMock(return_value=12345)
     pool.release_port = mock.AsyncMock()
     return pool
+
 
 @pytest.fixture
 def mock_child_adapter_instance():
@@ -111,17 +116,23 @@ def mock_child_adapter_instance():
     adapter_instance.get_transport_id = mock.MagicMock(return_value=f"http_stream_{uuid.uuid4().hex[:8]}")
     return adapter_instance
 
+
 @pytest_asyncio.fixture
 async def multi_client_adapter_fixture_tuple(
     mock_coordinator, mock_server_manager, mock_port_pool, mock_logger_factory
 ):
     logger_factory, test_logger = mock_logger_factory
     default_config = {
-        "host": "127.0.0.1", "editor_model": "test_editor", "current_working_dir": "/test/cwd",
-        "heartbeat_interval": 10.0, "stream_queue_size": 50,
+        "host": "127.0.0.1",
+        "editor_model": "test_editor",
+        "current_working_dir": "/test/cwd",
+        "heartbeat_interval": 10.0,
+        "stream_queue_size": 50,
     }
     # Patch get_logger specifically for the module where MultiClientHttpAdapter is defined
-    with mock.patch('aider_mcp_server.organisms.transports.http.multi_client_adapter.get_logger', logger_factory) as patched_get_logger:
+    with mock.patch(
+        "aider_mcp_server.organisms.transports.http.multi_client_adapter.get_logger", logger_factory
+    ) as patched_get_logger:
         adapter = MultiClientHttpAdapter(
             coordinator=mock_coordinator,
             server_manager=mock_server_manager,
@@ -129,23 +140,26 @@ async def multi_client_adapter_fixture_tuple(
             default_child_adapter_config=default_config.copy(),
         )
         # Ensure the adapter's logger is the one from our factory for assertions
-        adapter.logger = test_logger # Directly assign for consistent mocking
+        adapter.logger = test_logger  # Directly assign for consistent mocking
         yield adapter, test_logger, patched_get_logger
 
 
 @pytest.mark.asyncio
 class TestMultiClientHttpAdapter:
-
     async def test_init(self, mock_coordinator, mock_server_manager, mock_port_pool, mock_logger_factory):
         logger_factory, test_logger = mock_logger_factory
         default_config = {"host": "192.168.1.1", "stream_queue_size": 200}
 
-        with mock.patch('aider_mcp_server.organisms.transports.http.multi_client_adapter.get_logger', logger_factory):
+        with mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.get_logger", logger_factory):
             adapter = MultiClientHttpAdapter(
-                coordinator=mock_coordinator, server_manager=mock_server_manager, port_pool=mock_port_pool,
-                transport_id="custom_mca_id", default_child_adapter_config=default_config.copy(), heartbeat_interval=60.0
+                coordinator=mock_coordinator,
+                server_manager=mock_server_manager,
+                port_pool=mock_port_pool,
+                transport_id="custom_mca_id",
+                default_child_adapter_config=default_config.copy(),
+                heartbeat_interval=60.0,
             )
-            adapter.logger = test_logger # Ensure logger is our mock
+            adapter.logger = test_logger  # Ensure logger is our mock
 
         assert adapter.get_transport_id() == "custom_mca_id"
         assert adapter._default_child_adapter_config["host"] == "192.168.1.1"
@@ -160,7 +174,7 @@ class TestMultiClientHttpAdapter:
 
     async def test_initialize(self, multi_client_adapter_fixture_tuple, mock_coordinator):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
-        mock_coordinator.register_transport_adapter.reset_mock() # Ensure clean state for this test
+        mock_coordinator.register_transport_adapter.reset_mock()  # Ensure clean state for this test
         await adapter.initialize()
         mock_coordinator.register_transport_adapter.assert_called_once_with(adapter)
         test_logger.info.assert_any_call(
@@ -176,8 +190,12 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_success(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         MockChildAdapterClass.return_value = mock_child_adapter_instance
@@ -214,8 +232,12 @@ class TestMultiClientHttpAdapter:
         client_id = "existing_client_ok"
         existing_port = 67890
         existing_server_info = ServerInfo(
-            server_id="s_exist", host="1.2.3.4", port=existing_port, actual_port=existing_port,
-            status="running", transport_adapter_id=mock_child_adapter_instance.get_transport_id()
+            server_id="s_exist",
+            host="1.2.3.4",
+            port=existing_port,
+            actual_port=existing_port,
+            status="running",
+            transport_adapter_id=mock_child_adapter_instance.get_transport_id(),
         )
         mock_server_manager._mock_server_infos[client_id] = existing_server_info
         adapter._client_adapters[client_id] = mock_child_adapter_instance
@@ -230,8 +252,12 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_existing_stale_adapter(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         MockChildAdapterClass.return_value = mock_child_adapter_instance
@@ -244,14 +270,16 @@ class TestMultiClientHttpAdapter:
         # Mock cleanup to be called
         adapter.cleanup_client_connection = mock.AsyncMock()
         # Simulate that cleanup allows new session creation
-        mock_server_manager.destroy_client_session.side_effect = lambda cid: mock_server_manager._mock_server_infos.pop(cid, None)
+        mock_server_manager.destroy_client_session.side_effect = lambda cid: mock_server_manager._mock_server_infos.pop(
+            cid, None
+        )
 
         await adapter.handle_client_connection(client_id)
 
         adapter.cleanup_client_connection.assert_called_once_with(client_id)
-        test_logger.warning.assert_any_call(mock.ANY) # Stale entry warning
-        mock_server_manager.create_client_session.assert_called_once() # New session created
-        MockChildAdapterClass.assert_called_once() # New adapter created
+        test_logger.warning.assert_any_call(mock.ANY)  # Stale entry warning
+        mock_server_manager.create_client_session.assert_called_once()  # New session created
+        MockChildAdapterClass.assert_called_once()  # New adapter created
 
     async def test_handle_client_connection_session_creation_fails(
         self, multi_client_adapter_fixture_tuple, mock_server_manager
@@ -278,8 +306,12 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_child_adapter_init_fails(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, _, _ = multi_client_adapter_fixture_tuple
         MockChildAdapterClass.return_value = mock_child_adapter_instance
@@ -300,8 +332,7 @@ class TestMultiClientHttpAdapter:
         mock_server_manager.destroy_client_session.assert_called_once_with(client_id)
 
     async def test_cleanup_client_connection(
-        self, multi_client_adapter_fixture_tuple, mock_server_manager,
-        mock_port_pool, mock_child_adapter_instance
+        self, multi_client_adapter_fixture_tuple, mock_server_manager, mock_port_pool, mock_child_adapter_instance
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         client_id = "client_to_cleanup"
@@ -311,7 +342,6 @@ class TestMultiClientHttpAdapter:
         server_info_mock = ServerInfo(server_id="s_cleanup", host="h", port=port_to_release, status="running")
         mock_server_manager._mock_server_infos[client_id] = server_info_mock
         mock_server_manager._mock_session_infos[client_id] = SessionInfo(session_id="sess_cleanup", client_id=client_id)
-
 
         await adapter.cleanup_client_connection(client_id)
 
@@ -327,15 +357,16 @@ class TestMultiClientHttpAdapter:
         port_zero_server_info_mock = ServerInfo(server_id="s_cleanup_port_zero", host="h", port=0, status="running")
         mock_server_manager._mock_server_infos[client_id_port_zero] = port_zero_server_info_mock
         # Simulate session info for destroy_client_session to not raise error for this new client
-        mock_server_manager._mock_session_infos[client_id_port_zero] = SessionInfo(session_id="sess_cleanup_port_zero", client_id=client_id_port_zero)
+        mock_server_manager._mock_session_infos[client_id_port_zero] = SessionInfo(
+            session_id="sess_cleanup_port_zero", client_id=client_id_port_zero
+        )
 
-
-        mock_port_pool.release_port.reset_mock() # Reset for this specific check
-        test_logger.warning.reset_mock() # Reset warnings to check only for this specific case
+        mock_port_pool.release_port.reset_mock()  # Reset for this specific check
+        test_logger.warning.reset_mock()  # Reset warnings to check only for this specific case
 
         await adapter.cleanup_client_connection(client_id_port_zero)
         mock_port_pool.release_port.assert_not_called()
-        
+
         print(f"Warning calls for port zero scenario: {test_logger.warning.call_args_list}")
         # Check that warning was called with a message starting with the expected prefix
         found_warning = False
@@ -346,20 +377,25 @@ class TestMultiClientHttpAdapter:
                 break
         assert found_warning, f"Expected warning for client {client_id_port_zero} with port 0 was not logged."
 
-
     async def test_shutdown(self, multi_client_adapter_fixture_tuple, mock_coordinator):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         client_ids = ["client_s1", "client_s2"]
         for cid in client_ids:
             adapter._client_adapters[cid] = mock.AsyncMock(spec=HttpStreamableTransportAdapter)
             # Simulate server info and session for cleanup
-            adapter._server_manager._mock_server_infos[cid] = ServerInfo(server_id=f"s_{cid}", host="h", port=1000+int(cid[-1]), status="running")
+            adapter._server_manager._mock_server_infos[cid] = ServerInfo(
+                server_id=f"s_{cid}", host="h", port=1000 + int(cid[-1]), status="running"
+            )
             adapter._server_manager._mock_session_infos[cid] = SessionInfo(session_id=f"sess_{cid}", client_id=cid)
 
-
         parent_shutdown_mock = mock.AsyncMock()
-        with mock.patch.object(MultiClientHttpAdapter, 'cleanup_client_connection', wraps=adapter.cleanup_client_connection) as mock_cleanup:
-            with mock.patch('aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.shutdown', parent_shutdown_mock):
+        with mock.patch.object(
+            MultiClientHttpAdapter, "cleanup_client_connection", wraps=adapter.cleanup_client_connection
+        ) as mock_cleanup:
+            with mock.patch(
+                "aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.shutdown",
+                parent_shutdown_mock,
+            ):
                 await adapter.shutdown()
 
         assert mock_cleanup.call_count == len(client_ids)
@@ -379,6 +415,7 @@ class TestMultiClientHttpAdapter:
         # to the mock's return_value.
         async def _get_expected_info_coroutine():
             return expected_info
+
         mock_server_manager.get_client_server_info.return_value = _get_expected_info_coroutine()
 
         info = await adapter.get_client_server_info(client_id)
@@ -397,7 +434,9 @@ class TestMultiClientHttpAdapter:
 
         # Event from other transport, matching capabilities (STATUS)
         assert adapter.should_receive_event(EventTypes.STATUS, {"transport_origin": {"transport_id": "other"}})
-        test_logger.debug.assert_any_call(f"MultiClientHttpAdapter ({my_id}) will process {EventTypes.STATUS.value} event from other.")
+        test_logger.debug.assert_any_call(
+            f"MultiClientHttpAdapter ({my_id}) will process {EventTypes.STATUS.value} event from other."
+        )
 
         # Event from self (non-heartbeat) - should skip
         assert not adapter.should_receive_event(EventTypes.STATUS, {"transport_origin": {"transport_id": my_id}})
@@ -422,12 +461,16 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_child_adapter_start_listening_fails(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, _, _ = multi_client_adapter_fixture_tuple
         MockChildAdapterClass.return_value = mock_child_adapter_instance
-        mock_child_adapter_instance.initialize.side_effect = None # Ensure init succeeds
+        mock_child_adapter_instance.initialize.side_effect = None  # Ensure init succeeds
         mock_child_adapter_instance.start_listening.side_effect = Exception("Child start_listening error")
         client_id = "fail_child_start_listening_client"
         acquired_port = 12345
@@ -442,7 +485,6 @@ class TestMultiClientHttpAdapter:
         mock_port_pool.release_port.reset_mock()
         mock_child_adapter_instance.shutdown.reset_mock()
 
-
         with pytest.raises(RuntimeError, match="Child start_listening error"):
             await adapter.handle_client_connection(client_id)
 
@@ -453,14 +495,18 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_get_actual_port_none(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         MockChildAdapterClass.return_value = mock_child_adapter_instance
         mock_child_adapter_instance.initialize.side_effect = None
         mock_child_adapter_instance.start_listening.side_effect = None
-        mock_child_adapter_instance.get_actual_port.return_value = None # Simulate failure to get port
+        mock_child_adapter_instance.get_actual_port.return_value = None  # Simulate failure to get port
         client_id = "fail_get_actual_port_client"
         acquired_port = 12345
         mock_port_pool.acquire_port.return_value = acquired_port
@@ -486,11 +532,15 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_handle_client_connection_server_info_consistency_error(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool, mock_child_adapter_instance
+        self,
+        MockChildAdapterClass,
+        multi_client_adapter_fixture_tuple,
+        mock_server_manager,
+        mock_port_pool,
+        mock_child_adapter_instance,
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
-        MockChildAdapterClass.return_value = mock_child_adapter_instance # This will be used
+        MockChildAdapterClass.return_value = mock_child_adapter_instance  # This will be used
         client_id = "consistency_error_client"
 
         # Ensure manager state is clean for this client
@@ -501,7 +551,6 @@ class TestMultiClientHttpAdapter:
         mock_port_pool.release_port.reset_mock()
         mock_child_adapter_instance.shutdown.reset_mock()
 
-
         # First call to get_client_server_info (initial check) should return None
         # create_client_session mock will run and populate its internal _mock_server_infos
         # Second call to get_client_server_info (for update) should also return None to trigger error
@@ -509,8 +558,8 @@ class TestMultiClientHttpAdapter:
             return None
 
         mock_server_manager.get_client_server_info.side_effect = [
-            _get_none_coroutine(), # For initial check for client_id
-            _get_none_coroutine()  # For the check after create_client_session for client_id
+            _get_none_coroutine(),  # For initial check for client_id
+            _get_none_coroutine(),  # For the check after create_client_session for client_id
         ]
 
         with pytest.raises(RuntimeError, match=f"ServerInfo consistency error for client {client_id}"):
@@ -524,14 +573,12 @@ class TestMultiClientHttpAdapter:
         # The error is raised before child_adapter_instance is stored in self._client_adapters
         # but after it's created and started. So shutdown should be called.
         mock_child_adapter_instance.shutdown.assert_called_once()
-        mock_port_pool.release_port.assert_called_once() # Port was acquired
+        mock_port_pool.release_port.assert_called_once()  # Port was acquired
         mock_server_manager.destroy_client_session.assert_called_once_with(client_id)
         # Restore default side_effect for other tests if necessary, though fixtures are per-test
 
-
     async def test_cleanup_client_connection_adapter_shutdown_fails(
-        self, multi_client_adapter_fixture_tuple, mock_server_manager,
-        mock_port_pool, mock_child_adapter_instance
+        self, multi_client_adapter_fixture_tuple, mock_server_manager, mock_port_pool, mock_child_adapter_instance
     ):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
         client_id = "cleanup_adapter_fail_client"
@@ -541,7 +588,9 @@ class TestMultiClientHttpAdapter:
         mock_child_adapter_instance.shutdown.side_effect = Exception("Adapter shutdown error")
         server_info_mock = ServerInfo(server_id="s_cleanup_fail", host="h", port=port_to_release, status="running")
         mock_server_manager._mock_server_infos[client_id] = server_info_mock
-        mock_server_manager._mock_session_infos[client_id] = SessionInfo(session_id="sess_cleanup_fail", client_id=client_id)
+        mock_server_manager._mock_session_infos[client_id] = SessionInfo(
+            session_id="sess_cleanup_fail", client_id=client_id
+        )
 
         # Reset mocks for clean assertion
         mock_port_pool.release_port.reset_mock()
@@ -555,7 +604,7 @@ class TestMultiClientHttpAdapter:
         )
         mock_port_pool.release_port.assert_called_once_with(port_to_release)
         mock_server_manager.destroy_client_session.assert_called_once_with(client_id)
-        assert client_id not in adapter._client_adapters # Ensure it's removed despite error
+        assert client_id not in adapter._client_adapters  # Ensure it's removed despite error
 
     async def test_send_event_logs_call(self, multi_client_adapter_fixture_tuple):
         adapter, test_logger, _ = multi_client_adapter_fixture_tuple
@@ -575,7 +624,7 @@ class TestMultiClientHttpAdapter:
         my_id = adapter.get_transport_id()
         event_data: EventData = {
             "transport_origin": {"transport_id": my_id},
-            "transport_id": my_id # Crucial for self-generated heartbeat logic
+            "transport_id": my_id,  # Crucial for self-generated heartbeat logic
         }
 
         assert adapter.should_receive_event(EventTypes.HEARTBEAT, event_data)
@@ -586,8 +635,7 @@ class TestMultiClientHttpAdapter:
 
     @mock.patch("aider_mcp_server.organisms.transports.http.multi_client_adapter.HttpStreamableTransportAdapter")
     async def test_multiple_clients_lifecycle_integration(
-        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple,
-        mock_server_manager, mock_port_pool
+        self, MockChildAdapterClass, multi_client_adapter_fixture_tuple, mock_server_manager, mock_port_pool
     ):
         adapter, _, _ = multi_client_adapter_fixture_tuple
         num_clients = 2
@@ -602,12 +650,12 @@ class TestMultiClientHttpAdapter:
 
             MockChildAdapterClass.return_value = mock_child
             mock_port_pool.acquire_port.return_value = 10000 + i
-            
+
             # Ensure manager state is clean for this client
             mock_server_manager._mock_server_infos.pop(client_id, None)
             mock_server_manager._mock_session_infos.pop(client_id, None)
             mock_server_manager.create_client_session.reset_mock()
-            mock_server_manager.get_client_server_info.reset_mock() # Reset for update path
+            mock_server_manager.get_client_server_info.reset_mock()  # Reset for update path
 
             await adapter.handle_client_connection(client_id, f"ws_integ_{i}")
             assert client_id in adapter._client_adapters
@@ -617,8 +665,12 @@ class TestMultiClientHttpAdapter:
         # Cleanup one client
         client_to_cleanup_id = "integ_client_0"
         # Ensure session/server info exists for cleanup in mock manager
-        mock_server_manager._mock_server_infos[client_to_cleanup_id] = ServerInfo(server_id="s0", host="h", port=10000, status="running")
-        mock_server_manager._mock_session_infos[client_to_cleanup_id] = SessionInfo(session_id="sess0", client_id=client_to_cleanup_id)
+        mock_server_manager._mock_server_infos[client_to_cleanup_id] = ServerInfo(
+            server_id="s0", host="h", port=10000, status="running"
+        )
+        mock_server_manager._mock_session_infos[client_to_cleanup_id] = SessionInfo(
+            session_id="sess0", client_id=client_to_cleanup_id
+        )
 
         await adapter.cleanup_client_connection(client_to_cleanup_id)
         client_mocks[0].shutdown.assert_called_once()
@@ -627,7 +679,9 @@ class TestMultiClientHttpAdapter:
 
         # Shutdown (will cleanup remaining)
         parent_shutdown_mock = mock.AsyncMock()
-        with mock.patch('aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.shutdown', parent_shutdown_mock):
+        with mock.patch(
+            "aider_mcp_server.molecules.transport.base_adapter.AbstractTransportAdapter.shutdown", parent_shutdown_mock
+        ):
             await adapter.shutdown()
-        client_mocks[1].shutdown.assert_called_once() # Remaining client
+        client_mocks[1].shutdown.assert_called_once()  # Remaining client
         assert not adapter._client_adapters

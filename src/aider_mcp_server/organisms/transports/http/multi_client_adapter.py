@@ -1,5 +1,7 @@
 import uuid
-from typing import Any, Dict, Optional, Set
+
+# Type checking imports
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.atoms.security.context import SecurityContext
@@ -10,6 +12,7 @@ from aider_mcp_server.atoms.types.mcp_types import (
     LoggerProtocol,
     RequestParameters,
 )
+
 # For type hint, ITransportAdapter is not strictly needed if AbstractTransportAdapter is sufficient
 # from aider_mcp_server.interfaces.transport_adapter import ITransportAdapter
 from aider_mcp_server.managers.http_server_manager import HttpServerManager
@@ -21,8 +24,6 @@ from aider_mcp_server.organisms.transports.http.http_streamable_transport_adapte
 )
 from aider_mcp_server.utils.multi_client.port_pool import PortPool
 
-# Type checking imports
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from aider_mcp_server.pages.application.coordinator import ApplicationCoordinator
 
@@ -39,7 +40,7 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
     logger: LoggerProtocol
     _server_manager: HttpServerManager
     _port_pool: PortPool
-    _client_adapters: Dict[str, HttpStreamableTransportAdapter] # client_id -> adapter instance
+    _client_adapters: Dict[str, HttpStreamableTransportAdapter]  # client_id -> adapter instance
     _default_child_adapter_config: Dict[str, Any]
 
     def __init__(
@@ -49,7 +50,7 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
         port_pool: PortPool,
         transport_id: Optional[str] = None,
         default_child_adapter_config: Optional[Dict[str, Any]] = None,
-        **kwargs: Any, # Consumes heartbeat_interval for AbstractTransportAdapter
+        **kwargs: Any,  # Consumes heartbeat_interval for AbstractTransportAdapter
     ):
         """
         Initialize the MultiClientHttpAdapter.
@@ -71,7 +72,7 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
             transport_type="multi_http",
             coordinator=coordinator,
             heartbeat_interval=heartbeat_interval,
-            **kwargs # Pass any remaining kwargs to super
+            **kwargs,  # Pass any remaining kwargs to super
         )
         self.logger = get_logger(f"{__name__}.{self.__class__.__name__}.{self.get_transport_id()}")
 
@@ -81,12 +82,11 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
         self._default_child_adapter_config = default_child_adapter_config or {}
 
         # Ensure common child adapter settings have defaults if not provided
-        self._default_child_adapter_config.setdefault("host", "127.0.0.1") # noqa: S104
+        self._default_child_adapter_config.setdefault("host", "127.0.0.1")  # noqa: S104
         self._default_child_adapter_config.setdefault("editor_model", "")
         self._default_child_adapter_config.setdefault("current_working_dir", "")
         self._default_child_adapter_config.setdefault("heartbeat_interval", 30.0)
         self._default_child_adapter_config.setdefault("stream_queue_size", 100)
-
 
         self.logger.info(
             f"MultiClientHttpAdapter initialized with ID: {self.get_transport_id()} "
@@ -118,7 +118,7 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
             self.logger.debug(f"Shutting down adapter for client {client_id} during manager shutdown.")
             await self.cleanup_client_connection(client_id)
 
-        if self._client_adapters: # Should be empty if cleanup_client_connection works
+        if self._client_adapters:  # Should be empty if cleanup_client_connection works
             self.logger.warning(
                 f"Not all client adapters were cleaned up: {list(self._client_adapters.keys())}. Forcing clear."
             )
@@ -126,6 +126,58 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
 
         await super().shutdown()
         self.logger.info(f"MultiClientHttpAdapter {self.get_transport_id()} shutdown complete.")
+
+    async def _create_and_start_child_adapter(self, client_id: str, port: int) -> HttpStreamableTransportAdapter:
+        """Creates, initializes, and starts a HttpStreamableTransportAdapter for a client."""
+        child_transport_id = f"http_stream_{client_id}_{uuid.uuid4().hex[:8]}"
+        child_config = self._default_child_adapter_config.copy()
+
+        child_adapter_instance = HttpStreamableTransportAdapter(
+            coordinator=self._coordinator,
+            host=child_config["host"],
+            port=port,
+            stream_queue_size=child_config["stream_queue_size"],
+            editor_model=child_config["editor_model"],
+            current_working_dir=child_config["current_working_dir"],
+            heartbeat_interval=child_config["heartbeat_interval"],
+            transport_id=child_transport_id,
+        )
+
+        await child_adapter_instance.initialize()
+        await child_adapter_instance.start_listening()
+
+        actual_port = child_adapter_instance.get_actual_port()
+        if actual_port is None:
+            self.logger.error(
+                f"Child adapter for {client_id} started but actual port is None. Configured port was {port}."
+            )
+            raise RuntimeError(f"Failed to get actual port for client {client_id}'s server.")
+
+        self.logger.info(f"Child adapter for client {client_id} started on http://{child_config['host']}:{actual_port}")
+        return child_adapter_instance
+
+    async def _update_server_info_for_client(
+        self, client_id: str, child_adapter: HttpStreamableTransportAdapter, requested_port: int
+    ) -> ServerInfo:
+        """Updates and returns the ServerInfo for a client after child adapter setup."""
+        server_info_to_update = await self._server_manager.get_client_server_info(client_id)
+        if not server_info_to_update:
+            self.logger.error(
+                f"ServerInfo not found for client {client_id} after session creation. This is unexpected."
+            )
+            raise RuntimeError(f"ServerInfo consistency error for client {client_id}")
+
+        # Update the ServerInfo object managed by HttpServerManager
+        child_config = self._default_child_adapter_config  # Assuming host is from default config
+        server_info_to_update.host = child_config["host"]
+        server_info_to_update.port = requested_port  # The port requested from pool
+        server_info_to_update.actual_port = child_adapter.get_actual_port()  # The port it's actually running on
+        server_info_to_update.status = "running"
+        server_info_to_update.transport_adapter_id = child_adapter.get_transport_id()
+        # Note: This approach relies on the ServerInfo object returned by
+        # HttpServerManager being the actual instance stored by the manager,
+        # allowing its attributes to be updated directly.
+        return server_info_to_update
 
     async def handle_client_connection(
         self,
@@ -154,8 +206,14 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
         if existing_server_info and existing_server_info.status == "running":
             adapter = self._client_adapters.get(client_id)
             # Check if adapter exists and its actual port matches the stored one
-            if adapter and adapter.get_actual_port() is not None and adapter.get_actual_port() == existing_server_info.actual_port:
-                self.logger.info(f"Client {client_id} already has an active server. Returning existing info: {existing_server_info}")
+            if (
+                adapter
+                and adapter.get_actual_port() is not None
+                and adapter.get_actual_port() == existing_server_info.actual_port
+            ):
+                self.logger.info(
+                    f"Client {client_id} already has an active server. Returning existing info: {existing_server_info}"
+                )
                 return existing_server_info
             else:
                 self.logger.warning(
@@ -164,7 +222,7 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
                     f"(adapter found: {bool(adapter)}, adapter port: {adapter.get_actual_port() if adapter else 'N/A'}). "
                     f"Attempting to clean up and create a new one."
                 )
-                await self.cleanup_client_connection(client_id) # Cleanup stale entry
+                await self.cleanup_client_connection(client_id)  # Cleanup stale entry
 
         client_req = ClientRequest(
             client_id=client_id,
@@ -177,74 +235,44 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
         session_info = await self._server_manager.create_client_session(client_req)
         self.logger.debug(f"Session created for client {client_id}: {session_info.session_id}")
 
-        port = -1 # Default to invalid port
-        child_adapter_instance: Optional[HttpStreamableTransportAdapter] = None
+        port = -1
+        child_adapter: Optional[HttpStreamableTransportAdapter] = None
         try:
             port = await self._port_pool.acquire_port()
             self.logger.info(f"Acquired port {port} for client {client_id}")
 
-            child_transport_id = f"http_stream_{client_id}_{uuid.uuid4().hex[:8]}"
-            child_config = self._default_child_adapter_config.copy()
+            child_adapter = await self._create_and_start_child_adapter(client_id, port)
+            server_info = await self._update_server_info_for_client(client_id, child_adapter, port)
 
-            child_adapter_instance = HttpStreamableTransportAdapter(
-                coordinator=self._coordinator,
-                host=child_config["host"],
-                port=port,
-                stream_queue_size=child_config["stream_queue_size"],
-                editor_model=child_config["editor_model"],
-                current_working_dir=child_config["current_working_dir"],
-                heartbeat_interval=child_config["heartbeat_interval"],
-                transport_id=child_transport_id,
+            self._client_adapters[client_id] = child_adapter
+            self.logger.info(
+                f"Successfully created and started server for client {client_id}. ServerInfo: {server_info}"
             )
-
-            await child_adapter_instance.initialize()
-            await child_adapter_instance.start_listening()
-
-            actual_port = child_adapter_instance.get_actual_port()
-            if actual_port is None:
-                self.logger.error(f"Child adapter for {client_id} started but actual port is None. Configured port was {port}.")
-                raise RuntimeError(f"Failed to get actual port for client {client_id}'s server.")
-
-            self.logger.info(f"Child adapter for client {client_id} started on http://{child_config['host']}:{actual_port}")
-
-            # Update ServerInfo in HttpServerManager; get_client_server_info should return the one just created by create_client_session
-            server_info_to_update = await self._server_manager.get_client_server_info(client_id)
-            if not server_info_to_update:
-                 self.logger.error(f"ServerInfo not found for client {client_id} after session creation. This is unexpected.")
-                 raise RuntimeError(f"ServerInfo consistency error for client {client_id}")
-
-            # Update the ServerInfo object managed by HttpServerManager
-            server_info_to_update.host = child_config["host"] # Ensure host is correctly set
-            server_info_to_update.port = port # The port requested from pool
-            server_info_to_update.actual_port = actual_port # The port it's actually running on
-            server_info_to_update.status = "running"
-            server_info_to_update.transport_adapter_id = child_transport_id
-            # Note: This approach relies on the ServerInfo object returned by
-            # HttpServerManager being the actual instance stored by the manager,
-            # allowing its attributes to be updated directly.
-
-            self._client_adapters[client_id] = child_adapter_instance
-            self.logger.info(f"Successfully created and started server for client {client_id}. ServerInfo: {server_info_to_update}")
-            return server_info_to_update
+            return server_info
 
         except Exception as e:
             self.logger.error(f"Failed to handle client connection for {client_id}: {e}", exc_info=True)
-            if child_adapter_instance: # If adapter was created, try to shut it down
+            if child_adapter:  # If adapter was created, try to shut it down
                 try:
-                    await child_adapter_instance.shutdown()
+                    await child_adapter.shutdown()
                 except Exception as e_shutdown:
-                    self.logger.error(f"Error shutting down partially created adapter for {client_id}: {e_shutdown}", exc_info=True)
-            if port != -1: # If port was acquired, release it
+                    self.logger.error(
+                        f"Error shutting down partially created adapter for {client_id}: {e_shutdown}", exc_info=True
+                    )
+            if port != -1:  # If port was acquired, release it
                 await self._port_pool.release_port(port)
+
             # Session was created, so it must be destroyed if setup fails later
             await self._server_manager.destroy_client_session(client_id)
-            if client_id in self._client_adapters: # Should be cleaned by adapter shutdown if it ran
+
+            # Ensure adapter is removed from tracking if it was added before an error
+            # (though with current flow, it's added last in try block)
+            if client_id in self._client_adapters:
                 del self._client_adapters[client_id]
 
-            if isinstance(e, (RuntimeError, ValueError)): # Re-raise specific errors
+            if isinstance(e, (RuntimeError, ValueError)):  # Re-raise specific errors
                 raise
-            raise RuntimeError(f"Failed to set up server for client {client_id}: {str(e)}")
-
+            raise RuntimeError(f"Failed to set up server for client {client_id}: {str(e)}") from e
 
     async def cleanup_client_connection(self, client_id: str) -> None:
         """Cleans up resources associated with a client connection."""
@@ -259,26 +287,30 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
             except Exception as e:
                 self.logger.error(f"Error during adapter shutdown for client {client_id}: {e}", exc_info=True)
 
-        if server_info and server_info.port != 0: # Port 0 is usually an unassigned/initial value
+        if server_info and server_info.port != 0:  # Port 0 is usually an unassigned/initial value
             try:
                 await self._port_pool.release_port(server_info.port)
                 self.logger.info(f"Port {server_info.port} released for client {client_id}.")
             except Exception as e:
                 self.logger.error(f"Error releasing port {server_info.port} for client {client_id}: {e}", exc_info=True)
         elif server_info:
-            self.logger.warning(f"Port for client {client_id} was {server_info.port}, not releasing. ServerInfo: {server_info}")
+            self.logger.warning(
+                f"Port for client {client_id} was {server_info.port}, not releasing. ServerInfo: {server_info}"
+            )
         else:
-             self.logger.debug(f"No server_info found for client {client_id} when trying to release port, or port was 0.")
-
+            self.logger.debug(
+                f"No server_info found for client {client_id} when trying to release port, or port was 0."
+            )
 
         try:
             await self._server_manager.destroy_client_session(client_id)
             self.logger.debug(f"Session destroyed for client {client_id} in HttpServerManager.")
-        except ValueError: # Raised by destroy_client_session if session not found
+        except ValueError:  # Raised by destroy_client_session if session not found
             self.logger.debug(f"Session for client {client_id} already destroyed or not found in HttpServerManager.")
         except Exception as e:
-            self.logger.error(f"Error destroying session for client {client_id} in HttpServerManager: {e}", exc_info=True)
-
+            self.logger.error(
+                f"Error destroying session for client {client_id} in HttpServerManager: {e}", exc_info=True
+            )
 
     async def get_client_server_info(self, client_id: str) -> Optional[ServerInfo]:
         """Retrieves ServerInfo for a given client."""
@@ -310,16 +342,18 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
 
         if origin_transport_id == self.get_transport_id():
             if event_type == EventTypes.HEARTBEAT and data.get("transport_id") == self.get_transport_id():
-                return True # Allow self-generated heartbeat
+                return True  # Allow self-generated heartbeat
             self.logger.debug(
                 f"MultiClientHttpAdapter ({self.get_transport_id()}) skipping event {event_type.value} "
                 f"as it originated from self and is not a self-generated heartbeat."
             )
             return False
 
-        if event_type in self.get_capabilities(): # e.g., STATUS
-             self.logger.debug(f"MultiClientHttpAdapter ({self.get_transport_id()}) will process {event_type.value} event from {origin_transport_id}.")
-             return True
+        if event_type in self.get_capabilities():  # e.g., STATUS
+            self.logger.debug(
+                f"MultiClientHttpAdapter ({self.get_transport_id()}) will process {event_type.value} event from {origin_transport_id}."
+            )
+            return True
 
         self.logger.debug(
             f"MultiClientHttpAdapter ({self.get_transport_id()}) deciding not to receive event {event_type.value} "
