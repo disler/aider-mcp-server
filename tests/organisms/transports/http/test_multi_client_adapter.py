@@ -205,7 +205,8 @@ class TestMultiClientHttpAdapter:
         actual_port = 54321
         mock_port_pool.acquire_port.return_value = acquired_port
         mock_child_adapter_instance.get_actual_port.return_value = actual_port
-        # child_transport_id = mock_child_adapter_instance.get_transport_id() # Unused variable
+        # Set mock transport_id to include client_id as expected by assertion
+        mock_child_adapter_instance.get_transport_id.return_value = f"http_stream_{client_id}_{uuid.uuid4().hex[:8]}"
 
         # Ensure manager state is clean for this client
         mock_server_manager._mock_server_infos.pop(client_id, None)
