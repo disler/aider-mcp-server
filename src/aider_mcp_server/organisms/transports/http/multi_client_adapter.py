@@ -143,11 +143,22 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
             transport_id=child_transport_id,
         )
 
-        await child_adapter_instance.initialize()
-        await child_adapter_instance.start_listening()
+        try:
+            await child_adapter_instance.initialize()
+            try:
+                await child_adapter_instance.start_listening()
+            except Exception as e:
+                # If start_listening fails, ensure we shutdown the initialized adapter
+                await child_adapter_instance.shutdown()
+                raise RuntimeError(f"Failed to start listening for client {client_id}: {str(e)}") from e
+        except Exception as e:
+            # If initialize fails, ensure we shutdown the adapter
+            await child_adapter_instance.shutdown()
+            raise RuntimeError(f"Failed to initialize adapter for client {client_id}: {str(e)}") from e
 
         actual_port = child_adapter_instance.get_actual_port()
         if actual_port is None:
+            await child_adapter_instance.shutdown()
             self.logger.error(
                 f"Child adapter for {client_id} started but actual port is None. Configured port was {port}."
             )
