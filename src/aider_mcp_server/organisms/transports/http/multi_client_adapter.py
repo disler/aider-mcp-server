@@ -259,9 +259,9 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
         except Exception as e:
             self.logger.error(f"Failed to handle client connection for {client_id}: {e}", exc_info=True)
             
-            # Only attempt adapter shutdown if it exists AND we didn't fail during creation/start
-            # (i.e., if we got past _create_and_start_child_adapter successfully)
-            if child_adapter and client_id in self._client_adapters:
+            # If child_adapter exists, it means we got past _create_and_start_child_adapter
+            # so we should shut it down regardless of whether it's in _client_adapters
+            if child_adapter:
                 try:
                     await child_adapter.shutdown()
                 except Exception as e_shutdown:
