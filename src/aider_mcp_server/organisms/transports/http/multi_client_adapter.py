@@ -145,16 +145,11 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
 
         try:
             await child_adapter_instance.initialize()
-            try:
-                await child_adapter_instance.start_listening()
-            except Exception as e:
-                # If start_listening fails, ensure we shutdown the initialized adapter
-                await child_adapter_instance.shutdown()
-                raise RuntimeError(f"Failed to start listening for client {client_id}: {str(e)}") from e
+            await child_adapter_instance.start_listening()
         except Exception as e:
-            # If initialize fails, ensure we shutdown the adapter
+            # Single exception handler for both initialize and start_listening failures
             await child_adapter_instance.shutdown()
-            raise RuntimeError(f"Failed to initialize adapter for client {client_id}: {str(e)}") from e
+            raise RuntimeError(f"Failed to initialize/start adapter for client {client_id}: {str(e)}") from e
 
         actual_port = child_adapter_instance.get_actual_port()
         if actual_port is None:
