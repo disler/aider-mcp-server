@@ -263,13 +263,17 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
 
         except Exception as e:
             self.logger.error(f"Failed to handle client connection for {client_id}: {e}", exc_info=True)
-            if child_adapter:  # If adapter was created, try to shut it down
+            
+            # Only attempt adapter shutdown if it exists AND we didn't fail during creation/start
+            # (i.e., if we got past _create_and_start_child_adapter successfully)
+            if child_adapter and client_id in self._client_adapters:
                 try:
                     await child_adapter.shutdown()
                 except Exception as e_shutdown:
                     self.logger.error(
                         f"Error shutting down partially created adapter for {client_id}: {e_shutdown}", exc_info=True
                     )
+                    
             if port != -1:  # If port was acquired, release it
                 await self._port_pool.release_port(port)
 
@@ -277,7 +281,6 @@ class MultiClientHttpAdapter(AbstractTransportAdapter):
             await self._server_manager.destroy_client_session(client_id)
 
             # Ensure adapter is removed from tracking if it was added before an error
-            # (though with current flow, it's added last in try block)
             if client_id in self._client_adapters:
                 del self._client_adapters[client_id]
 
